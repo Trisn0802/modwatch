@@ -12,6 +12,7 @@ const cacheDir = path.join(process.cwd(), "uploads", "og");
 const iconCacheDir = path.join(cacheDir, "icons");
 const ICON_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const ICON_MAX_BYTES = 2 * 1024 * 1024;
+const OG_LAYOUT_VERSION = "2";
 const ICON_HOSTS = new Set([
   "cdn.modrinth.com",
   "avatars.githubusercontent.com",
@@ -162,7 +163,7 @@ export function shareSvg(instance, overview, icons = new Map()) {
             </g>`;
         return `
           ${art}
-          <text x="808" y="${y - 6}" font-size="21" font-weight="600" fill="#ffffff">${esc(clip(row.name, 20))}</text>
+          <text x="808" y="${y - 6}" font-size="21" font-weight="600" fill="#ffffff">${esc(clip(row.name, 16))}</text>
           <text x="808" y="${y + 20}" font-size="15" fill="#96a2b0">${esc(versionLine)}</text>
           <rect x="1016" y="${y - 21}" width="96" height="30" rx="15" fill="${isUpdate ? "#1bd96a" : "#1c1d22"}"/>
           <text x="1064" y="${y - 1}" text-anchor="middle" font-size="13" font-weight="700" fill="${isUpdate ? "#05140b" : "#96a2b0"}">${isUpdate ? "Update" : "Latest"}</text>`;
@@ -230,6 +231,7 @@ export function shareSvg(instance, overview, icons = new Map()) {
 
 export function shareVersion(instance, overview) {
   const stamp = [
+    OG_LAYOUT_VERSION,
     instance.id,
     instance.pack_name,
     instance.pack_version,
