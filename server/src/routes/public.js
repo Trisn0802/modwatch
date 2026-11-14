@@ -2,7 +2,7 @@ import express from "express";
 import path from "node:path";
 
 import { query } from "../db.js";
-import { shareOverview, writeShareImage } from "../share.js";
+import { shareOverview, writeShareImage, shareVersion } from "../share.js";
 import { getOrCreateExport } from "../export.js";
 
 export const publicRouter = express.Router();
@@ -27,7 +27,7 @@ publicRouter.get("/s/:token([a-f0-9]{16})", async (req, res, next) => {
       ogDescription: overview.stats.updates
         ? `${overview.stats.updates} update${overview.stats.updates === 1 ? "" : "s"} waiting for ${overview.stats.mods} tracked mods on ${instance.mc_version} ${instance.loader}.`
         : `${overview.stats.mods} tracked mods, all up to date on ${instance.mc_version} ${instance.loader}.`,
-      ogImage: `${res.locals.baseUrl}/s/${instance.share_token}/og.png`,
+      ogImage: `${res.locals.baseUrl}/s/${instance.share_token}/og.png?v=${shareVersion(instance, overview)}`,
       ogUrl: shareUrl,
     });
   } catch (err) {
