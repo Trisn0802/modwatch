@@ -1,6 +1,7 @@
 import { query } from "./db.js";
 import { config } from "./config.js";
 import { getSettings } from "./settings.js";
+import { notifyUser } from "./realtime.js";
 
 const KIND_LABEL = {
   update: "Update",
@@ -28,6 +29,17 @@ export async function createNotifications({ kind, instanceId = null, modId = nul
        ON CONFLICT DO NOTHING`,
       [userId, instanceId, modId, kind, versionId, title, body]
     ).catch((err) => console.error("notification failed:", err.message));
+    const unread = await unreadCount(userId).catch(() => null);
+    await notifyUser(userId, {
+      unread,
+      kind,
+      title,
+      body,
+      instanceId,
+      modId,
+      versionId,
+      createdAt: new Date().toISOString(),
+    });
   }
 }
 

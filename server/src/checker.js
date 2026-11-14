@@ -3,6 +3,7 @@ import { latestForMod } from "./sources/index.js";
 import { createNotifications, telegramSend } from "./notify.js";
 import { logActivity } from "./activity.js";
 import { isNewer } from "./helpers.js";
+import { broadcastRefresh } from "./realtime.js";
 
 const MOD_CONCURRENCY = 5;
 const LOCK_KEY = 20261114;
@@ -183,6 +184,7 @@ export async function checkInstance(instanceId, { trigger = "manual", userId = n
       meta: { trigger, checked: results.length, updates: updates.length, errors: errors.length },
     });
 
+    broadcastRefresh("instances", { reason: "check", instanceId }).catch(() => {});
     if (updates.length) {
       const lines = updates.slice(0, 15).map(({ mod, latest }) =>
         `• ${mod.name} ${mod.installed_version} → ${latest?.version || ""}`

@@ -121,6 +121,10 @@ All runtime settings live in `.env`. Compose passes only the variables declared 
 | `CURSEFORGE_API_KEY` | empty | Official CurseForge API; without it ModWatch uses the public metadata fallback |
 | `GITHUB_TOKEN` | empty | Raises GitHub API limits |
 | `WEBHOOK_URL` | empty | MyWebhook endpoint used for delivery |
+| `PUSHER_APP_ID` | empty | Pusher Channels app id for realtime refresh |
+| `PUSHER_KEY` | empty | Pusher public key |
+| `PUSHER_SECRET` | empty | Pusher secret (server only) |
+| `PUSHER_CLUSTER` | `ap1` | Pusher cluster |
 | `TELEGRAM_BOT_TOKEN` | empty | Legacy direct Telegram token |
 | `TELEGRAM_CHAT_ID` | empty | Legacy direct Telegram chat ID |
 
@@ -134,6 +138,16 @@ The scheduler honours the last finished check on restart. A database with no com
 - **Manual** entries never call an API. They stay in the Manual filter and are useful for private or patched jars.
 
 Unknown files can be linked to a Modrinth, CurseForge or GitHub project URL. The CurseForge fallback downloads the matching jar into the uploads volume so exports stay complete.
+
+### Realtime (Pusher)
+
+Set `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET` and `PUSHER_CLUSTER`. The
+server broadcasts a scoped `refresh` event to `private-workspace` after every
+successful write and after scheduled checks. Each user also gets a private
+`private-user-<id>` channel for new notifications. Pages reload only when the
+scope matches and no modal or form is active; the notification badge updates
+without a reload. If Pusher is unavailable the existing 60-second polling keeps
+the badge working.
 
 ### MyWebhook
 

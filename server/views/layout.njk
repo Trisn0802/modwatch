@@ -28,7 +28,8 @@
   <link rel="stylesheet" href="/assets/css/modwatch.css?v={{ assetVersion }}">
   {% block head %}{% endblock %}
 </head>
-<body data-page="{{ page or '' }}">
+<body data-page="{{ page or '' }}" data-csrf="{{ csrfToken }}"
+  {%- if pusher.enabled %} data-pusher-key="{{ pusher.key }}" data-pusher-cluster="{{ pusher.cluster }}" data-pusher-user="{{ pusher.userId }}"{% endif %}>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="app">
   {% include "partials/sidebar.njk" %}
@@ -46,6 +47,10 @@
 <script src="/assets/js/charts.js?v={{ assetVersion }}"></script>
 <script src="/assets/js/motion.js?v={{ assetVersion }}"></script>
 <script src="/assets/js/ui.js?v={{ assetVersion }}"></script>
+{% if pusher.enabled %}
+<script src="/assets/js/pusher.min.js?v={{ assetVersion }}"></script>
+<script src="/assets/js/realtime.js?v={{ assetVersion }}"></script>
+{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

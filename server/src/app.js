@@ -37,6 +37,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { usersRouter } from "./routes/users.js";
 import { searchRouter } from "./routes/search.js";
 import { publicRouter } from "./routes/public.js";
+import { authorizeChannel, broadcastRefresh, realtimeConfig, realtimeEnabled } from "./realtime.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -121,7 +122,7 @@ app.use(
         // on a LAN address must keep loading its own assets and forms.
         upgradeInsecureRequests: config.nodeEnv === "production" && config.appUrl.startsWith("https://") ? [] : null,
         imgSrc: ["'self'", "data:", "https://cdn.modrinth.com", "https://avatars.githubusercontent.com", "https://media.forgecdn.net", "https://mediafilez.forgecdn.net", "https://edge.forgecdn.net"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", "https://*.pusher.com", "wss://*.pusher.com"],
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
@@ -217,6 +218,7 @@ app.use(async (req, res, next) => {
       githubReady: Boolean(config.githubToken),
       telegramReady: config.telegramReady,
     };
+    res.locals.pusher = { ...realtimeConfig(), userId: user?.id || null };
     res.locals.notif = user ? await notificationFeed(user.id, 6) : { items: [], unread: 0 };
     res.locals.pendingRequests = user?.role === "admin"
       ? (await query("SELECT count(*)::int AS n FROM mod_requests WHERE status = 'pending'")).rows[0].n
@@ -230,6 +232,42 @@ app.use(async (req, res, next) => {
 
 app.use(authRouter);
 app.use(publicRouter);
+
+app.post("/pusher/auth", (req, res) => {
+  if (!realtimeEnabled()) return res.status(404).json({ error: "Realtime is not configured" });
+  const user = req.session.user;
+  if (!user) return res.status(403).json({ error: "Sign in first" });
+  const socketId = String(req.body?.socket_id || "");
+  const channel = String(req.body?.channel_name || "");
+  if (!/^\d+\.\d+$/.test(socketId)) return res.status(400).json({ error: "Invalid socket id" });
+  const allowed = channel === "private-workspace" || channel === `private-user-${user.id}`;
+  if (!allowed) return res.status(403).json({ error: "Channel not allowed" });
+  try {
+    res.json(authorizeChannel(socketId, channel));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Every successful write gets a scope event after the response is sent. Reads
+// (GET) stay silent so a page reload cannot trigger another reload.
+app.use((req, res, next) => {
+  if (!realtimeEnabled() || req.method !== "POST" || !req.session.user) return next();
+  if (["/login", "/logout", "/pusher/auth"].includes(req.path)) return next();
+  res.on("finish", () => {
+    if (res.statusCode >= 400) return;
+    let scope = "workspace";
+    if (req.path.startsWith("/approvals")) scope = "approvals";
+    else if (req.path.startsWith("/instances") || req.path === "/check-all") scope = "instances";
+    else if (req.path.startsWith("/mods")) scope = "mods";
+    else if (req.path.startsWith("/imports")) scope = "instances";
+    else if (req.path.startsWith("/notifications")) scope = "notifications";
+    else if (req.path.startsWith("/settings")) scope = "settings";
+    else if (req.path.startsWith("/users")) scope = "users";
+    broadcastRefresh(scope, { at: new Date().toISOString() }).catch(() => {});
+  });
+  next();
+});
 
 app.use(requireAuth);
 

@@ -35,6 +35,10 @@ export const config = {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
   webhookUrl: (process.env.WEBHOOK_URL || "").trim(),
+  pusherAppId: process.env.PUSHER_APP_ID || "",
+  pusherKey: process.env.PUSHER_KEY || "",
+  pusherSecret: process.env.PUSHER_SECRET || "",
+  pusherCluster: process.env.PUSHER_CLUSTER || "ap1",
   appVersion: process.env.APP_VERSION || "1.0",
   get contact() {
     return this.appUrl || this.adminEmail || "self-hosted";
@@ -44,6 +48,9 @@ export const config = {
   },
   get webhookReady() {
     return Boolean(this.webhookUrl);
+  },
+  get pusherReady() {
+    return Boolean(this.pusherAppId && this.pusherKey && this.pusherSecret && this.pusherCluster);
   },
   get curseforgeReady() {
     return Boolean(this.curseforgeApiKey);
