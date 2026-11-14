@@ -1,0 +1,40 @@
+{% extends "auth-layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="auth-form-wrap">
+  <p class="eyebrow" style="margin-bottom:10px">Self-hosted · member account</p>
+  <h1 class="auth-title">Create account</h1>
+  <p class="auth-sub">Registration creates a Member account. Admin roles are granted by the instance owner.</p>
+
+  {% if error %}
+  <div class="auth-error" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+  {% endif %}
+
+  <form class="auth-form" method="post" action="/register">
+    {% include "partials/csrf.njk" %}
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" value="{{ name }}" autocomplete="name" required autofocus>
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{ email }}" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="8" required>
+    </div>
+    <button class="btn primary" type="submit">Create member account {{ icon('arrow-right') }}</button>
+  </form>
+
+  <p class="auth-note">
+    Already have an account? <a href="/login">Sign in</a>.
+    Need Admin access? Register as a Member, then use <strong>Request admin role</strong> from Account. The owner reviews it in Users.
+  </p>
+</div>
+{% endblock %}

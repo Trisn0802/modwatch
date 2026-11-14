@@ -36,6 +36,7 @@ import { activityRouter } from "./routes/activity.js";
 import { settingsRouter } from "./routes/settings.js";
 import { usersRouter } from "./routes/users.js";
 import { searchRouter } from "./routes/search.js";
+import { eventsRouter } from "./routes/events.js";
 import { publicRouter } from "./routes/public.js";
 import { authorizeChannel, broadcastRefresh, realtimeConfig, realtimeEnabled } from "./realtime.js";
 
@@ -270,6 +271,7 @@ app.use((req, res, next) => {
 });
 
 app.use(requireAuth);
+app.use(eventsRouter);
 
 app.use(dashboardRouter);
 app.use(instancesRouter);

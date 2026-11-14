@@ -62,13 +62,13 @@
   </nav>
 
   <div class="sidebar-foot">
-    <div class="status-card">
+    <div class="status-card" data-scheduler-card>
       <p class="status-line">
-        <span class="dot {% if scheduler.running %}busy{% else %}live{% endif %}"></span>
-        <span>{% if scheduler.running %}Checking now{% else %}Watcher armed{% endif %}</span>
+        <span class="dot {% if scheduler.running %}busy{% else %}live{% endif %}" data-scheduler-dot></span>
+        <span data-scheduler-title>{% if scheduler.running %}Checking now{% else %}Watcher armed{% endif %}</span>
       </p>
       <p class="status-line">
-        <span>{% if scheduler.running %}Results land as they finish{% else %}Next check {{ scheduler.nextRun | countdown }}{% endif %}</span>
+        <span data-scheduler-copy>{% if scheduler.running %}Results land as they finish{% else %}Next check {{ scheduler.nextRun | countdown }}{% endif %}</span>
       </p>
     </div>
     {% if currentUser %}

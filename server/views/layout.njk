@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/assets/css/modwatch.css?v={{ assetVersion }}">
   {% block head %}{% endblock %}
 </head>
-<body data-page="{{ page or '' }}" data-csrf="{{ csrfToken }}"
+<body data-page="{{ page or '' }}" data-csrf="{{ csrfToken }}" data-user-id="{{ currentUser.id }}"
   {%- if pusher.enabled %} data-pusher-key="{{ pusher.key }}" data-pusher-cluster="{{ pusher.cluster }}" data-pusher-user="{{ pusher.userId }}"{% endif %}>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="app">

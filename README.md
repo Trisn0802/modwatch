@@ -10,12 +10,14 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 - **`.mrpack` import.** Upload a Modrinth pack, review the detected scope and mod list, then commit. Jars without a match land in an "Unknown mod detected" flow instead of being dropped.
 - **Search.** Add-mod search updates as you type with a loading skeleton, source filters (All / Modrinth / CurseForge / GitHub) and direct project-URL resolution.
 - **Connectors.** Modrinth works without credentials. CurseForge uses a public metadata fallback without a key for project URLs; if the fallback does not index a project, the same slug is matched on Modrinth. The official API adds search when a key is configured. GitHub search reads releases and can filter assets by pattern. Manual entries track private jars with no project page; pasting a supported project URL into the manual form detects the source and opens version selection.
-- **Scheduled checks.** A background scheduler runs every N hours. Manual checks run from the dashboard, an instance or a single mod.
+- **Scheduled checks.** A background scheduler runs every N hours. Manual checks run from the dashboard, an instance or a single mod. The sidebar watcher card updates live over Pusher or the built-in SSE stream.
 - **Notifications.** In-app inbox, topbar popover and MyWebhook delivery (Telegram bot + chat configured on the hook) for updates, unknown files, requests and source errors.
+- **Self-registration.** `/register` creates a Member account and signs it in. Admins are never self-assigned: a member requests the role from Account, admins receive a notification, and the owner changes the role on Users.
 - **Approvals.** Admins manage instances and users. Members can propose mods; requests wait on the Approvals page and become tracked mods only after approval.
 - **Photos.** Profile photos and instance icons, stored in the uploads volume with initials as the fallback.
 - **Version controls.** Snooze one release, freeze the installed version, disable a file (exported as `.jar.disabled`), or ignore it entirely.
-- **Download and update.** Update one mod or every waiting mod: ModWatch downloads the latest allowed jar to the uploads volume, moves the installed baseline, then checks again to confirm the new version is really current.
+- **Download and update.** Update one mod or every waiting mod: ModWatch downloads the latest allowed jar to the uploads volume, moves the installed baseline, then checks again to confirm the new version is really current. Download and update controls are green; a source failure is marked with a red badge.
+- **Monthly activity.** The dashboard plots updates found and downloaded mods for the last 12 months as an animated two-line chart, with the 12-month totals beside it.
 - **Export and share.** Admins generate a `.mrpack` from the tracked versions. A public `/s/<token>` page shows the scope and top updates, serves an OG image, and lets anyone download the pack without an account.
 - **Themes.** OLED, Dark, Light or follow the system, chosen from a compact popover and applied before first paint.
 
@@ -146,8 +148,13 @@ server broadcasts a scoped `refresh` event to `private-workspace` after every
 successful write and after scheduled checks. Each user also gets a private
 `private-user-<id>` channel for new notifications. Pages reload only when the
 scope matches and no modal or form is active; the notification badge updates
-without a reload. If Pusher is unavailable the existing 60-second polling keeps
-the badge working.
+without a reload.
+
+The scheduler also broadcasts its armed/checking state, so the sidebar updates
+without a refresh. A native `/api/events` Server-Sent Events stream mirrors the
+same workspace events inside the app process; it keeps the watcher card, badge
+and scoped reloads live when Pusher is unreachable. The 60-second polling
+fallback remains for long-lived tabs and browsers without `EventSource`.
 
 ### MyWebhook
 
@@ -167,6 +174,8 @@ ModWatch is a self-hosted, non-commercial update tracker. It reads project metad
 | --- | --- |
 | Admin | Everything: instances, imports, checks, settings, sources, users, approvals |
 | Member | View instances and mods, run checks, request mods, manage their own account |
+
+Anyone can create a Member account from `/register`. Members request Admin access from **Settings → Account**; the request notifies every active admin and is written to the activity log. An admin reviews the account and changes the role on **Users**. Members can never promote themselves.
 
 Requests from members are stored with their proposed payload. Approving one inserts the mod and starts a check. Rejecting one keeps a note for the requester.
 
@@ -205,7 +214,7 @@ Restore the SQL with `psql` and the archive into the same `modwatch_uploads` vol
 
 ## Reverse proxy
 
-Set `APP_URL=https://modwatch.example.com` and `TRUST_PROXY=1`, then proxy to `http://127.0.0.1:3411`. Secure cookies turn on in production when `APP_URL` starts with `https://`.
+Set `APP_URL=https://modwatch.example.com` and `TRUST_PROXY=1`, then proxy to `http://127.0.0.1:3411`. Secure cookies turn on in production when `APP_URL` starts with `https://`. Disable response buffering for `/api/events` so the SSE fallback streams immediately (Nginx: `proxy_buffering off;`).
 
 The app sets a strict Content Security Policy. All JavaScript is served from `/assets`; inline scripts and inline event handlers are blocked by design.
 
@@ -220,11 +229,13 @@ The app sets a strict Content Security Policy. All JavaScript is served from `/a
     ├── db/schema.sql
     ├── public/assets
     │   ├── css/modwatch.css
-    │   └── js/{theme.js,ui.js,charts.js}
+    │   └── js/{theme.js,ui.js,charts.js,realtime.js}
     ├── src
     │   ├── app.js
     │   ├── checker.js
     │   ├── scheduler.js
+    │   ├── realtime.js
+    │   ├── bus.js
     │   ├── import.js
     │   ├── seed-demo.js
     │   ├── demo-catalog.json

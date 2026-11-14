@@ -68,6 +68,30 @@ export async function updatesByDay(days = 7) {
   return rows;
 }
 
+export async function monthlyActivity(months = 12) {
+  const { rows } = await query(
+    `WITH span AS (
+       SELECT generate_series(
+         date_trunc('month', current_date) - (($1::int - 1) || ' months')::interval,
+         date_trunc('month', current_date),
+         '1 month'
+       ) AS month
+     )
+     SELECT month::date AS month,
+       (SELECT count(DISTINCT (n.mod_id, n.version_id)) FILTER (WHERE n.id IS NOT NULL)
+          FROM notifications n
+         WHERE n.kind = 'update' AND date_trunc('month', n.created_at) = span.month)::int AS updates,
+       (SELECT count(*)
+          FROM activity a
+         WHERE a.action = 'mod_updated'
+           AND a.meta->>'downloaded' = 'true'
+           AND date_trunc('month', a.created_at) = span.month)::int AS downloads
+     FROM span ORDER BY month`,
+    [months]
+  );
+  return rows;
+}
+
 export async function recentCheckRuns(limit = 5) {
   const { rows } = await query(
     `SELECT c.*, i.name AS instance_name

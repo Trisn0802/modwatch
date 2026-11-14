@@ -78,19 +78,30 @@
   <section class="panel span-8">
     <div class="panel-head">
       <div>
-        <h2 class="panel-title">Updates found</h2>
-        <p class="panel-sub">Unique mod updates per day, last seven days</p>
+        <h2 class="panel-title">Updates & downloads</h2>
+        <p class="panel-sub">Unique mod updates and downloaded jars, last 12 months</p>
       </div>
-      <div class="row" style="gap:16px">
+      <div class="row" style="gap:18px">
         <div class="right">
-          <p class="kpi-value" style="font-size:20px">{{ chartValues | sum }}</p>
-          <p class="faint" style="font-size:10.5px">updates this week</p>
+          <p class="kpi-value" style="font-size:20px">{{ monthlyTotals.updates }}</p>
+          <p class="faint" style="font-size:10.5px">updates</p>
+        </div>
+        <div class="right">
+          <p class="kpi-value" style="font-size:20px">{{ monthlyTotals.downloads }}</p>
+          <p class="faint" style="font-size:10.5px">downloads</p>
         </div>
         <a class="card-link" href="/activity">Activity {{ icon('arrow-right') }}</a>
       </div>
     </div>
     <div class="panel-body" style="padding-top:14px">
-      <div class="chart" id="updates-chart" data-labels="{{ chartLabels | join(',') }}" data-values="{{ chartValues | join(',') }}"></div>
+      <div class="chart monthly-chart" id="monthly-chart"
+        data-labels="{{ monthlyLabels | join(',') }}"
+        data-updates="{{ monthlyUpdates | join(',') }}"
+        data-downloads="{{ monthlyDownloads | join(',') }}"></div>
+      <div class="chart-legend" aria-hidden="true">
+        <span class="legend-item"><i class="legend-swatch updates"></i>Updates</span>
+        <span class="legend-item"><i class="legend-swatch downloads"></i>Downloads</span>
+      </div>
     </div>
   </section>
 

@@ -5,7 +5,7 @@ import { config } from "../config.js";
 import { getSettings, setSetting } from "../settings.js";
 import { scheduleNext, schedulerState } from "../scheduler.js";
 import { clearSourceCache } from "../sources/http.js";
-import { telegramSend } from "../notify.js";
+import { telegramSend, createNotifications } from "../notify.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { CHANNEL } from "../labels.js";
@@ -201,6 +201,41 @@ settingsRouter.post("/settings/account", async (req, res, next) => {
       flash(req, "error", uploadMessage(err));
       return res.redirect("/settings/account");
     }
+    next(err);
+  }
+});
+
+settingsRouter.post("/settings/account/request-admin", async (req, res, next) => {
+  try {
+    const { rows } = await query("SELECT id, name, email, role FROM users WHERE id = $1", [req.session.user.id]);
+    const user = rows[0];
+    if (!user) return next();
+    if (user.role === "admin") {
+      flash(req, "ok", "This account is already an admin.");
+      return res.redirect("/settings/account");
+    }
+    const note = String(req.body.note || "").trim().slice(0, 500);
+    const { rows: admins } = await query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+    if (!admins.length) {
+      flash(req, "error", "There is no active admin to receive the request.");
+      return res.redirect("/settings/account");
+    }
+    await createNotifications({
+      kind: "request",
+      title: `Admin role requested by ${user.name}`,
+      body: `${user.email}${note ? ` · ${note}` : " · No note attached. Review the account on the Users page."}`,
+      userIds: admins.map((admin) => admin.id),
+    });
+    await logActivity({
+      userId: user.id,
+      action: "request_created",
+      subjectType: "user",
+      subjectId: user.id,
+      meta: { role: "admin", note },
+    });
+    flash(req, "ok", "Admin request sent. The owner will review your account.");
+    res.redirect("/settings/account");
+  } catch (err) {
     next(err);
   }
 });

@@ -230,9 +230,7 @@
     if (st.edge) svg('rect', { x, y, width: 3, height: h, rx: Math.min(r, 1.5), fill: st.edge }, parent);
     return n;
   }
-  const legendCss = ':where(.chart-legend){list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;line-height:16px;color:var(--muted,#5f6368)}:where(.chart-legend li){display:inline-flex;align-items:center;gap:6px;white-space:nowrap}:where(.chart-legend svg){flex:none;overflow:visible}@media (max-width:480px){:where(.chart-legend){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}';
   function legendEl(items, target) {
-    if (!document.getElementById('charts-legend-css')) { const st = document.createElement('style'); st.id = 'charts-legend-css'; st.textContent = legendCss; document.head.appendChild(st); }
     const ul = document.createElement('ul'); ul.className = 'chart-legend';
     for (const it of items) {
       const li = document.createElement('li'), sw = svg('svg', { width: it.w || 14, height: 12, 'aria-hidden': 'true' });
@@ -276,25 +274,27 @@
       const g = svg('g', {}, s);
       axes(g, el, { w, h, padL, padB, yt, y, labels, x, at: xAt, tick });
       notesUnder(g, el, N, { padT, h, padB });
+      const linePaths = [];
       series.forEach((sr, k) => {
         const col = colourOf(sr, k);
         const pts = sr.values.map((v, i) => (v == null ? null : [x(i), y(Math.min(v, yt.at(-1)))]));
         // step: a balance that only changes on given days holds its value until the next one
         const d = pts.reduce((acc, p, i) => (p ? acc + (acc && pts[i - 1] ? (step ? `L${p[0].toFixed(1)} ${pts[i - 1][1].toFixed(1)}L` : 'L') : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1) : acc), '');
         if (fill && k === 0) { const first = pts.find(Boolean), last = [...pts].reverse().find(Boolean); svg('path', { d: `${d}L${last[0]} ${y(yt[0])}L${first[0]} ${y(yt[0])}Z`, fill: col, opacity: 0.12 }, g); }
-        if (today == null) svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, g);
+        if (today == null) linePaths.push(svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, g));
         else {
           // a forecast: the line after today is dashed, so a projection never reads as a fact
           const cut = x(today), id = 'c' + k + Math.random().toString(36).slice(2, 8);
           const defs = svg('defs', {}, g);
           const a = svg('clipPath', { id: id + 'a' }, defs); svg('rect', { x: 0, y: 0, width: cut, height: h }, a);
           const b = svg('clipPath', { id: id + 'b' }, defs); svg('rect', { x: cut, y: 0, width: w, height: h }, b);
-          svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'clip-path': 'url(#' + id + 'a)' }, g);
-          svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-dasharray': '5 4', opacity: 0.8, 'clip-path': 'url(#' + id + 'b)' }, g);
+          linePaths.push(svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'clip-path': 'url(#' + id + 'a)' }, g));
+          linePaths.push(svg('path', { d, fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-dasharray': '5 4', opacity: 0.8, 'clip-path': 'url(#' + id + 'b)' }, g));
           if (k === 0) { svg('line', { x1: cut, x2: cut, y1: padT, y2: h - padB, stroke: css(el, '--axis-ink', '#6b6b6b'), 'stroke-width': 1, opacity: 0.4 }, g); if (todayBox) text(g, todayLabel, { x: todayBox.x0, y: todayBox.base, 'font-size': 11, fill: css(el, '--axis-ink', '#6b6b6b') }); }
         }
         if (endLabel && k === 0) { const li = sr.values.map((v, i) => (v == null ? -1 : i)).filter((i) => i >= 0).at(-1); text(g, format(sr.values[li]), { x: x(li) + 6, y: y(Math.min(sr.values[li], yt.at(-1))) + 4, 'font-size': 12, 'font-weight': 600, fill: css(el, '--ink', '#111') }); }
       });
+      animateLine(el, linePaths);
       references(g, el, reference, { y, padL, w, lines: linesAt(y).slice(0, series.length) });
       notesOver(g, el, N, { padT, h, padB });
       // hover: a rule, a dot per series and a bare tooltip
@@ -311,6 +311,23 @@
     return { legend: lg };
   }
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function animateLine(el, paths) {
+    if (el.dataset.mwLineAnimated || reducedMotion.matches || !paths.length) return;
+    el.dataset.mwLineAnimated = '1';
+    paths.forEach((path, index) => {
+      try {
+        const length = path.getTotalLength();
+        path.style.strokeDasharray = String(length);
+        path.style.strokeDashoffset = String(length);
+        const animation = path.animate(
+          [{ strokeDashoffset: length }, { strokeDashoffset: 0 }],
+          { duration: 900, delay: index * 120, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' }
+        );
+        animation.onfinish = () => { path.style.strokeDasharray = ''; path.style.strokeDashoffset = ''; };
+      } catch {}
+    });
+  }
+
   function animateBars(el, rects) {
     if (el.dataset.mwAnimated || reducedMotion.matches || !rects.length) return;
     rects.forEach((rect, i) => {

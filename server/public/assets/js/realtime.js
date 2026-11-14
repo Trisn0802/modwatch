@@ -1,12 +1,11 @@
-// Realtime refresh + private notification channel. The server stays the source
-// of truth: Pusher only says which page scope changed, then the page reloads.
+// Realtime refresh + notifications. Pusher is the hosted transport; the SSE
+// stream is a native fallback so the UI stays live when Pusher cannot deliver.
 (() => {
   const body = document.body;
   const key = body.dataset.pusherKey;
   const cluster = body.dataset.pusherCluster;
-  const userId = body.dataset.pusherUser;
+  const userId = body.dataset.userId || body.dataset.pusherUser;
   const csrf = body.dataset.csrf;
-  if (!key || !cluster || !userId || !window.Pusher) return;
 
   const path = location.pathname;
   const page = path === "/" ? "dashboard"
@@ -29,26 +28,6 @@
     users: ["users"],
     settings: ["settings", "notifications"],
   };
-
-  let pusher;
-  try {
-    pusher = new window.Pusher(key, {
-      cluster,
-      forceTLS: true,
-      authEndpoint: "/pusher/auth",
-      auth: { headers: { "X-CSRF-Token": csrf } },
-    });
-  } catch (err) {
-    console.warn("Realtime unavailable:", err.message);
-    return;
-  }
-  window.__mwPusher = pusher;
-
-  const workspace = pusher.subscribe("private-workspace");
-  const personal = pusher.subscribe(`private-user-${userId}`);
-  personal.bind("pusher:subscription_error", (err) => {
-    console.warn("Notification channel unavailable:", err?.status || err);
-  });
 
   let reloadTimer = null;
   let loadGuardUntil = performance.now() + 1200;
@@ -98,7 +77,7 @@
     } catch {}
   };
 
-  workspace.bind("refresh", (data = {}) => {
+  const onRefresh = (data = {}) => {
     const scope = data.scope || "workspace";
     if (scope === "notifications") {
       refreshBadge();
@@ -106,13 +85,17 @@
       return;
     }
     if (scope === "workspace" || (SCOPES[page] || []).includes(scope)) scheduleReload();
-  });
+  };
 
-  personal.bind("notification", (data = {}) => {
+  const onScheduler = (data = {}) => {
+    window.MWScheduler?.apply?.(data);
+  };
+
+  const onNotification = (data = {}) => {
     if (typeof data.unread === "number") setBadge(data.unread);
     else refreshBadge();
     if (page === "notifications") scheduleReload();
-  });
+  };
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden || !pendingReload) return;
@@ -131,6 +114,49 @@
       }
     }
   } catch {}
+
+  // --- native Server-Sent Events fallback ------------------------------------
+  if (userId && window.EventSource) {
+    const source = new EventSource("/api/events");
+    window.__mwStream = source;
+    const read = (event) => {
+      try {
+        return JSON.parse(event.data || "{}");
+      } catch {
+        return {};
+      }
+    };
+    source.addEventListener("refresh", (event) => onRefresh(read(event)));
+    source.addEventListener("scheduler", (event) => onScheduler(read(event)));
+    source.addEventListener("notification", (event) => onNotification(read(event)));
+  }
+
+  // --- hosted Pusher transport ------------------------------------------------
+  if (!key || !cluster || !userId || !window.Pusher) return;
+
+  let pusher;
+  try {
+    pusher = new window.Pusher(key, {
+      cluster,
+      forceTLS: true,
+      authEndpoint: "/pusher/auth",
+      auth: { headers: { "X-CSRF-Token": csrf } },
+    });
+  } catch (err) {
+    console.warn("Realtime unavailable:", err.message);
+    return;
+  }
+  window.__mwPusher = pusher;
+
+  const workspace = pusher.subscribe("private-workspace");
+  const personal = pusher.subscribe(`private-user-${userId}`);
+  personal.bind("pusher:subscription_error", (err) => {
+    console.warn("Notification channel unavailable:", err?.status || err);
+  });
+
+  workspace.bind("refresh", onRefresh);
+  workspace.bind("scheduler", onScheduler);
+  personal.bind("notification", onNotification);
 
   pusher.connection.bind("error", (err) => {
     console.warn("Realtime connection error:", err?.error || err);

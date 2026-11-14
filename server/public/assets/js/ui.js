@@ -815,28 +815,30 @@
     });
   }
 
-  // --- the seven-day update chart -------------------------------------------
-  const chart = $("#updates-chart");
+  // --- twelve-month updates and downloads chart ------------------------------
+  const chart = $("#monthly-chart");
   if (chart && window.Charts) {
     const labels = (chart.dataset.labels || "").split(",").filter(Boolean);
-    const values = (chart.dataset.values || "").split(",").map((n) => Number(n) || 0);
+    const updates = (chart.dataset.updates || "").split(",").map((n) => Number(n) || 0);
+    const downloads = (chart.dataset.downloads || "").split(",").map((n) => Number(n) || 0);
     let frame = 0;
     const draw = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         if (!labels.length || chart.clientWidth < 80) return;
-        const top = values.reduce((a, b) => Math.max(a, b), 0);
-        if (!top) {
-          chart.innerHTML = '<p class="chart-empty">No updates found yet. Run a check and the last seven days fill in.</p>';
+        if (!updates.some(Boolean) && !downloads.some(Boolean)) {
+          chart.innerHTML = '<p class="chart-empty">No update or download history yet. Checks and downloaded updates fill this chart.</p>';
           return;
         }
-        const highlight = values.length ? values.length - 1 : null;
-        window.Charts.bars(chart, {
+        window.Charts.line(chart, {
           labels,
-          values,
-          height: 168,
+          series: [
+            { name: "Updates", values: updates },
+            { name: "Downloads", values: downloads },
+          ],
+          height: window.innerWidth <= 560 ? 186 : 230,
           format: window.Charts.fmt.int,
-          highlight,
+          xAt: window.innerWidth <= 560 ? [0, 4, 8, labels.length - 1] : [0, 2, 4, 6, 8, labels.length - 1],
         });
       });
     };
@@ -866,6 +868,51 @@
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) tick();
     });
+  }
+
+  // --- scheduler status (realtime event + polling fallback) -----------------
+  const schedulerCard = $("[data-scheduler-card]");
+  const schedulerTitle = schedulerCard ? $("[data-scheduler-title]", schedulerCard) : null;
+  const schedulerCopy = schedulerCard ? $("[data-scheduler-copy]", schedulerCard) : null;
+  const schedulerDot = schedulerCard ? $("[data-scheduler-dot]", schedulerCard) : null;
+  function schedulerCountdown(iso) {
+    if (!iso) return "";
+    const ms = new Date(iso).getTime() - Date.now();
+    if (!Number.isFinite(ms)) return "";
+    if (ms <= 0) return "in a moment";
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) return `in ${Math.max(1, minutes)} min`;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (hours < 24) return `in ${hours} h${rest ? ` ${rest} min` : ""}`;
+    return `in ${Math.floor(hours / 24)} d ${hours % 24} h`;
+  }
+  function applyScheduler(state = {}) {
+    if (!schedulerCard) return;
+    if (schedulerDot) {
+      schedulerDot.classList.remove("live", "busy", "warn", "bad");
+      schedulerDot.classList.add(state.running ? "busy" : "live");
+    }
+    if (schedulerTitle) schedulerTitle.textContent = state.running ? "Checking now" : "Watcher armed";
+    if (schedulerCopy) {
+      schedulerCopy.textContent = state.running
+        ? "Results land as they finish"
+        : state.nextRun ? `Next check ${schedulerCountdown(state.nextRun)}` : "Waiting for the next interval";
+    }
+  }
+  const refreshScheduler = async () => {
+    if (!schedulerCard || document.hidden) return;
+    try {
+      const response = await fetch("/api/scheduler", { headers: { accept: "application/json" } });
+      if (!response.ok) return;
+      applyScheduler(await response.json());
+    } catch {}
+  };
+  window.MWScheduler = { apply: applyScheduler, refresh: refreshScheduler };
+  if (schedulerCard) {
+    refreshScheduler();
+    window.setInterval(refreshScheduler, 60_000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshScheduler(); });
   }
 
   // --- "/" focuses the topbar search ----------------------------------------

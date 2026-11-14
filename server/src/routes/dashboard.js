@@ -1,19 +1,25 @@
 import express from "express";
-import { instanceSummaries, unknownCounts, overviewStats, updatesByDay, recentCheckRuns } from "../queries.js";
+import { instanceSummaries, unknownCounts, overviewStats, updatesByDay, monthlyActivity, recentCheckRuns } from "../queries.js";
 import { recentActivity } from "../activity.js";
 import { getSettings, nextCheckAt } from "../settings.js";
 import { checkAll } from "../checker.js";
+import { schedulerState } from "../scheduler.js";
 import { flash } from "../middleware.js";
 
 export const dashboardRouter = express.Router();
 
+dashboardRouter.get("/api/scheduler", (req, res) => {
+  res.json(schedulerState());
+});
+
 dashboardRouter.get("/", async (req, res, next) => {
   try {
-    const [instances, unknownMap, stats, days, activity, runs, settings] = await Promise.all([
+    const [instances, unknownMap, stats, days, monthly, activity, runs, settings] = await Promise.all([
       instanceSummaries(),
       unknownCounts(),
       overviewStats(),
       updatesByDay(7),
+      monthlyActivity(12),
       recentActivity(6),
       recentCheckRuns(4),
       getSettings(),
@@ -39,6 +45,13 @@ dashboardRouter.get("/", async (req, res, next) => {
       withUpdates,
       chartLabels: days.map((d) => new Date(d.day).toLocaleDateString("en-GB", { day: "numeric", month: "short" })),
       chartValues: days.map((d) => d.updates),
+      monthlyLabels: monthly.map((row) => new Date(row.month).toLocaleDateString("en-GB", { month: "short" })),
+      monthlyUpdates: monthly.map((row) => row.updates),
+      monthlyDownloads: monthly.map((row) => row.downloads),
+      monthlyTotals: {
+        updates: monthly.reduce((sum, row) => sum + row.updates, 0),
+        downloads: monthly.reduce((sum, row) => sum + row.downloads, 0),
+      },
     });
   } catch (err) {
     next(err);

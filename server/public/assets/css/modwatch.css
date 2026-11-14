@@ -46,6 +46,7 @@
   --pill-muted-ink: #96a2b0;
 
   --chart-1: #1bd96a;
+  --chart-2: #5aa9e6;
   --chart-muted: #363940;
   --grid: #22242a;
   --axis-ink: #96a2b0;
@@ -136,6 +137,7 @@
   --pill-muted-bg: #f4f6f7;
   --pill-muted-ink: #66727e;
   --chart-1: #0fa653;
+  --chart-2: #1f6fa8;
   --chart-muted: #d4dade;
   --grid: #e6eaed;
   --axis-ink: #66727e;
@@ -631,6 +633,13 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
 .btn .ico { width: 15px; height: 15px; }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
 .btn.primary:hover { opacity: 0.88; }
+.btn.download { background: var(--brand); border-color: var(--brand); color: #05140b; font-weight: 600; }
+.btn.download:hover { opacity: 0.9; background: var(--brand); border-color: var(--brand); }
+[data-theme="light"] .btn.download { background: var(--brand-text); border-color: var(--brand-text); color: #ffffff; }
+[data-theme="light"] .btn.download:hover { background: var(--brand-text); border-color: var(--brand-text); }
+.icon-btn.download { color: var(--brand-text); }
+.icon-btn.download:hover { background: var(--brand-soft); color: var(--brand-text); }
+.menu-panel a.download, .menu-panel button.download { color: var(--brand-text); font-weight: 500; }
 .btn.ghost { border-color: transparent; color: var(--muted); }
 .btn.ghost:hover { background: var(--raised); color: var(--text); }
 .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--control)); }
@@ -818,11 +827,12 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   font-size: 10.5px; font-weight: 500; white-space: nowrap;
 }
 .pill .dot { width: 5px; height: 5px; background: currentColor; }
-.pill.pos { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
+.pill.pos, .pill.positive { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
 .pill.update { background: var(--brand); color: #05140b; font-weight: 600; }
 [data-theme="light"] .pill.update { background: var(--brand-text); color: #ffffff; }
-.pill.neg { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
-.pill.warn { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
+.pill.neg, .pill.negative { background: var(--negative); color: #2a0509; font-weight: 600; }
+[data-theme="light"] .pill.neg, [data-theme="light"] .pill.negative { color: #ffffff; }
+.pill.warn, .pill.warning { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
 .pill.info { background: var(--pill-info-bg); color: var(--pill-info-ink); }
 .pill.muted { background: var(--pill-muted-bg); color: var(--pill-muted-ink); }
 .pill.plain { background: transparent; border: 1px solid var(--border); color: var(--muted); }
@@ -847,6 +857,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   border-bottom: 1px solid var(--border);
   margin-bottom: 0;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 .tab {
   position: relative; display: inline-flex; align-items: center; gap: 6px;
@@ -1060,6 +1071,13 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- dashboard ---------- */
 .chart { width: 100%; min-height: 168px; position: relative; }
+.chart-legend { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; color: var(--muted); font-size: 11.5px; }
+.legend-item, .chart-legend li { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.chart-legend svg { flex: none; overflow: visible; }
+@media (max-width: 480px) { .chart-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.legend-swatch { width: 18px; height: 2px; border-radius: 2px; display: inline-block; }
+.legend-swatch.updates { background: var(--chart-1); }
+.legend-swatch.downloads { background: var(--chart-2); }
 .chart-empty {
   display: grid; place-items: center; min-height: 168px;
   border: 1px dashed var(--control); border-radius: var(--radius-sm);

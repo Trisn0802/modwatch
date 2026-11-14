@@ -1,6 +1,7 @@
 import { query } from "./db.js";
 import { getSettings } from "./settings.js";
 import { checkAll } from "./checker.js";
+import { broadcastScheduler } from "./realtime.js";
 
 let timer = null;
 let lastRun = null;
@@ -10,9 +11,19 @@ export function schedulerState() {
   return { lastRun, nextRun: timer?._nextRun || null, running };
 }
 
+function announce() {
+  const state = schedulerState();
+  broadcastScheduler({
+    running: state.running,
+    nextRun: state.nextRun ? new Date(state.nextRun).toISOString() : null,
+    lastRun: state.lastRun ? new Date(state.lastRun).toISOString() : null,
+  }).catch(() => {});
+}
+
 async function tick() {
   if (running) return;
   running = true;
+  announce();
   try {
     const settings = await getSettings();
     const hours = Math.max(1, Number(settings.check_interval_hours || 6));
@@ -24,7 +35,7 @@ async function tick() {
     console.error("Scheduled check failed:", err.message);
   } finally {
     running = false;
-    scheduleNext();
+    await scheduleNext();
   }
 }
 
@@ -35,6 +46,7 @@ export async function scheduleNext() {
   const delay = hours * 3_600_000;
   timer = setTimeout(tick, delay);
   timer._nextRun = new Date(Date.now() + delay);
+  announce();
 }
 
 export async function startScheduler() {
@@ -61,6 +73,7 @@ export async function startScheduler() {
 
   timer = setTimeout(tick, delay);
   timer._nextRun = new Date(Date.now() + delay);
+  announce();
   console.log(`Scheduler armed: next check in ${Math.round(delay / 60_000)}m, then every ${hours}h`);
 }
 

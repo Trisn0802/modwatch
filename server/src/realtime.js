@@ -1,6 +1,7 @@
 import Pusher from "pusher";
 
 import { config } from "./config.js";
+import { publishLocal } from "./bus.js";
 
 const enabled = config.pusherReady;
 const client = enabled
@@ -24,6 +25,7 @@ export function userChannel(userId) {
 }
 
 export async function broadcast(channel, event, data) {
+  publishLocal(channel, event, data);
   if (!client) return false;
   try {
     await client.trigger(channel, event, data);
@@ -36,6 +38,10 @@ export async function broadcast(channel, event, data) {
 
 export async function broadcastRefresh(scope, extra = {}) {
   return broadcast(WORKSPACE_CHANNEL, "refresh", { scope, ...extra });
+}
+
+export async function broadcastScheduler(state) {
+  return broadcast(WORKSPACE_CHANNEL, "scheduler", state);
 }
 
 export async function notifyUser(userId, payload) {
