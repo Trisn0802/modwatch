@@ -18,6 +18,14 @@ function intParam(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+async function trackedProject(instanceId, resolved) {
+  const { rows } = await query(
+    "SELECT id, name, source FROM mods WHERE instance_id = $1 AND source = $2 AND project_id = $3 LIMIT 1",
+    [instanceId, resolved.source, resolved.project_id]
+  );
+  return rows[0] || null;
+}
+
 modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
   try {
     const instance = await instanceById(intParam(req.params.id));
@@ -61,6 +69,14 @@ modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
     if (!resolved) {
       flash(req, "error", "That project URL was not recognised. Use a Modrinth, CurseForge or GitHub project page.");
       return res.redirect(`/instances/${instance.id}/mods/new?manual=1`);
+    }
+    const existing = await trackedProject(instance.id, resolved);
+    if (existing) {
+      flash(req, "ok", `${existing.name} is already tracked in this instance from ${SOURCE[existing.source]?.label || existing.source}.`);
+      return res.redirect(`/mods/${existing.id}`);
+    }
+    if (resolved.resolved_fallback) {
+      flash(req, "ok", "CurseForge metadata was unavailable; ModWatch matched the same project on Modrinth.");
     }
     const params = new URLSearchParams({
       source: resolved.source,
@@ -122,6 +138,14 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
     if (source === "manual" && suppliedUrl) {
       const resolved = await resolveProjectUrl(suppliedUrl);
       if (resolved) {
+        const existing = await trackedProject(instance.id, resolved);
+        if (existing) {
+          flash(req, "ok", `${existing.name} is already tracked in this instance from ${SOURCE[existing.source]?.label || existing.source}.`);
+          return res.redirect(`/mods/${existing.id}`);
+        }
+        if (resolved.resolved_fallback) {
+          flash(req, "ok", "CurseForge metadata was unavailable; ModWatch matched the same project on Modrinth.");
+        }
         const params = new URLSearchParams({
           source: resolved.source,
           project_id: resolved.project_id,
@@ -164,6 +188,13 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
     if (!payload.name) {
       flash(req, "error", "A mod name is required.");
       return res.redirect(`/instances/${instance.id}/mods/new`);
+    }
+    if (payload.source !== "manual" && payload.project_id) {
+      const existing = await trackedProject(instance.id, payload);
+      if (existing) {
+        flash(req, "ok", `${existing.name} is already tracked in this instance from ${SOURCE[existing.source]?.label || existing.source}.`);
+        return res.redirect(`/mods/${existing.id}`);
+      }
     }
 
     if (req.session.user.role !== "admin") {

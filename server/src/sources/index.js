@@ -43,8 +43,24 @@ export async function resolveProjectUrl(url) {
   const raw = String(url || "").trim();
   if (!raw) return null;
   if (/modrinth\.com/i.test(raw)) return modrinth.resolveUrl(raw).catch(() => null);
-  if (/curseforge\.com/i.test(raw)) return curseforge.resolveUrl(raw).catch(() => null);
   if (/github\.com/i.test(raw)) return github.resolveUrl(raw).catch(() => null);
+  if (/curseforge\.com/i.test(raw)) {
+    const cf = await curseforge.resolveUrl(raw).catch(() => null);
+    if (cf) return cf;
+
+    // cfwidget does not index every CurseForge project. When the public
+    // metadata endpoint misses, try the same slug on Modrinth so a valid
+    // project URL still lands on a real, trackable source.
+    const slug = raw.match(/curseforge\.com\/minecraft\/mc-mods\/([^/?#]+)/i)?.[1];
+    if (slug) {
+      const direct = await modrinth.resolveUrl(`https://modrinth.com/mod/${slug}`).catch(() => null);
+      if (direct) return { ...direct, resolved_fallback: "modrinth" };
+      const hits = await modrinth.searchProject(slug.replace(/[-_]+/g, " "), { limit: 6 }).catch(() => []);
+      const wanted = slug.replace(/[-_]+/g, "").toLowerCase();
+      const match = hits.find((hit) => String(hit.name || "").replace(/[^a-z0-9]/gi, "").toLowerCase() === wanted) || hits[0];
+      if (match) return { ...match, resolved_fallback: "modrinth" };
+    }
+  }
   return null;
 }
 
