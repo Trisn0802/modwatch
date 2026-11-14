@@ -38,7 +38,7 @@
       <button class="btn" type="submit">{{ icon('refresh') }} Check now</button>
     </form>
     {% if mod.status == 'update_available' %}
-    <form method="post" action="/mods/{{ mod.id }}/updated" data-confirm="Mark {{ mod.name }} as updated to {{ mod.latest_version }}? The installed baseline moves forward.">
+    <form method="post" action="/mods/{{ mod.id }}/updated" data-confirm-title="Mark as updated?" data-confirm-label="Mark updated" data-confirm="Mark {{ mod.name }} as updated to {{ mod.latest_version }}? The installed baseline moves forward.">
       {% include "partials/csrf.njk" %}
       <button class="btn primary" type="submit">{{ icon('check') }} Mark updated</button>
     </form>
@@ -64,7 +64,7 @@
         <form method="post" action="/mods/{{ mod.id }}/disable">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('pause') }} Disable file</button></form>
         {% endif %}
         <div class="menu-sep"></div>
-        <form method="post" action="/mods/{{ mod.id }}/delete" data-confirm="Remove {{ mod.name }} from {{ mod.instance_name }}?">
+        <form method="post" action="/mods/{{ mod.id }}/delete" data-confirm-title="Remove mod?" data-confirm-label="Remove" data-confirm="Remove {{ mod.name }} from {{ mod.instance_name }}?">
           {% include "partials/csrf.njk" %}
           <button type="submit" class="danger">{{ icon('trash') }} Remove mod</button>
         </form>

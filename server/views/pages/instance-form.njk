@@ -118,7 +118,7 @@
         </div>
       </div>
       <div class="panel-body">
-        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
+        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm-title="Delete instance?" data-confirm-label="Delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
           {% include "partials/csrf.njk" %}
           <button class="btn danger" type="submit">{{ icon('trash') }} Delete instance</button>
         </form>

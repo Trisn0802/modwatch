@@ -44,7 +44,7 @@
   <div class="instance-actions">
     <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add mod</a>
     {% if isAdmin and stats.updates %}
-    <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
+    <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm-title="Update all mods?" data-confirm-label="Update all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
       {% include "partials/csrf.njk" %}
       <button class="btn" type="submit" data-busy-label="Updating…">{{ icon('download') }} Update all ({{ stats.updates }})</button>
     </form>
@@ -73,7 +73,7 @@
           <button type="submit">{{ icon('copy') }} Duplicate</button>
         </form>
         <div class="menu-sep"></div>
-        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
+        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm-title="Delete instance?" data-confirm-label="Delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
           {% include "partials/csrf.njk" %}
           <button type="submit" class="danger">{{ icon('trash') }} Delete instance</button>
         </form>
@@ -137,7 +137,7 @@
           <input type="hidden" name="action" value="manual">
           <button class="btn sm" type="submit">Keep all as manual</button>
         </form>
-        <form method="post" action="/instances/{{ instance.id }}/unknown-bulk" data-confirm="Ignore all {{ unknown.length }} unidentified files?">
+        <form method="post" action="/instances/{{ instance.id }}/unknown-bulk" data-confirm-title="Ignore files?" data-confirm-label="Ignore" data-confirm="Ignore all {{ unknown.length }} unidentified files?">
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="action" value="ignore">
           <button class="btn sm ghost" type="submit">Ignore all</button>
@@ -278,7 +278,7 @@
           <td class="n">
             <span class="row" style="gap:2px;justify-content:flex-end">
               {% if isAdmin and mod.status == 'update_available' %}
-              <form method="post" action="/mods/{{ mod.id }}/update" data-confirm="Download {{ mod.latest_version }} for {{ mod.name }} to this server and move the installed baseline?">
+              <form method="post" action="/mods/{{ mod.id }}/update" data-confirm-title="Download and update?" data-confirm-label="Update" data-confirm="Download {{ mod.latest_version }} for {{ mod.name }} to this server and move the installed baseline?">
                 {% include "partials/csrf.njk" %}
                 <button class="icon-btn" type="submit" aria-label="Download and update {{ mod.name }}" title="Download and update to {{ mod.latest_version }}">{{ icon('download') }}</button>
               </form>

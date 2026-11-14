@@ -452,10 +452,101 @@
     select.addEventListener("change", () => select.form?.requestSubmit());
   }
 
+  // --- confirmation dialog (RuangAset-style native dialog) -------------------
+  function confirmAction(options = {}) {
+    const modal = $("#confirm-modal");
+    const title = $("#confirm-title");
+    const kicker = $("#confirm-kicker");
+    const message = $("#confirm-message");
+    const note = $("#confirm-note");
+    const list = $("#confirm-list");
+    const error = $("#confirm-error");
+    const ok = $("#confirm-ok");
+    const cancel = $("#confirm-cancel");
+    const close = $("#confirm-close");
+    if (!modal || !title || !message || !ok) {
+      return Promise.resolve(window.confirm(options.message || "Continue?"));
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const restoreFocus = document.activeElement;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reset = () => {
+        modal.classList.remove("is-closing");
+        if (error) { error.hidden = true; error.textContent = ""; }
+        if (list) { list.hidden = true; list.innerHTML = ""; }
+        if (note) { note.hidden = true; note.textContent = ""; }
+        ok.disabled = false;
+        ok.textContent = options.confirmLabel || (options.danger ? "Delete" : "Continue");
+        ok.className = `btn ${options.danger ? "danger" : "primary"}`;
+        if (cancel) cancel.textContent = options.cancelLabel || "Cancel";
+        if (kicker) kicker.textContent = options.kicker || "Confirm";
+      };
+      const done = (value) => {
+        if (settled) return;
+        settled = true;
+        modal.classList.add("is-closing");
+        const finish = () => {
+          modal.classList.remove("is-closing");
+          if (typeof modal.close === "function") modal.close();
+          else modal.removeAttribute("open");
+          document.body.classList.remove("dialog-open");
+          restoreFocus?.focus?.({ preventScroll: true });
+          resolve(value);
+        };
+        if (reduce) finish();
+        else window.setTimeout(finish, 150);
+      };
+      for (const details of $$("details.menu[open], details.pop[open], details.user-pop[open]")) details.open = false;
+      reset();
+      title.textContent = options.title || "Confirm action";
+      message.textContent = options.message || "Continue with this action?";
+      if (note && options.note) { note.hidden = false; note.textContent = options.note; }
+      if (list && Array.isArray(options.details) && options.details.length) {
+        list.hidden = false;
+        for (const item of options.details) {
+          const li = document.createElement("li");
+          li.textContent = item;
+          list.appendChild(li);
+        }
+      }
+      if (typeof modal.showModal === "function") {
+        if (modal.open) modal.close();
+        modal.showModal();
+      } else modal.setAttribute("open", "");
+      document.body.classList.add("dialog-open");
+      window.setTimeout(() => (cancel || ok).focus({ preventScroll: true }), 30);
+
+      ok.onclick = () => done(true);
+      if (cancel) cancel.onclick = () => done(false);
+      if (close) close.onclick = () => done(false);
+      modal.oncancel = (event) => { event.preventDefault(); done(false); };
+      modal.onclick = (event) => { if (event.target === modal) done(false); };
+    });
+  }
+  window.MWConfirm = confirmAction;
+  window.RA = window.RA || {};
+  window.RA.confirm = confirmAction;
+
   // --- destructive forms ask once -------------------------------------------
   for (const form of $$("form[data-confirm]")) {
-    form.addEventListener("submit", (event) => {
-      if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    form.addEventListener("submit", async (event) => {
+      if (form.dataset.confirmed === "1") return;
+      event.preventDefault();
+      const danger = Boolean(form.querySelector(".danger"));
+      const needsUpdate = form.action.includes("/update");
+      const ok = await confirmAction({
+        title: form.dataset.confirmTitle || (danger ? "Confirm removal" : needsUpdate ? "Download and update?" : "Confirm action"),
+        message: form.dataset.confirm,
+        confirmLabel: form.dataset.confirmLabel || (danger ? "Delete" : needsUpdate ? "Update" : "Continue"),
+        kicker: form.dataset.confirmKicker || "Confirm",
+        danger,
+      });
+      if (!ok) return;
+      form.dataset.confirmed = "1";
+      window.setTimeout(() => { delete form.dataset.confirmed; }, 8000);
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+      else form.submit();
     });
   }
 
