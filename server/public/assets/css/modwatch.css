@@ -819,6 +819,8 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .pill .dot { width: 5px; height: 5px; background: currentColor; }
 .pill.pos { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
+.pill.update { background: var(--brand); color: #05140b; font-weight: 600; }
+[data-theme="light"] .pill.update { background: var(--brand-text); color: #ffffff; }
 .pill.neg { background: var(--pill-negative-bg); color: var(--pill-negative-ink); }
 .pill.warn { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
 .pill.info { background: var(--pill-info-bg); color: var(--pill-info-ink); }
@@ -863,6 +865,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   font-size: 10px; font-weight: 500;
 }
 .tab .count.accent { background: var(--brand-soft); color: var(--brand-text); }
+.source-tabs { padding: 0 var(--card-pad); }
 
 .toolbar {
   display: flex; align-items: center; justify-content: space-between;

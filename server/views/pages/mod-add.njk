@@ -8,7 +8,7 @@
   <div class="page-head-main">
     <p class="eyebrow">Add a mod</p>
     <h1 class="page-title">Find the project</h1>
-    <p class="page-sub">Search runs against {{ instance.mc_version }} {{ instance.loader | loaderLabel }} only, so every result can actually run in this instance.</p>
+    <p class="page-sub">Modrinth results are filtered to {{ instance.mc_version }} {{ instance.loader | loaderLabel }}. GitHub is searched broadly; pick the matching version before adding. CurseForge URLs resolve without a key.</p>
     <div style="margin-top:12px">
       <div class="scope compact">
         <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ instance.mc_version }}</strong></span>
@@ -31,6 +31,13 @@
         {% if q %}<a class="link-btn" href="/instances/{{ instance.id }}/mods/new">Clear</a>{% endif %}
       </div>
     </form>
+
+    <nav class="tabs source-tabs" aria-label="Search source">
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=all{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'all' %}aria-current="page"{% endif %}>All</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=modrinth{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'modrinth' %}aria-current="page"{% endif %}>Modrinth</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=curseforge{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'curseforge' %}aria-current="page"{% endif %}>CurseForge{% if not env.curseforgeReady %} <span class="count">URL</span>{% endif %}</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=github{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'github' %}aria-current="page"{% endif %}>GitHub</a>
+    </nav>
 
     {% if searchError %}
     <div class="panel-body"><div class="error-box" style="margin:0">{{ icon('alert') }}<span>{{ searchError }}</span></div></div>
@@ -74,6 +81,17 @@
         </tbody>
       </table>
     </div>
+    {% elif q and sourceFilter == 'curseforge' and not env.curseforgeReady %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">CurseForge search needs an API key</p>
+          <p class="empty-text">Project URLs still resolve through the public metadata fallback. Paste the CurseForge project URL in <strong>Add by URL</strong> beside this list, or wait until the API key is approved.</p>
+          <div class="empty-actions"><a class="btn" href="#add-by-url">{{ icon('link') }} Use a project URL</a></div>
+        </div>
+      </div>
+    </div>
     {% elif q %}
     <div class="panel-body">
       <div class="empty-state">
@@ -91,7 +109,7 @@
         <div class="empty-inner">
           <span class="empty-icon">{{ icon('search') }}</span>
           <p class="empty-title">Search a project name</p>
-          <p class="empty-text">Modrinth is searched first, then CurseForge when a key is configured, and GitHub when the token allows it. The loader and Minecraft version filter the hits.</p>
+          <p class="empty-text">Modrinth and GitHub are searched directly. CurseForge search turns on with an API key; project URLs from all three sources work now through Add by URL.</p>
         </div>
       </div>
     </div>
@@ -99,6 +117,23 @@
   </section>
 
   <aside class="rail">
+    <section class="panel" id="add-by-url" style="margin-bottom:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Add by URL</h2>
+          <p class="panel-sub">Works for CurseForge without a key</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="get" action="/instances/{{ instance.id }}/mods/resolve">
+          <label class="sr-only" for="add-url">Project URL</label>
+          <input class="input" id="add-url" name="url" type="url" placeholder="https://www.curseforge.com/minecraft/mc-mods/…" required>
+          <p class="hint">ModWatch resolves the project, then opens the version list for this instance.</p>
+          <button class="btn" type="submit">{{ icon('link') }} Resolve and choose version</button>
+        </form>
+      </div>
+    </section>
+
     {% if manual %}
     <section class="panel">
       <div class="panel-head">
@@ -123,7 +158,7 @@
           <div class="field">
             <label for="manual-url">Project page</label>
             <input id="manual-url" name="project_url" type="url" placeholder="https://…">
-            <p class="hint">Optional. Manual mods are never queried, so no update is invented.</p>
+            <p class="hint">A Modrinth, CurseForge or GitHub project URL is detected automatically and opens version selection. Leave it empty only for private jars.</p>
           </div>
           <div class="form-grid">
             <div class="field">
@@ -172,8 +207,8 @@
       <div class="panel-body">
         <div class="env-list">
           <div class="env-row"><span class="env-name">Modrinth</span><span class="env-state"><span class="dot live"></span>Always on</span></div>
-          <div class="env-row"><span class="env-name">CurseForge</span><span class="env-state"><span class="dot {% if env.curseforgeReady %}live{% endif %}"></span>{% if env.curseforgeReady %}Key configured{% else %}No API key{% endif %}</span></div>
-          <div class="env-row"><span class="env-name">GitHub</span><span class="env-state"><span class="dot live"></span>{% if env.githubReady %}Token set{% else %}Public API{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">CurseForge</span><span class="env-state"><span class="dot {% if env.curseforgeReady %}live{% endif %}"></span>{% if env.curseforgeReady %}Search + URL{% else %}URL only · key needed for search{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">GitHub</span><span class="env-state"><span class="dot live"></span>Search + releases{% if env.githubReady %} · token{% endif %}</span></div>
         </div>
       </div>
     </section>

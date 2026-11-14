@@ -1,5 +1,5 @@
 export const STATUS = {
-  update_available: { label: "Update available", tone: "positive", order: 0 },
+  update_available: { label: "Update available", tone: "update", order: 0 },
   up_to_date: { label: "Up to date", tone: "neutral", order: 1 },
   unknown: { label: "Unknown", tone: "warning", order: 2 },
   manual: { label: "Manual", tone: "info", order: 3 },

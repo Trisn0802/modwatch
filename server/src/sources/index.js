@@ -11,7 +11,7 @@ export function channelsFor(policy) {
   return ["release"];
 }
 
-export async function searchProjects(query, instance, { includeCurseforge = true } = {}) {
+export async function searchProjects(query, instance, { includeCurseforge = true, includeGithub = true } = {}) {
   const results = await modrinth
     .searchProject(query, { mcVersion: instance?.mc_version, loader: instance?.loader, limit: 8 })
     .catch((err) => {
@@ -26,6 +26,15 @@ export async function searchProjects(query, instance, { includeCurseforge = true
         return [];
       });
     results.push(...cf);
+  }
+  if (includeGithub) {
+    const gh = await github
+      .searchProject(query, { limit: 8 })
+      .catch((err) => {
+        console.error("github search:", err.message);
+        return [];
+      });
+    results.push(...gh);
   }
   return results;
 }

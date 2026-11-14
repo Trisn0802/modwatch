@@ -185,6 +185,26 @@
   </div>
 
   <aside class="rail">
+    {% if mod.source == 'manual' %}
+    <section class="panel" style="margin-bottom:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Resolve source</h2>
+          <p class="panel-sub">Turn this manual entry into a tracked project</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/mods/{{ mod.id }}/resolve">
+          {% include "partials/csrf.njk" %}
+          <label class="sr-only" for="resolve-url">Project URL</label>
+          <input class="input" id="resolve-url" name="project_url" type="url" value="{{ mod.project_url }}" placeholder="https://modrinth.com/mod/…">
+          <p class="hint">Paste the CurseForge, Modrinth or GitHub project page. The installed file stays attached; the next check compares it.</p>
+          <button class="btn primary" type="submit">Resolve and check</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
     <section class="panel">
       <div class="panel-head">
         <div>

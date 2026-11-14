@@ -23,11 +23,15 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
     const instance = await instanceById(intParam(req.params.id));
     if (!instance) return next();
     const q = String(req.query.q || "").trim();
+    const sourceFilter = ["modrinth", "curseforge", "github"].includes(req.query.source)
+      ? req.query.source
+      : "all";
     let results = [];
     let searchError = null;
     if (q) {
       try {
         results = await searchProjects(q, instance);
+        if (sourceFilter !== "all") results = results.filter((item) => item.source === sourceFilter);
       } catch (err) {
         searchError = err.message;
       }
@@ -37,11 +41,35 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
       title: `Add a mod to ${instance.name}`,
       instance,
       q,
+      sourceFilter,
       results,
       searchError,
       manual: req.query.manual === "1",
       channelOptions: CHANNEL,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const url = String(req.query.url || "").trim();
+    const resolved = await resolveProjectUrl(url);
+    if (!resolved) {
+      flash(req, "error", "That project URL was not recognised. Use a Modrinth, CurseForge or GitHub project page.");
+      return res.redirect(`/instances/${instance.id}/mods/new?manual=1`);
+    }
+    const params = new URLSearchParams({
+      source: resolved.source,
+      project_id: resolved.project_id,
+      name: resolved.name || "",
+      project_url: resolved.project_url || url,
+      icon_url: resolved.icon_url || "",
+    });
+    res.redirect(`/instances/${instance.id}/mods/choose?${params}`);
   } catch (err) {
     next(err);
   }
@@ -90,6 +118,24 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
     const instance = await instanceById(intParam(req.params.id));
     if (!instance) return next();
     const source = VALID_SOURCES.includes(req.body.source) ? req.body.source : "manual";
+    const suppliedUrl = String(req.body.project_url || "").trim();
+    if (source === "manual" && suppliedUrl) {
+      const resolved = await resolveProjectUrl(suppliedUrl);
+      if (resolved) {
+        const params = new URLSearchParams({
+          source: resolved.source,
+          project_id: resolved.project_id,
+          name: resolved.name || "",
+          project_url: resolved.project_url || suppliedUrl,
+          icon_url: resolved.icon_url || "",
+        });
+        return res.redirect(`/instances/${instance.id}/mods/choose?${params}`);
+      }
+      if (/modrinth\.com|curseforge\.com|github\.com/i.test(suppliedUrl)) {
+        flash(req, "error", "That project URL could not be resolved. Check the URL or keep it as a plain manual entry without a source link.");
+        return res.redirect(`/instances/${instance.id}/mods/new?manual=1`);
+      }
+    }
     const payload = {
       name: String(req.body.name || "").trim(),
       source,
@@ -401,6 +447,48 @@ modsRouter.post("/mods/:id/enable", async (req, res, next) => {
     });
     flash(req, "ok", `${rows[0].name} will load again.`);
     res.redirect(req.get("referer") || `/mods/${id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+modsRouter.post("/mods/:id/resolve", async (req, res, next) => {
+  try {
+    const id = intParam(req.params.id);
+    const { rows } = await query("SELECT * FROM mods WHERE id = $1", [id]);
+    const mod = rows[0];
+    if (!mod) return next();
+    const url = String(req.body.project_url || mod.project_url || "").trim();
+    const resolved = await resolveProjectUrl(url);
+    if (!resolved) {
+      flash(req, "error", "That project URL was not recognised. Use a Modrinth, CurseForge or GitHub project page.");
+      return res.redirect(`/mods/${id}`);
+    }
+    const duplicate = await query(
+      `SELECT id, name, source FROM mods
+        WHERE instance_id = $1 AND id <> $2
+          AND ((source = $3 AND project_id = $4) OR lower(name) = lower($5))
+        LIMIT 1`,
+      [mod.instance_id, id, resolved.source, resolved.project_id, mod.name]
+    );
+    if (duplicate.rows.length) {
+      const other = duplicate.rows[0];
+      flash(req, "error", `${mod.name} is already tracked from ${SOURCE[other.source]?.label || other.source}. Remove this manual duplicate first.`);
+      return res.redirect(`/mods/${id}`);
+    }
+    await query(
+      `UPDATE mods SET source = $2, project_id = $3, project_url = $4,
+          icon_url = COALESCE($5, icon_url), status = 'up_to_date', last_error = NULL
+        WHERE id = $1`,
+      [id, resolved.source, resolved.project_id, resolved.project_url || url, resolved.icon_url || null]
+    );
+    await logActivity({
+      userId: req.session.user.id, action: "mod_updated", subjectType: "mod", subjectId: id,
+      meta: { name: mod.name, resolved_source: resolved.source },
+    });
+    checkOne(id, { userId: req.session.user.id }).catch(() => {});
+    flash(req, "ok", `${mod.name} is now tracked from ${SOURCE[resolved.source]?.label || resolved.source}. A check is running.`);
+    res.redirect(`/mods/${id}`);
   } catch (err) {
     next(err);
   }
