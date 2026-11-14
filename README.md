@@ -233,6 +233,13 @@ The app sets a strict Content Security Policy. All JavaScript is served from `/a
     └── views
 ```
 
+## Contributors
+
+- **Trisna Almuti** ([@Trisn0802](https://github.com/Trisn0802)) — maintainer.
+- **DeepSeek** — AI coding assistant for implementation, debugging, UI refinement and documentation support.
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full credit list.
+
 ## Troubleshooting
 
 **The app starts but there is no admin.** `ADMIN_EMAIL` and `ADMIN_PASSWORD` are only used when the users table is empty. Add a user through the database or reset the volume and start again.
