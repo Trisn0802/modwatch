@@ -1,0 +1,51 @@
+{% from "partials/mark.njk" import mark %}
+{% from "partials/icon.njk" import icon %}
+<!doctype html>
+<html lang="en" data-theme="oled" data-theme-mode="oled">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title or 'Shared modpack' }}{% endblock %} · ModWatch</title>
+  <meta name="description" content="{{ ogDescription or 'A shared Minecraft modpack from ModWatch.' }}">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="/assets/site.webmanifest">
+  <meta property="og:type" content="{{ ogType or 'website' }}">
+  <meta property="og:site_name" content="ModWatch">
+  <meta property="og:title" content="{{ ogTitle or title }}">
+  <meta property="og:description" content="{{ ogDescription or 'A shared Minecraft modpack from ModWatch.' }}">
+  <meta property="og:url" content="{{ ogUrl or baseUrl }}">
+  <meta property="og:image" content="{{ ogImage or (baseUrl ~ '/assets/img/og-image.png') }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ ogTitle or title }}">
+  <meta name="twitter:description" content="{{ ogDescription or 'A shared Minecraft modpack from ModWatch.' }}">
+  <meta name="twitter:image" content="{{ ogImage or (baseUrl ~ '/assets/img/og-image.png') }}">
+  <script src="/assets/js/theme.js?v={{ assetVersion }}"></script>
+  <link rel="stylesheet" href="/assets/css/modwatch.css?v={{ assetVersion }}">
+</head>
+<body class="public-body" data-page="{{ page or 'share' }}">
+<header class="public-topbar">
+  <a class="brand" href="/" aria-label="ModWatch overview">
+    <span class="brand-mark">{{ mark(28) }}</span>
+    <span class="brand-name">ModWatch</span>
+  </a>
+  <div class="public-topbar-actions">
+    <div class="theme-host" data-theme-mount></div>
+    <a class="btn sm" href="/login">Sign in</a>
+  </div>
+</header>
+<main class="public-canvas">
+  {% block content %}{% endblock %}
+</main>
+<footer class="public-foot">
+  <span>Shared from a self-hosted ModWatch instance.</span>
+  <a href="/">Open ModWatch</a>
+</footer>
+<script src="/assets/js/ui.js?v={{ assetVersion }}"></script>
+</body>
+</html>

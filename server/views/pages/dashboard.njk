@@ -1,0 +1,220 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot live"></span> Watch floor</p>
+    <h1 class="page-title">Overview</h1>
+    <p class="page-sub">Which mods are behind, for this exact Minecraft version and loader. Nothing else counts as an update.</p>
+    <div class="instance-meta" style="margin-top:8px">
+      <span>{{ stats.mods | number }} tracked mods</span>
+      <span class="sep"></span>
+      <span>Last check {% if lastChecked %}{{ lastChecked | relative }}{% else %}never{% endif %}</span>
+      <span class="sep"></span>
+      <span>Next {{ nextCheck | countdown }}</span>
+    </div>
+  </div>
+  <div class="page-actions">
+    {% if isAdmin %}<a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>{% endif %}
+    <a class="btn" href="/instances/new">{{ icon('plus') }} New instance</a>
+    <form method="post" action="/check-all">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('refresh') }} Check all</button>
+    </form>
+  </div>
+</div>
+
+{% if not instances.length %}
+<div class="setup" style="margin-bottom:16px">
+  <div class="setup-cell">
+    <p class="setup-step">Step 1</p>
+    <p class="setup-title">Import the pack you run</p>
+    <p class="setup-copy">A .mrpack gives ModWatch every jar, its hash, and the exact Forge or Fabric build.</p>
+    {% if isAdmin %}<a class="setup-link" href="/imports/new">Upload a .mrpack {{ icon('arrow-right') }}</a>{% endif %}
+  </div>
+  <div class="setup-cell">
+    <p class="setup-step">Step 2</p>
+    <p class="setup-title">Resolve the leftovers</p>
+    <p class="setup-copy">Any jar without a Modrinth match opens the unknown mod dialog. Link it, keep it manual, or ignore it.</p>
+  </div>
+  <div class="setup-cell">
+    <p class="setup-step">Step 3</p>
+    <p class="setup-title">Let the watcher run</p>
+    <p class="setup-copy">Checks run on your interval. Updates land on the board and in notifications when a release fits.</p>
+  </div>
+</div>
+{% endif %}
+
+<section class="kpis" aria-label="Instance totals">
+  <div class="kpi">
+    <p class="kpi-label">Instances</p>
+    <p class="kpi-value">{{ stats.instances | number }}</p>
+    <p class="kpi-foot">Each with its own version lock</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Tracked mods</p>
+    <p class="kpi-value">{{ stats.mods | number }}</p>
+    <p class="kpi-foot">Across every instance</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Updates waiting</p>
+    <p class="kpi-value {% if stats.updates %}accent{% endif %}">{{ stats.updates | number }}</p>
+    <p class="kpi-foot">Newer releases inside policy</p>
+  </div>
+  <div class="kpi">
+    <p class="kpi-label">Unknown files</p>
+    <p class="kpi-value {% if stats.unknown %}warn{% endif %}">{{ stats.unknown | number }}</p>
+    <p class="kpi-foot">Waiting for a decision</p>
+  </div>
+  <a class="kpi" href="{% if isAdmin %}/approvals{% else %}/notifications{% endif %}">
+    <p class="kpi-label">Pending requests</p>
+    <p class="kpi-value">{{ stats.requests | number }}</p>
+    <p class="kpi-foot">{% if isAdmin %}Mods members want added{% else %}Your open requests{% endif %}</p>
+  </a>
+</section>
+
+<div class="grid section-gap">
+  <section class="panel span-8">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Updates found</h2>
+        <p class="panel-sub">Unique mod updates per day, last seven days</p>
+      </div>
+      <div class="row" style="gap:16px">
+        <div class="right">
+          <p class="kpi-value" style="font-size:20px">{{ chartValues | sum }}</p>
+          <p class="faint" style="font-size:10.5px">updates this week</p>
+        </div>
+        <a class="card-link" href="/activity">Activity {{ icon('arrow-right') }}</a>
+      </div>
+    </div>
+    <div class="panel-body" style="padding-top:14px">
+      <div class="chart" id="updates-chart" data-labels="{{ chartLabels | join(',') }}" data-values="{{ chartValues | join(',') }}"></div>
+    </div>
+  </section>
+
+  <section class="panel span-4">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Check runs</h2>
+        <p class="panel-sub">Newest first</p>
+      </div>
+      {% if scheduler.running %}<span class="pill info"><span class="dot"></span> Running</span>{% endif %}
+    </div>
+    <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
+      <div class="run-list">
+        {% for run in runs %}
+        <div class="run-item">
+          <span class="dot {% if run.errors %}bad{% elif run.updates %}live{% else %}live{% endif %}" style="margin-top:7px"></span>
+          <div class="run-copy">
+            <p class="run-title">{{ run.instance_name or 'All instances' }}</p>
+            <p class="run-meta">{{ run.trigger | capitalize }} · {{ run.started_at | relative }}</p>
+          </div>
+          <p class="run-stats"><strong>{{ run.updates }}</strong> upd</p>
+        </div>
+        {% else %}
+        <p class="faint" style="font-size:12px;padding:14px 0">No checks have run yet. The first one starts after the scheduler arms.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel span-8">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Instances</h2>
+        <p class="panel-sub">Updates first, then name</p>
+      </div>
+      <a class="card-link" href="/instances">All instances {{ icon('arrow-right') }}</a>
+    </div>
+    {% if instances.length %}
+    <div class="table-wrap">
+      <table class="board">
+        <thead>
+          <tr>
+            <th>Instance</th>
+            <th class="hide-sm">Scope</th>
+            <th class="n">Mods</th>
+            <th class="n">Updates</th>
+            <th class="n hide-sm">Unknown</th>
+            <th>Last check</th>
+            <th aria-label="Open"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in instances %}
+          <tr>
+            <td>
+              <div class="mod-cell">
+                {% if item.image_path %}
+                <img class="instance-thumb" src="/uploads/{{ item.image_path }}" alt="">
+                {% else %}
+                <span class="mod-icon fallback">{{ item.name | initials }}</span>
+                {% endif %}
+                <span class="mod-copy">
+                  <a class="mod-name" href="/instances/{{ item.id }}">{{ item.name }}</a>
+                  <span class="mod-file">{% if item.pack_version %}{{ item.pack_name }} {{ item.pack_version }}{% else %}{{ item.loader | loaderLabel }} {{ item.loader_version }}{% endif %}</span>
+                </span>
+              </div>
+            </td>
+            <td class="hide-sm">
+              <div class="scope compact">
+                <span class="scope-cell"><span class="scope-label">MC</span><strong>{{ item.mc_version }}</strong></span>
+                <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ item.loader | loaderLabel }}</strong></span>
+              </div>
+            </td>
+            <td class="n">{{ item.mod_count }}</td>
+            <td class="n">{% if item.updates %}<strong class="brand-ink">{{ item.updates }}</strong>{% else %}<span class="faint">0</span>{% endif %}</td>
+            <td class="n hide-sm">{% if item.unknown %}<span class="pill warn">{{ item.unknown }}</span>{% else %}<span class="faint">—</span>{% endif %}</td>
+            <td class="faint nowrap">{{ item.last_checked_at | relative }}</td>
+            <td class="n"><a class="icon-btn" href="/instances/{{ item.id }}" aria-label="Open {{ item.name }}">{{ icon('chevron-right') }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('instances') }}</span>
+          <p class="empty-title">No instances yet</p>
+          <p class="empty-text">Create one by hand or import the .mrpack you actually play. The board fills in after the first check.</p>
+          <div class="empty-actions">
+            <a class="btn primary" href="/instances/new">Create an instance</a>
+            {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="panel span-4">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Recent activity</h2>
+        <p class="panel-sub">Who changed what</p>
+      </div>
+      <a class="card-link" href="/activity">All {{ icon('arrow-right') }}</a>
+    </div>
+    <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
+      <div class="activity-list">
+        {% for entry in activity %}
+        <div class="activity-item">
+          <span class="activity-icon">{{ icon('activity') }}</span>
+          <div class="activity-text">
+            <strong>{{ entry.user_name or 'ModWatch' }}</strong> {{ entry.action | activityLabel | lower }}
+            {% if entry.meta.name %}<span class="faint">· {{ entry.meta.name }}</span>{% endif %}
+            <div class="activity-time">{{ entry.created_at | relative }}</div>
+          </div>
+        </div>
+        {% else %}
+        <p class="faint" style="font-size:12px;padding:14px 0">Activity appears here as soon as someone touches an instance.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

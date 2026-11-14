@@ -1,0 +1,98 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Control</p>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">How often ModWatch checks, and what counts as an update by default.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  {% include "partials/settings-nav.njk" %}
+
+  <div class="stack settings-panel">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Check schedule</h2>
+          <p class="panel-sub">The watcher runs in this process</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/settings/general">
+          {% include "partials/csrf.njk" %}
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>Check interval</strong>
+              <span>How long to wait between full sweeps. One hour is the floor; a week is the ceiling.</span>
+            </div>
+            <div class="setting-control">
+              <label class="sr-only" for="interval">Check interval in hours</label>
+              <div class="input-row">
+                <input class="input" id="interval" name="check_interval_hours" type="number" min="1" max="168" value="{{ settings.check_interval_hours }}" required>
+                <span class="btn" style="pointer-events:none">hours</span>
+              </div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>Default channel policy</strong>
+              <span>Applied to mods added from here on. Existing mods keep their own policy.</span>
+            </div>
+            <div class="setting-control">
+              <label class="sr-only" for="policy">Default channel policy</label>
+              <select class="select" id="policy" name="default_channel_policy" style="width:100%">
+                {% for value, label in channelLabels %}
+                <option value="{{ value }}" {% if settings.default_channel_policy == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save settings</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Scheduler</h2>
+          <p class="panel-sub">Live state of the watcher</p>
+        </div>
+        {% if scheduler.running %}<span class="pill info"><span class="dot"></span> Running</span>{% else %}<span class="pill pos"><span class="dot"></span> Armed</span>{% endif %}
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Next check</span><span class="kv-value">{{ scheduler.nextRun | countdown }}</span></div>
+          <div class="kv-row"><span class="kv-label">Last finished</span><span class="kv-value">{{ scheduler.lastRun | relative if scheduler.lastRun else 'No completed run in this process yet' }}</span></div>
+          <div class="kv-row"><span class="kv-label">Trigger</span><span class="kv-value">Automatic on the interval, manual from any page</span></div>
+          <div class="kv-row"><span class="kv-label">Overlap guard</span><span class="kv-value">A PostgreSQL advisory lock stops two containers checking at once</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Environment</h2>
+          <p class="panel-sub">Read from .env at start</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="env-list">
+          <div class="env-row"><span class="env-name">Public URL<span>{{ env.appUrl or 'Not set' }}</span></span><span class="env-state">APP_URL</span></div>
+          <div class="env-row"><span class="env-name">CurseForge key</span><span class="env-state"><span class="dot {% if env.curseforgeReady %}live{% endif %}"></span>{% if env.curseforgeReady %}Configured{% else %}Not set{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">GitHub token</span><span class="env-state"><span class="dot {% if env.githubReady %}live{% endif %}"></span>{% if env.githubReady %}Configured{% else %}Public rate limits{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">Telegram bot</span><span class="env-state"><span class="dot {% if env.telegramReady %}live{% endif %}"></span>{% if env.telegramReady %}Configured{% else %}Not set{% endif %}</span></div>
+        </div>
+        <p class="faint" style="margin-top:12px;font-size:11px;line-height:1.55">Secrets are never shown here. Change them in .env and restart the container.</p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

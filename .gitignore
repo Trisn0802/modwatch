@@ -1,0 +1,12 @@
+.env
+server/node_modules/
+server/uploads/*
+!server/uploads/.gitkeep
+server/uploads/tmp/
+.taste-skill/
+*.log
+.DS_Store
+.agents/
+RuangAset/
+skills-lock.json
+node_modules/

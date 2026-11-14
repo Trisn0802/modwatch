@@ -1,0 +1,130 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="{% if instance and instance.id %}/instances/{{ instance.id }}{% else %}/instances{% endif %}">{{ icon('arrow-left') }} {% if instance and instance.id %}{{ instance.name }}{% else %}Instances{% endif %}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">{% if instance and instance.id %}Edit instance{% else %}New instance{% endif %}</p>
+    <h1 class="page-title">{% if instance and instance.id %}{{ instance.name }}{% else %}Create an instance{% endif %}</h1>
+    <p class="page-sub">The Minecraft version and loader are the filter for every check. Set them before adding mods.</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+{% endif %}
+
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Instance details</h2>
+        <p class="panel-sub">Name it after the pack people recognise</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <form class="form" method="post" action="{% if instance and instance.id %}/instances/{{ instance.id }}{% else %}/instances{% endif %}" enctype="multipart/form-data">
+        {% include "partials/csrf.njk" %}
+        <div class="avatar-edit">
+          {% if instance and instance.image_path %}
+          <img class="instance-photo" src="/uploads/{{ instance.image_path }}" alt="">
+          {% else %}
+          <span class="instance-mark xl">{{ (instance.name if instance else 'New') | initials }}</span>
+          {% endif %}
+          <div class="avatar-edit-copy">
+            <label class="btn sm" for="image">Choose photo</label>
+            <input class="sr-only" id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp">
+            <p class="hint">PNG, JPG or WebP. Up to 2 MB. Square works best.</p>
+            {% if instance and instance.image_path %}
+            <label class="check"><input type="checkbox" name="remove_image" value="1"><span>Remove current photo</span></label>
+            {% endif %}
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field full">
+            <label for="name">Instance name</label>
+            <input id="name" name="name" type="text" value="{{ instance.name or '' }}" placeholder="Gugu Gaga" required autofocus>
+            <p class="hint">Shown on the board and in notifications. Must be unique.</p>
+          </div>
+          <div class="field">
+            <label for="mc_version">Minecraft version</label>
+            <input id="mc_version" name="mc_version" type="text" value="{{ instance.mc_version or '' }}" placeholder="1.20.1" required data-scope-field="mc">
+          </div>
+          <div class="field">
+            <label for="loader">Loader</label>
+            <select id="loader" name="loader" data-scope-field="loader">
+              {% for value in loaders %}
+              <option value="{{ value }}" {% if (instance.loader or 'forge') == value %}selected{% endif %}>{{ value | loaderLabel }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="loader_version">Loader version</label>
+            <input id="loader_version" name="loader_version" type="text" value="{{ instance.loader_version or '' }}" placeholder="47.4.28" data-scope-field="loaderVersion">
+            <p class="hint">Optional. Helps when two builds of the same loader behave differently.</p>
+          </div>
+          <div class="field">
+            <label for="pack_version">Pack version</label>
+            <input id="pack_version" name="pack_version" type="text" value="{{ instance.pack_version or '' }}" placeholder="1.3.0-testing">
+            <p class="hint">Filled automatically by a .mrpack import. Safe to leave empty.</p>
+          </div>
+          <div class="field full">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" placeholder="Server-only build, pinned for the SMP season, known problem mods…">{{ instance.notes or '' }}</textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="submit">{% if instance and instance.id %}Save changes{% else %}Create instance{% endif %}</button>
+          <a class="btn ghost" href="{% if instance and instance.id %}/instances/{{ instance.id }}{% else %}/instances{% endif %}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">The scope</h2>
+          <p class="panel-sub">Every check is filtered to this</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="scope" data-scope-preview style="width:100%">
+          <span class="scope-cell" style="flex:1">
+            <span class="scope-label">Minecraft</span>
+            <strong data-scope-output="mc">{{ instance.mc_version or '—' }}</strong>
+          </span>
+          <span class="scope-cell" style="flex:1">
+            <span class="scope-label">Loader</span>
+            <strong data-scope-output="loader">{% if instance and instance.loader %}{{ instance.loader | loaderLabel }}{% else %}Forge{% endif %}{% if instance and instance.loader_version %} {{ instance.loader_version }}{% endif %}</strong>
+          </span>
+        </div>
+        <div class="stack-sm" style="margin-top:18px">
+          <p class="faint" style="font-size:11.5px;line-height:1.6">A Fabric 1.21 build never counts for a Forge 1.20.1 pack. ModWatch refuses the comparison instead of showing a false update.</p>
+          <p class="faint" style="font-size:11.5px;line-height:1.6">Changing the scope later keeps the mod list but the next check compares everything against the new version.</p>
+        </div>
+      </div>
+    </section>
+
+    {% if instance and instance.id %}
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Danger zone</h2>
+          <p class="panel-sub">Deleting removes the mods too</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
+          {% include "partials/csrf.njk" %}
+          <button class="btn danger" type="submit">{{ icon('trash') }} Delete instance</button>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

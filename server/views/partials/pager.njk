@@ -1,0 +1,26 @@
+{% macro pager(pages, current, base) %}
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  <span>Page {{ current }} of {{ pages }}</span>
+  <span class="pager-pages">
+    {% if current > 1 %}
+    <a href="{{ base }}{{ '&' if '?' in base else '?' }}page={{ current - 1 }}" aria-label="Previous page">Prev</a>
+    {% endif %}
+    {% for n in range(1, pages + 1) %}
+      {% if n == 1 or n == pages or (n >= current - 2 and n <= current + 2) %}
+        {% if n == current %}
+        <span class="current" aria-current="page">{{ n }}</span>
+        {% else %}
+        <a href="{{ base }}{{ '&' if '?' in base else '?' }}page={{ n }}">{{ n }}</a>
+        {% endif %}
+      {% elif n == current - 3 or n == current + 3 %}
+        <span class="gap">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if current < pages %}
+    <a href="{{ base }}{{ '&' if '?' in base else '?' }}page={{ current + 1 }}" aria-label="Next page">Next</a>
+    {% endif %}
+  </span>
+</nav>
+{% endif %}
+{% endmacro %}

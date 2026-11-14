@@ -1,0 +1,252 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
+{% set meta = shown | statusMeta %}
+{% set src = sourceMeta or (mod.source | sourceMeta) %}
+{% set art = mod | modIcon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ mod.instance_id }}">{{ icon('arrow-left') }} {{ mod.instance_name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <div class="row" style="gap:14px;align-items:flex-start">
+      {% if art %}
+      <img class="mod-icon" src="{{ art }}" alt="" width="48" height="48" style="width:48px;height:48px;border-radius:11px" data-fallback="{{ mod.name | initials }}">
+      {% else %}
+      <span class="instance-mark">{{ mod.name | initials }}</span>
+      {% endif %}
+      <div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <h1 class="page-title">{{ mod.name }}</h1>
+          <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
+          {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
+        </div>
+        <div class="instance-meta">
+          <span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span>
+          <span class="sep"></span>
+          <span>{{ mod.mc_version }} · {{ mod.loader | loaderLabel }}</span>
+          <span class="sep"></span>
+          <span>{{ mod.file_name or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-actions">
+    <form method="post" action="/mods/{{ mod.id }}/check">
+      {% include "partials/csrf.njk" %}
+      <button class="btn" type="submit">{{ icon('refresh') }} Check now</button>
+    </form>
+    {% if mod.status == 'update_available' %}
+    <form method="post" action="/mods/{{ mod.id }}/updated" data-confirm="Mark {{ mod.name }} as updated to {{ mod.latest_version }}? The installed baseline moves forward.">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('check') }} Mark updated</button>
+    </form>
+    {% endif %}
+    <details class="menu">
+      <summary aria-label="Mod actions">{{ icon('kebab') }}</summary>
+      <div class="menu-panel">
+        {% if mod.project_url %}<a href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ icon('external') }} Open project</a>{% endif %}
+        {% if mod.status == 'update_available' and not mod.frozen_at %}
+        <form method="post" action="/mods/{{ mod.id }}/snooze">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('clock') }} Snooze {{ mod.latest_version }}</button></form>
+        {% endif %}
+        {% if mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id %}
+        <form method="post" action="/mods/{{ mod.id }}/unsnooze">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('play') }} Un-snooze update</button></form>
+        {% endif %}
+        {% if mod.frozen_at %}
+        <form method="post" action="/mods/{{ mod.id }}/unfreeze">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('refresh') }} Unfreeze version</button></form>
+        {% else %}
+        <form method="post" action="/mods/{{ mod.id }}/freeze">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('lock') }} Freeze at {{ mod.installed_version }}</button></form>
+        {% endif %}
+        {% if mod.disabled %}
+        <form method="post" action="/mods/{{ mod.id }}/enable">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('play') }} Enable file</button></form>
+        {% else %}
+        <form method="post" action="/mods/{{ mod.id }}/disable">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('pause') }} Disable file</button></form>
+        {% endif %}
+        <div class="menu-sep"></div>
+        <form method="post" action="/mods/{{ mod.id }}/delete" data-confirm="Remove {{ mod.name }} from {{ mod.instance_name }}?">
+          {% include "partials/csrf.njk" %}
+          <button type="submit" class="danger">{{ icon('trash') }} Remove mod</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</div>
+
+{% if mod.status == 'source_error' and mod.last_error %}
+<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ mod.last_error }}</span></div>
+{% endif %}
+
+<section class="shift-plate">
+  <div class="shift-cell">
+    <p class="shift-label">Installed</p>
+    <p class="shift-version {% if mod.status == 'update_available' %}faint-ink{% endif %}">{{ mod.installed_version or 'unknown version' }}</p>
+    <p class="shift-file">{{ mod.file_name or 'No file recorded' }}{% if mod.file_size %} · {{ mod.file_size | fileSize }}{% endif %}</p>
+  </div>
+  <div class="shift-arrow">{{ icon('arrow-right') }}</div>
+  <div class="shift-cell {% if mod.status == 'update_available' %}next{% endif %}">
+    <p class="shift-label">Latest allowed</p>
+    {% if mod.latest_version %}
+    <p class="shift-version">{{ mod.latest_version }}</p>
+    <p class="shift-file">{% if mod.latest_published_at %}Published {{ mod.latest_published_at | date }}{% else %}Recorded by the last check{% endif %}</p>
+    {% else %}
+    <p class="shift-version faint-ink">—</p>
+    <p class="shift-file">No newer version recorded yet</p>
+    {% endif %}
+  </div>
+</section>
+
+<div class="layout-main section-gap">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Version history</h2>
+          <p class="panel-sub">Newest publishes first, from the source cache</p>
+        </div>
+      </div>
+      {% if history.length %}
+      <div class="table-wrap">
+        <table class="board history-board">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th class="hide-sm">Channel</th>
+              <th class="hide-sm">Minecraft</th>
+              <th class="hide-sm">Loader</th>
+              <th>Published</th>
+              <th aria-label="Changelog"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for version in history %}
+            <tr>
+              <td>
+                <span class="cell-main version-string" title="{{ version.version_string }}">{{ version.version_string }}</span>
+                {% if version.version_id == mod.installed_version_id %}<span class="cell-sub">Installed</span>{% elif version.version_id == mod.latest_version_id %}<span class="cell-sub" style="color:var(--brand-text)">Latest</span>{% endif %}
+              </td>
+              <td class="hide-sm"><span class="pill {% if version.channel == 'release' %}pos{% elif version.channel == 'beta' %}warn{% else %}info{% endif %}">{{ version.channel }}</span></td>
+              <td class="hide-sm faint">{{ version.mc_versions | join(', ') or '—' }}</td>
+              <td class="hide-sm faint">{{ version.loaders | join(', ') or '—' }}</td>
+              <td class="faint nowrap">{{ version.published_at | date }}</td>
+              <td class="n">{% if version.changelog_url %}<a class="icon-btn" href="{{ version.changelog_url }}" target="_blank" rel="noopener noreferrer" aria-label="Changelog for {{ version.version_string }}">{{ icon('external') }}</a>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="panel-body">
+        <div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('clock') }}</span><p class="empty-title">No versions cached</p><p class="empty-text">Run a check. The connector stores the versions it considers so the comparison stays visible.</p></div></div>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Details</h2>
+          <p class="panel-sub">The identity used by every check</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value"><span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span></span></div>
+          <div class="kv-row"><span class="kv-label">Project</span><span class="kv-value">{% if mod.project_url %}<a class="card-link" href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ mod.project_id or mod.project_url }} {{ icon('external') }}</a>{% else %}<span class="faint">Manual entry</span>{% endif %}</span></div>
+          <div class="kv-row"><span class="kv-label">File</span><span class="kv-value">{{ mod.file_name or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-label">Size</span><span class="kv-value">{{ mod.file_size | fileSize }}</span></div>
+          <div class="kv-row">
+            <span class="kv-label">SHA-1</span>
+            <span class="kv-value">
+              {% if mod.file_sha1 %}
+              <span class="hash-row"><code title="{{ mod.file_sha1 }}">{{ mod.file_sha1 }}</code><button class="copy-btn" type="button" data-copy="{{ mod.file_sha1 }}" aria-label="Copy SHA-1">{{ icon('copy') }}</button></span>
+              {% else %}<span class="faint">—</span>{% endif %}
+            </span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-label">SHA-512</span>
+            <span class="kv-value">
+              {% if mod.file_sha512 %}
+              <span class="hash-row"><code title="{{ mod.file_sha512 }}">{{ mod.file_sha512 }}</code><button class="copy-btn" type="button" data-copy="{{ mod.file_sha512 }}" aria-label="Copy SHA-512">{{ icon('copy') }}</button></span>
+              {% else %}<span class="faint">—</span>{% endif %}
+            </span>
+          </div>
+          <div class="kv-row"><span class="kv-label">Side</span><span class="kv-value">{{ mod.side | sideLabel }}</span></div>
+          <div class="kv-row"><span class="kv-label">Channel policy</span><span class="kv-value">{{ mod.channel_policy | channelLabel }}</span></div>
+          <div class="kv-row"><span class="kv-label">Added by</span><span class="kv-value">{{ mod.added_by_name or 'Import' }}{% if mod.created_at %} · {{ mod.created_at | date }}{% endif %}</span></div>
+          <div class="kv-row"><span class="kv-label">Last checked</span><span class="kv-value">{{ mod.last_checked_at | relative }}</span></div>
+          {% if mod.snoozed_version_id %}<div class="kv-row"><span class="kv-label">Snoozed</span><span class="kv-value">One version is suppressed for this mod</span></div>{% endif %}
+        </div>
+        {% if mod.github_asset_pattern %}
+        <div class="notice" style="margin-top:14px">GitHub asset pattern <code>{{ mod.github_asset_pattern }}</code> picks the jar from each release.</div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Channel policy</h2>
+          <p class="panel-sub">What counts as an update</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form method="post" action="/mods/{{ mod.id }}/channel">
+          {% include "partials/csrf.njk" %}
+          <label class="sr-only" for="channel-policy">Channel policy</label>
+          <select class="select" id="channel-policy" name="channel_policy" style="width:100%">
+            <option value="release" {% if mod.channel_policy == 'release' %}selected{% endif %}>Release only</option>
+            <option value="beta" {% if mod.channel_policy == 'beta' %}selected{% endif %}>Beta and release</option>
+            <option value="alpha" {% if mod.channel_policy == 'alpha' %}selected{% endif %}>Alpha, beta and release</option>
+          </select>
+          <p class="faint" style="margin-top:8px;font-size:11px;line-height:1.5">Saving runs a fresh check against the new policy.</p>
+          <button class="btn" style="margin-top:12px;width:100%" type="submit">Save policy</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Version states</h2>
+          <p class="panel-sub">Different jobs, different buttons</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv version-states">
+          <div class="kv-row"><span class="kv-label">Snooze</span><span class="kv-value">Hides one release. A newer release starts the notices again. Reversible with Un-snooze.</span></div>
+          <div class="kv-row"><span class="kv-label">Freeze</span><span class="kv-value">Pins the installed version. Checks still run, but updates are not announced until you unfreeze.</span></div>
+          <div class="kv-row"><span class="kv-label">Disable</span><span class="kv-value">Keeps tracking and notices, greys the row, and writes the jar as <code>.jar.disabled</code> on export.</span></div>
+          <div class="kv-row"><span class="kv-label">Ignore</span><span class="kv-value">Removes the file from the board and from exports.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Activity</h2>
+          <p class="panel-sub">Changes to this mod</p>
+        </div>
+      </div>
+      <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
+        <div class="activity-list">
+          {% for entry in activity %}
+          <div class="activity-item">
+            <span class="activity-icon">{{ icon('activity') }}</span>
+            <div class="activity-text">
+              <strong>{{ entry.user_name or 'ModWatch' }}</strong> {{ entry.action | activityLabel | lower }}
+              <div class="activity-time">{{ entry.created_at | relative }}</div>
+            </div>
+          </div>
+          {% else %}
+          <p class="faint" style="font-size:12px;padding:12px 0">No changes recorded yet.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

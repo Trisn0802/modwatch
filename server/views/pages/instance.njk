@@ -1,0 +1,326 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/pager.njk" import pager %}
+
+{% block content %}
+<a class="backlink" href="/instances">{{ icon('arrow-left') }} Instances</a>
+
+<div class="instance-head">
+  <div>
+    <div class="instance-id">
+      {% if instance.image_path %}
+      <img class="instance-photo sm" src="/uploads/{{ instance.image_path }}" alt="">
+      {% else %}
+      <span class="instance-mark">{{ instance.name | initials }}</span>
+      {% endif %}
+      <div>
+        <h1 class="instance-title">{{ instance.name }}</h1>
+        <div class="instance-meta">
+          {% if instance.pack_version %}<span>{{ instance.pack_name }} {{ instance.pack_version }}</span><span class="sep"></span>{% endif %}
+          {# <span>{{ stats.mod_count | number }} mods</span>
+          <span class="sep"></span> #}
+          <span>Last check {{ instance.last_checked_at | relative }}</span>
+          {% if instance.notes %}<span class="sep"></span><span title="{{ instance.notes }}">Has notes</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <div class="scope">
+        <span class="scope-cell">
+          <span class="scope-label">Minecraft</span>
+          <strong><span class="match"></span>{{ instance.mc_version }}</strong>
+        </span>
+        <span class="scope-cell">
+          <span class="scope-label">Loader</span>
+          <strong>{{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</strong>
+        </span>
+        <span class="scope-cell">
+          <span class="scope-label">Pack</span>
+          <strong>{{ instance.pack_version or '—' }}</strong>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="instance-actions">
+    <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add mod</a>
+    <form method="post" action="/instances/{{ instance.id }}/check">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('refresh') }} Check now</button>
+    </form>
+    <details class="menu">
+      <summary aria-label="Instance actions">{{ icon('kebab') }}</summary>
+      <div class="menu-panel">
+        <a href="/instances/{{ instance.id }}/edit">{{ icon('pencil') }} Edit instance</a>
+        {% if isAdmin %}<a href="/imports/new">{{ icon('upload') }} Import update</a>{% endif %}
+        {% if isAdmin %}
+        <form method="post" action="/instances/{{ instance.id }}/export">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('download') }} Export .mrpack</button></form>
+        {% endif %}
+        <a href="/instances/{{ instance.id }}/export/latest">{{ icon('download') }} Download latest export</a>
+        {% if instance.share_token %}
+        <a href="/s/{{ instance.share_token }}" target="_blank" rel="noopener">{{ icon('link') }} Open share page</a>
+        {% if isAdmin %}<form method="post" action="/instances/{{ instance.id }}/share/revoke">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('close') }} Revoke share link</button></form>{% endif %}
+        {% elif isAdmin %}
+        <form method="post" action="/instances/{{ instance.id }}/share">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('link') }} Create share link</button></form>
+        {% endif %}
+        <form method="post" action="/instances/{{ instance.id }}/duplicate">
+          {% include "partials/csrf.njk" %}
+          <button type="submit">{{ icon('copy') }} Duplicate</button>
+        </form>
+        <div class="menu-sep"></div>
+        <form method="post" action="/instances/{{ instance.id }}/delete" data-confirm="Delete {{ instance.name }} and its whole mod list? This cannot be undone.">
+          {% include "partials/csrf.njk" %}
+          <button type="submit" class="danger">{{ icon('trash') }} Delete instance</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</div>
+
+{% if instance.notes %}
+<div class="notice" style="margin-bottom:16px"><strong>Notes.</strong> {{ instance.notes }}</div>
+{% endif %}
+
+<section class="kpis" aria-label="Instance totals">
+  <a class="kpi" href="/instances/{{ instance.id }}">
+    <p class="kpi-label">Tracked mods</p>
+    <p class="kpi-value">{{ stats.mod_count | number }}</p>
+    <p class="kpi-foot">In this instance</p>
+  </a>
+  <a class="kpi" href="/instances/{{ instance.id }}?status=updates">
+    <p class="kpi-label">Updates waiting</p>
+    <p class="kpi-value {% if stats.updates %}accent{% endif %}">{{ stats.updates | number }}</p>
+    <p class="kpi-foot">Inside each mod's channel</p>
+  </a>
+  <div class="kpi">
+    <p class="kpi-label">Up to date</p>
+    <p class="kpi-value">{{ stats.up_to_date | number }}</p>
+    <p class="kpi-foot">Newest allowed version</p>
+  </div>
+  <a class="kpi" href="/instances/{{ instance.id }}?status=unknown">
+    <p class="kpi-label">Unknown files</p>
+    <p class="kpi-value {% if stats.unknown %}warn{% endif %}">{{ stats.unknown | number }}</p>
+    <p class="kpi-foot">No source match yet</p>
+  </a>
+  <a class="kpi" href="/instances/{{ instance.id }}?status=errors">
+    <p class="kpi-label">Source errors</p>
+    <p class="kpi-value {% if stats.errors %}neg{% endif %}">{{ stats.errors | number }}</p>
+    <p class="kpi-foot">Could not reach a source</p>
+  </a>
+</section>
+
+<section class="panel section-gap">
+  <nav class="tabs" aria-label="Mod filters">
+    <a class="tab" href="/instances/{{ instance.id }}" {% if status == 'all' %}aria-current="page"{% endif %} style="padding-left: 20px;">All <span class="count">{{ stats.mod_count - stats.ignored }}</span></a>
+    <a class="tab" href="/instances/{{ instance.id }}?status=updates" {% if status == 'updates' %}aria-current="page"{% endif %}>Updates {% if stats.updates %}<span class="count accent">{{ stats.updates }}</span>{% endif %}</a>
+    <a class="tab" href="/instances/{{ instance.id }}?status=unknown" {% if status == 'unknown' %}aria-current="page"{% endif %}>Unknown {% if stats.unknown %}<span class="count">{{ stats.unknown }}</span>{% endif %}</a>
+    <a class="tab" href="/instances/{{ instance.id }}?status=manual" {% if status == 'manual' %}aria-current="page"{% endif %}>Manual {% if stats.manual %}<span class="count">{{ stats.manual }}</span>{% endif %}</a>
+    <a class="tab" href="/instances/{{ instance.id }}?status=errors" {% if status == 'errors' %}aria-current="page"{% endif %}>Errors {% if stats.errors %}<span class="count">{{ stats.errors }}</span>{% endif %}</a>
+    <a class="tab" href="/instances/{{ instance.id }}?status=ignored" {% if status == 'ignored' %}aria-current="page"{% endif %}>Ignored {% if stats.ignored %}<span class="count">{{ stats.ignored }}</span>{% endif %}</a>
+  </nav>
+
+  {% if status == 'unknown' %}
+    {% if unknown.length %}
+    <div class="unknown-bulk">
+      <div>
+        <p class="cell-main">{{ unknown.length }} file{% if unknown.length != 1 %}s{% endif %} without a source</p>
+        <p class="faint" style="font-size:11px;margin-top:2px">Link a project or keep the jar as a manual entry. Ignoring hides it from the board.</p>
+      </div>
+      <div class="btn-row">
+        <form method="post" action="/instances/{{ instance.id }}/unknown-bulk">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="action" value="manual">
+          <button class="btn sm" type="submit">Keep all as manual</button>
+        </form>
+        <form method="post" action="/instances/{{ instance.id }}/unknown-bulk" data-confirm="Ignore all {{ unknown.length }} unidentified files?">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="action" value="ignore">
+          <button class="btn sm ghost" type="submit">Ignore all</button>
+        </form>
+      </div>
+    </div>
+    {% for item in unknown %}
+    <article class="unknown-card">
+      <span class="unknown-icon">{{ icon('unknown') }}</span>
+      <div class="unknown-copy">
+        <p class="unknown-file">{{ item.file_name }}</p>
+        <div class="unknown-meta">
+          {% if item.jar_name %}<span>{{ item.jar_name }}{% if item.jar_version %} {{ item.jar_version }}{% endif %}</span>{% else %}<span>No jar metadata</span>{% endif %}
+          {% if item.jar_loaders.length %}<span>{{ item.jar_loaders | join(', ') }}</span>{% endif %}
+          <span>{{ item.reason | reasonLabel }}</span>
+          <span class="mono-sm">sha1 {{ item.file_sha1 | truncate(12) }}</span>
+          <span>{{ item.file_size | fileSize }}</span>
+        </div>
+      </div>
+      <div class="unknown-actions">
+        <button
+          class="btn sm"
+          type="button"
+          data-unknown-open
+          data-unknown-file="{{ item.file_name }}"
+          data-unknown-jar="{{ (item.jar_name or 'No mod metadata inside the jar') ~ ((' ' ~ item.jar_version) if item.jar_version else '') }}"
+          data-unknown-version="{{ item.jar_version or 'Unknown version' }}"
+          data-unknown-reason="{{ item.reason | reasonLabel }}"
+          data-unknown-folder="mods/"
+          data-unknown-url=""
+          data-unknown-action="/instances/{{ instance.id }}/unknown/{{ item.id }}"
+        >Resolve</button>
+      </div>
+    </article>
+    {% endfor %}
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('check') }}</span>
+          <p class="empty-title">No unidentified files</p>
+          <p class="empty-text">Every jar in this instance has a source. New imports and checks will add files here if a hash stops matching.</p>
+          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}">Back to the board</a></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {% else %}
+  <form class="toolbar" method="get" action="/instances/{{ instance.id }}" data-live-search="#mod-results">
+    <input type="hidden" name="status" value="{{ status }}">
+    <div class="toolbar-left">
+      <label class="search-field">
+        {{ icon('search') }}
+        <span class="sr-only">Search mods in this instance</span>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search mods, files or versions" autocomplete="off">
+      </label>
+      <label>
+        <span class="sr-only">Filter by source</span>
+        <select class="select" name="source" data-autosubmit>
+          <option value="">All sources</option>
+          <option value="modrinth" {% if source == 'modrinth' %}selected{% endif %}>Modrinth · {{ sourceCounts.modrinth or 0 }}</option>
+          <option value="curseforge" {% if source == 'curseforge' %}selected{% endif %}>CurseForge · {{ sourceCounts.curseforge or 0 }}</option>
+          <option value="github" {% if source == 'github' %}selected{% endif %}>GitHub · {{ sourceCounts.github or 0 }}</option>
+          <option value="manual" {% if source == 'manual' %}selected{% endif %}>Manual · {{ sourceCounts.manual or 0 }}</option>
+        </select>
+      </label>
+      {% if q or source %}<a class="link-btn" href="/instances/{{ instance.id }}?status={{ status }}">Clear</a>{% endif %}
+    </div>
+    <div class="toolbar-right">
+      <span class="count-note">{{ total | number }} mod{% if total != 1 %}s{% endif %}{% if q %} matching “{{ q }}”{% endif %}</span>
+    </div>
+  </form>
+
+  <div id="mod-results" aria-live="polite">
+  {% if mods.length %}
+  <div class="table-wrap">
+    <table class="board mods-board">
+      <thead>
+        <tr>
+          <th>Mod</th>
+          <th class="hide-sm">Source</th>
+          <th>Version</th>
+          <th class="hide-sm">Channel</th>
+          <th class="hide-sm">Side</th>
+          <th>Status</th>
+          <th class="hide-sm">Checked</th>
+          <th aria-label="Actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mod in mods %}
+        {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
+        {% set meta = shown | statusMeta %}
+        <tr class="{% if mod.disabled %}is-disabled{% endif %}">
+          <td>
+            <div class="mod-cell">
+              {% set art = mod | modIcon %}
+              {% if art %}
+              <img class="mod-icon" src="{{ art }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ mod.name | initials }}">
+              {% else %}
+              <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+              {% endif %}
+              <span class="mod-copy">
+                <a class="mod-name" href="/mods/{{ mod.id }}">{{ mod.name }}</a>
+                <span class="mod-file">{{ mod.file_name or mod.project_id or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
+              </span>
+            </div>
+          </td>
+          <td class="hide-sm">
+            {% set src = mod.source | sourceMeta %}
+            <span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span>
+          </td>
+          <td>
+            {% if mod.status == 'update_available' %}
+            <span class="vshift">
+              <span class="from">{{ mod.installed_version or 'unknown' }}</span>
+              <span class="arrow">{{ icon('arrow-right') }}</span>
+              <span class="to">{{ mod.latest_version }}</span>
+            </span>
+            {% elif mod.status == 'source_error' %}
+            <span class="vshift same"><span class="from">{{ mod.installed_version or 'unknown' }}</span><span class="arrow">{{ icon('arrow-right') }}</span><span class="to">—</span></span>
+            {% else %}
+            <span class="vshift same"><span class="to">{{ mod.installed_version or 'unknown version' }}</span></span>
+            {% endif %}
+          </td>
+          <td class="hide-sm nowrap">
+            <span class="faint" style="font-size:11px">{{ mod.channel_policy | channelLabel }}</span>
+          </td>
+          <td class="hide-sm nowrap"><span class="faint" style="font-size:11px">{{ mod.side | sideLabel }}</span></td>
+          <td>
+            <span class="row" style="gap:5px;flex-wrap:wrap">
+              <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
+              {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
+            </span>
+          </td>
+          <td class="hide-sm faint nowrap">{{ mod.last_checked_at | relative }}</td>
+          <td class="n">
+            <span class="row" style="gap:2px;justify-content:flex-end">
+              <form method="post" action="/mods/{{ mod.id }}/check">
+                {% include "partials/csrf.njk" %}
+                <button class="icon-btn" type="submit" aria-label="Check {{ mod.name }} now" title="Check now">{{ icon('refresh') }}</button>
+              </form>
+              <a class="icon-btn" href="/mods/{{ mod.id }}" aria-label="Open {{ mod.name }}">{{ icon('chevron-right') }}</a>
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pager(pages, currentPage, '/instances/' ~ instance.id ~ '?status=' ~ status ~ '&source=' ~ source ~ '&q=' ~ (q | urlencode)) }}
+
+  {% else %}
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('search' if q else 'instances') }}</span>
+        {% if q %}
+        <p class="empty-title">No mod matches “{{ q }}”</p>
+        <p class="empty-text">Try part of the mod name or the jar file name. The source filter may also be hiding it.</p>
+        <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}?status={{ status }}">Clear the search</a></div>
+        {% elif status == 'updates' %}
+        <p class="empty-title">Nothing is behind</p>
+        <p class="empty-text">Every tracked mod already runs the newest version allowed by its channel for {{ instance.mc_version }} {{ instance.loader | loaderLabel }}.</p>
+        {% elif status == 'errors' %}
+        <p class="empty-title">No source errors</p>
+        <p class="empty-text">Every connector answered on the last run. If a source goes down, the affected mods will appear here with the message.</p>
+        {% elif status == 'manual' %}
+        <p class="empty-title">No manual mods</p>
+        <p class="empty-text">Manual entries are jars you track without a project page. Resolve an unknown file as manual to start one.</p>
+        {% elif status == 'ignored' %}
+        <p class="empty-title">Nothing ignored</p>
+        <p class="empty-text">Files you choose to ignore are kept here with their hashes, out of the board's way.</p>
+        {% else %}
+        <p class="empty-title">No mods in this instance</p>
+        <p class="empty-text">Import a .mrpack to bring in the whole pack at once, or add mods one at a time from Modrinth, CurseForge and GitHub.</p>
+        <div class="empty-actions">
+          <a class="btn primary" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add a mod</a>
+          {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% include "partials/unknown-modal.njk" %}
+{% endblock %}

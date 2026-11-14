@@ -1,0 +1,64 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/pager.njk" import pager %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Audit trail</p>
+    <h1 class="page-title">Activity</h1>
+    <p class="page-sub">{{ total | number }} recorded action{% if total != 1 %}s{% endif %}. Imports, checks, decisions, settings and sign-ins in one stream.</p>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table class="board">
+      <thead>
+        <tr>
+          <th>Who</th>
+          <th>Action</th>
+          <th class="hide-sm">Detail</th>
+          <th class="hide-sm">Subject</th>
+          <th class="n">When</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in rows %}
+        <tr>
+          <td>
+            <div class="mod-cell">
+              <span class="avatar" style="width:26px;height:26px;font-size:10px">{% if entry.user_avatar %}<img src="/uploads/{{ entry.user_avatar }}" alt="">{% else %}{{ (entry.user_name or 'System') | initials }}{% endif %}</span>
+              <span class="mod-copy"><span class="cell-main">{{ entry.user_name or 'System' }}</span></span>
+            </div>
+          </td>
+          <td class="cell-main">{{ labels[entry.action] or entry.action }}</td>
+          <td class="hide-sm faint">
+            {% if entry.meta.name %}{{ entry.meta.name }}{% endif %}
+            {% if entry.meta.mod %}{% if entry.meta.name %} · {% endif %}{{ entry.meta.mod }}{% endif %}
+            {% if entry.meta.instance %}<span class="faint"> · {{ entry.meta.instance }}</span>{% endif %}
+            {% if entry.meta.file %}{{ entry.meta.file }}{% endif %}
+            {% if entry.meta.resolution %} · {{ entry.meta.resolution }}{% endif %}
+            {% if entry.meta.from and entry.meta.to %} · {{ entry.meta.from }} → {{ entry.meta.to }}{% endif %}
+            {% if entry.meta.count %} · {{ entry.meta.count }} files{% endif %}
+            {% if entry.meta.check_interval_hours %} · every {{ entry.meta.check_interval_hours }} h{% endif %}
+          </td>
+          <td class="hide-sm faint">
+            {% if entry.subject_type == 'instance' and entry.subject_id %}<a class="card-link" href="/instances/{{ entry.subject_id }}">{{ entry.instance_name or 'Instance ' ~ entry.subject_id }}</a>
+            {% elif entry.subject_type == 'mod' and entry.subject_id %}<a class="card-link" href="/mods/{{ entry.subject_id }}">{{ entry.mod_name or 'Mod ' ~ entry.subject_id }}</a>
+            {% elif entry.subject_type == 'request' %}<a class="card-link" href="/approvals">Request</a>
+            {% elif entry.subject_type == 'user' and entry.subject_id %}<a class="card-link" href="/users/{{ entry.subject_id }}/edit">Account</a>
+            {% elif entry.subject_type == 'settings' %}<a class="card-link" href="/settings">Settings</a>
+            {% else %}<span class="faint">—</span>{% endif %}
+          </td>
+          <td class="n faint nowrap">{{ entry.created_at | relative }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><div class="empty-state" style="border:0"><div class="empty-inner"><p class="empty-title">No activity yet</p><p class="empty-text">Actions appear here as soon as someone signs in, imports a pack or runs a check.</p></div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pager(pages, page, '/activity') }}
+</section>
+{% endblock %}

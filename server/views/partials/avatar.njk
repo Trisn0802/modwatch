@@ -1,0 +1,3 @@
+{% macro avatar(user, extra='') -%}
+<span class="avatar {{ extra }}">{% if user and user.avatar_path %}<img src="/uploads/{{ user.avatar_path }}" alt="" data-fallback="{{ ((user.name if user else '?') or '?') | initials }}">{% else %}{{ ((user.name if user else '?') or '?') | initials }}{% endif %}</span>
+{%- endmacro %}

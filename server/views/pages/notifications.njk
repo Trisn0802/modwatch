@@ -1,0 +1,69 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot {% if unread %}warn{% else %}live{% endif %}"></span> Signals</p>
+    <h1 class="page-title">Notifications</h1>
+    <p class="page-sub">Updates, unknown files and approval decisions. Every notice links back to the thing that changed.</p>
+  </div>
+  <div class="page-actions">
+    {% if unread %}
+    <form method="post" action="/notifications/read-all">
+      {% include "partials/csrf.njk" %}
+      <button class="btn" type="submit">{{ icon('check') }} Mark all read</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<section class="panel">
+  <nav class="tabs" style="padding:0 var(--card-pad)" aria-label="Notification filters">
+    <a class="tab" href="/notifications" {% if filter == 'all' %}aria-current="page"{% endif %}>All</a>
+    <a class="tab" href="/notifications?filter=unread" {% if filter == 'unread' %}aria-current="page"{% endif %}>Unread {% if unread %}<span class="count accent">{{ unread }}</span>{% endif %}</a>
+  </nav>
+
+  {% for item in items %}
+  <article class="notif-row {% if not item.read_at %}unread{% endif %} {% if item.mod_disabled %}is-disabled{% endif %}">
+    <span class="notif-kind {{ item.kind }}">
+      {% if item.kind == 'unknown' %}{{ icon('unknown') }}
+      {% elif item.kind == 'request' or item.kind == 'decision' %}{{ icon('approvals') }}
+      {% elif item.kind == 'error' %}{{ icon('alert') }}
+      {% elif item.kind == 'update' %}{{ icon('refresh') }}
+      {% else %}{{ icon('bell') }}{% endif %}
+    </span>
+    <div class="notif-copy">
+      <p class="notif-title">{{ item.title }}</p>
+      {% if item.body %}<p class="notif-body">{{ item.body }}</p>{% endif %}
+      <p class="notif-meta">
+        {% if item.instance_name %}{{ item.instance_name }} · {% endif %}
+        {{ item.created_at | relative }}
+        {% if not item.read_at %} · Unread{% endif %}
+      </p>
+    </div>
+    <div class="notif-actions">
+      {% if not item.read_at %}
+      <form method="post" action="/notifications/{{ item.id }}/open">
+        {% include "partials/csrf.njk" %}
+        <button class="btn sm" type="submit">Open</button>
+      </form>
+      {% else %}
+      <a class="btn sm ghost" href="{{ hrefFor(item) }}">Open</a>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('bell') }}</span>
+        <p class="empty-title">{% if filter == 'unread' %}No unread notifications{% else %}Nothing has happened yet{% endif %}</p>
+        <p class="empty-text">{% if filter == 'unread' %}You are caught up. New updates and decisions appear here and in the topbar.{% else %}Once a check finds a newer version, or someone requests a mod, the notice lands here.{% endif %}</p>
+        {% if filter == 'unread' %}<div class="empty-actions"><a class="btn" href="/notifications">See all notifications</a></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

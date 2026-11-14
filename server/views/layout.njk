@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-theme="oled" data-theme-mode="oled">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title or page or 'Overview' }}{% endblock %} · ModWatch</title>
+  <meta name="description" content="{{ ogDescription or 'ModWatch tracks Minecraft mods across modpacks and reports updates for the exact Minecraft version and loader you run.' }}">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png">
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="/assets/site.webmanifest">
+  <meta property="og:type" content="{{ ogType or 'website' }}">
+  <meta property="og:site_name" content="ModWatch">
+  <meta property="og:title" content="{{ ogTitle or ((title or page or 'Overview') ~ ' · ModWatch') }}">
+  <meta property="og:description" content="{{ ogDescription or 'Self-hosted Minecraft modpack update tracker for Forge, Fabric, NeoForge and Quilt.' }}">
+  <meta property="og:url" content="{{ ogUrl or (baseUrl ~ path) }}">
+  <meta property="og:image" content="{{ ogImage or (baseUrl ~ '/assets/img/og-image.png') }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ ogTitle or ((title or page or 'Overview') ~ ' · ModWatch') }}">
+  <meta name="twitter:description" content="{{ ogDescription or 'Self-hosted Minecraft modpack update tracker for Forge, Fabric, NeoForge and Quilt.' }}">
+  <meta name="twitter:image" content="{{ ogImage or (baseUrl ~ '/assets/img/og-image.png') }}">
+  <script src="/assets/js/theme.js?v={{ assetVersion }}"></script>
+  <link rel="stylesheet" href="/assets/css/modwatch.css?v={{ assetVersion }}">
+  {% block head %}{% endblock %}
+</head>
+<body data-page="{{ page or '' }}">
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="app">
+  {% include "partials/sidebar.njk" %}
+  <div class="main">
+    {% include "partials/topbar.njk" %}
+    <main class="canvas" id="main">
+      {% include "partials/flash.njk" %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+<script src="/assets/js/charts.js?v={{ assetVersion }}"></script>
+<script src="/assets/js/motion.js?v={{ assetVersion }}"></script>
+<script src="/assets/js/ui.js?v={{ assetVersion }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

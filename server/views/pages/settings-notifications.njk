@@ -1,0 +1,103 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Control</p>
+    <h1 class="page-title">Notifications</h1>
+    <p class="page-sub">In-app notices are always on. Telegram mirrors them to a chat you choose.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  {% include "partials/settings-nav.njk" %}
+
+  <div class="stack settings-panel">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Delivery</h2>
+          <p class="panel-sub">Where the signal goes</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/settings/notifications">
+          {% include "partials/csrf.njk" %}
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>In-app inbox</strong>
+              <span>The bell in the topbar and the Notifications page. Members only see their own notices.</span>
+            </div>
+            <div class="setting-control">
+              <span class="pill pos"><span class="dot"></span>Always on</span>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>Telegram</strong>
+              <span>Send updates, unknown files and requests to a chat. Requires TELEGRAM_BOT_TOKEN in .env.</span>
+            </div>
+            <div class="setting-control">
+              <label class="check">
+                <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %} {% if not env.telegramReady %}disabled{% endif %}>
+                <span>{% if env.telegramReady %}Enable Telegram delivery{% else %}Add a bot token first{% endif %}</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>Chat ID</strong>
+              <span>The numeric chat or channel id. A group id usually starts with a minus sign.</span>
+            </div>
+            <div class="setting-control">
+              <label class="sr-only" for="chat">Telegram chat ID</label>
+              <input class="input" id="chat" name="telegram_chat_id" type="text" value="{{ settings.telegram_chat_id }}" placeholder="-1001234567890">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save delivery</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Test the connection</h2>
+          <p class="panel-sub">One message, no side effects</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="faint" style="font-size:11.5px;line-height:1.6">The test uses the saved token and chat id. If it fails, the flash message names the missing piece.</p>
+        <form method="post" action="/settings/notifications/test" style="margin-top:14px">
+          {% include "partials/csrf.njk" %}
+          <button class="btn" type="submit">{{ icon('telegram') }} Send test message</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">What triggers a notice</h2>
+          <p class="panel-sub">One per event, never per check</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Update</span><span class="kv-value">A newer version lands inside the mod's channel policy. The same version never notifies twice.</span></div>
+          <div class="kv-row"><span class="kv-label">Unknown file</span><span class="kv-value">An import or check adds a jar with no source match.</span></div>
+          <div class="kv-row"><span class="kv-label">Request</span><span class="kv-value">A member asks to add a mod. Admins get it in-app and on Telegram.</span></div>
+          <div class="kv-row"><span class="kv-label">Decision</span><span class="kv-value">An admin approves or rejects a request. The requester gets the note.</span></div>
+          <div class="kv-row"><span class="kv-label">Source error</span><span class="kv-value">A connector fails. The mod keeps its old state and the error is visible on the row.</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

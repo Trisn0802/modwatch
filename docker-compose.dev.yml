@@ -1,0 +1,10 @@
+# Development override: run only PostgreSQL in Docker and the app with
+# `npm run dev` on the host. Production keeps using the base compose file.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#   cd server && npm run dev
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"

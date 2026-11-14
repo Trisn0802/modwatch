@@ -1,0 +1,32 @@
+{% extends "auth-layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="auth-form-wrap">
+  <p class="eyebrow" style="margin-bottom:10px">Self-hosted · modpack watch</p>
+  <h1 class="auth-title">Sign in</h1>
+  <p class="auth-sub">Pick up where the last check left off.</p>
+
+  {% if error %}
+  <div class="auth-error" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+  {% endif %}
+
+  <form class="auth-form" method="post" action="/login">
+    {% include "partials/csrf.njk" %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" value="{{ email }}" autocomplete="username" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn primary" type="submit">Sign in {{ icon('arrow-right') }}</button>
+  </form>
+
+  <p class="auth-note">
+    No account yet? Ask the person who runs this instance to create one on the Users page. ModWatch keeps its own accounts; there is no external sign-in.
+  </p>
+</div>
+{% endblock %}

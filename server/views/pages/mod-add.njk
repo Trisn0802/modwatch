@@ -1,0 +1,182 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Add a mod</p>
+    <h1 class="page-title">Find the project</h1>
+    <p class="page-sub">Search runs against {{ instance.mc_version }} {{ instance.loader | loaderLabel }} only, so every result can actually run in this instance.</p>
+    <div style="margin-top:12px">
+      <div class="scope compact">
+        <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ instance.mc_version }}</strong></span>
+        <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ instance.loader | loaderLabel }}</strong></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout-main">
+  <section class="panel">
+    <form class="toolbar" method="get" action="/instances/{{ instance.id }}/mods/new">
+      <div class="toolbar-left" style="flex:1">
+        <label class="search-field" style="flex:1">
+          {{ icon('search') }}
+          <span class="sr-only">Search mod projects</span>
+          <input type="search" name="q" value="{{ q }}" placeholder="JEI, Create, Sophisticated Backpacks…" autocomplete="off" autofocus>
+        </label>
+        <button class="btn" type="submit">Search</button>
+        {% if q %}<a class="link-btn" href="/instances/{{ instance.id }}/mods/new">Clear</a>{% endif %}
+      </div>
+    </form>
+
+    {% if searchError %}
+    <div class="panel-body"><div class="error-box" style="margin:0">{{ icon('alert') }}<span>{{ searchError }}</span></div></div>
+    {% endif %}
+
+    {% if results.length %}
+    <div class="table-wrap">
+      <table class="board">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th class="hide-sm">Source</th>
+            <th class="n hide-sm">Downloads</th>
+            <th aria-label="Choose"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in results %}
+          {% set src = result.source | sourceMeta %}
+          <tr>
+            <td>
+              <div class="mod-cell">
+                {% if result.icon_url %}
+                <img class="mod-icon" src="{{ result.icon_url }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ result.name | initials }}">
+                {% else %}
+                <span class="mod-icon fallback">{{ result.name | initials }}</span>
+                {% endif %}
+                <span class="mod-copy">
+                  <span class="mod-name">{{ result.name }}</span>
+                  <span class="mod-file">{{ result.description | truncate(110) }}</span>
+                </span>
+              </div>
+            </td>
+            <td class="hide-sm"><span class="source-label {{ result.source }}"><span class="mark"></span>{{ src.label }}{% if result.author %} · {{ result.author }}{% endif %}</span></td>
+            <td class="n hide-sm faint">{{ result.downloads | number }}</td>
+            <td class="n">
+              <a class="btn sm" href="/instances/{{ instance.id }}/mods/choose?source={{ result.source }}&project_id={{ result.project_id | urlencode }}&name={{ result.name | urlencode }}&project_url={{ result.project_url | urlencode }}&icon_url={{ (result.icon_url or '') | urlencode }}">Choose version</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif q %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">No project matched “{{ q }}”</p>
+          <p class="empty-text">Check the spelling, or add a manual entry from the panel beside this list if the mod is private.</p>
+          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}/mods/new?manual=1">Add manually</a></div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">Search a project name</p>
+          <p class="empty-text">Modrinth is searched first, then CurseForge when a key is configured, and GitHub when the token allows it. The loader and Minecraft version filter the hits.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="rail">
+    {% if manual %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Manual entry</h2>
+          <p class="panel-sub">No project page? Track the jar anyway</p>
+        </div>
+        <a class="link-btn" href="/instances/{{ instance.id }}/mods/new">Back to search</a>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/instances/{{ instance.id }}/mods">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="source" value="manual">
+          <div class="field">
+            <label for="manual-name">Mod name</label>
+            <input id="manual-name" name="name" type="text" placeholder="Private server patch" required>
+          </div>
+          <div class="field">
+            <label for="manual-version">Installed version</label>
+            <input id="manual-version" name="installed_version" type="text" placeholder="1.4.2">
+          </div>
+          <div class="field">
+            <label for="manual-url">Project page</label>
+            <input id="manual-url" name="project_url" type="url" placeholder="https://…">
+            <p class="hint">Optional. Manual mods are never queried, so no update is invented.</p>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="manual-side">Side</label>
+              <select id="manual-side" name="side">
+                <option value="both">Client + server</option>
+                <option value="client">Client only</option>
+                <option value="server">Server only</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="manual-channel">Channel policy</label>
+              <select id="manual-channel" name="channel_policy">
+                {% for value, label in channelOptions %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button class="btn primary" type="submit">{{ icon('plus') }} Add manual mod</button>
+        </form>
+      </div>
+    </section>
+    {% else %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Not on a source?</h2>
+          <p class="panel-sub">Keep it visible without a lookup</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="faint" style="font-size:11.5px;line-height:1.6">Private jars and one-off patches have no project page. A manual entry keeps the file, its hash and its version on the board with no automatic update check.</p>
+        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1">{{ icon('plus') }} Add manually</a>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Source order</h2>
+          <p class="panel-sub">What the search uses</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="env-list">
+          <div class="env-row"><span class="env-name">Modrinth</span><span class="env-state"><span class="dot live"></span>Always on</span></div>
+          <div class="env-row"><span class="env-name">CurseForge</span><span class="env-state"><span class="dot {% if env.curseforgeReady %}live{% endif %}"></span>{% if env.curseforgeReady %}Key configured{% else %}No API key{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">GitHub</span><span class="env-state"><span class="dot live"></span>{% if env.githubReady %}Token set{% else %}Public API{% endif %}</span></div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Search</p>
+    <h1 class="page-title">Search ModWatch</h1>
+    <p class="page-sub">Find a mod by name or jar file, or jump to an instance by pack name and Minecraft version.</p>
+  </div>
+</div>
+
+<div class="search-hero">
+  <form class="big-search" action="/search" method="get" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <input id="search-q" name="q" type="search" value="{{ q }}" placeholder="Create, jei-1.20.1, Gugu Gaga…" autofocus>
+    <button class="btn primary" type="submit">{{ icon('search') }} Search</button>
+  </form>
+</div>
+
+{% if q %}
+<div class="result-group">
+  <div class="page-head" style="margin-bottom:8px">
+    <div><h2 class="panel-title">Mods <span class="faint" style="font-weight:400">· {{ mods.length }}</span></h2></div>
+  </div>
+  <section class="panel">
+    {% for mod in mods %}
+    {% set meta = mod.status | statusMeta %}
+    <a class="result-row" href="/mods/{{ mod.id }}">
+      <span class="result-main">
+        <span class="result-name">{{ mod.name }}</span>
+        <span class="result-meta">{{ mod.instance_name }} · {{ mod.file_name or mod.installed_version }}</span>
+      </span>
+      <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
+      {{ icon('chevron-right') }}
+    </a>
+    {% else %}
+    <div class="empty-state" style="border:0"><div class="empty-inner"><p class="empty-title">No mod matched</p><p class="empty-text">Try part of the project name or the jar file name.</p></div></div>
+    {% endfor %}
+  </section>
+</div>
+
+{% if instances.length %}
+<div class="result-group">
+  <div class="page-head" style="margin-bottom:8px">
+    <div><h2 class="panel-title">Instances <span class="faint" style="font-weight:400">· {{ instances.length }}</span></h2></div>
+  </div>
+  <section class="panel">
+    {% for item in instances %}
+    <a class="result-row" href="/instances/{{ item.id }}">
+      <span class="result-main">
+        <span class="result-name">{{ item.name }}</span>
+        <span class="result-meta">{{ item.mc_version }} · {{ item.loader | loaderLabel }}{% if item.loader_version %} {{ item.loader_version }}{% endif %}{% if item.pack_version %} · pack {{ item.pack_version }}{% endif %}</span>
+      </span>
+      {{ icon('chevron-right') }}
+    </a>
+    {% endfor %}
+  </section>
+</div>
+{% endif %}
+
+{% else %}
+<section class="panel">
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('search') }}</span>
+        <p class="empty-title">Type something to search</p>
+        <p class="empty-text">The search covers every instance you can see. Press <kbd>/</kbd> anywhere to jump to the topbar field.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

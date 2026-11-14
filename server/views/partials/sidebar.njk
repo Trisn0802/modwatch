@@ -1,0 +1,99 @@
+{% from "partials/icon.njk" import icon %}
+{% from "partials/mark.njk" import mark %}
+{% from "partials/avatar.njk" import avatar %}
+<aside class="sidebar" id="sidebar" aria-label="Main">
+  <div class="sidebar-head">
+    <a class="brand" href="/" aria-label="ModWatch overview">
+      <span class="brand-mark">{{ mark(28) }}</span>
+      <span>
+        <span class="brand-name">ModWatch</span>
+        <span class="brand-tag">modpack watch</span>
+      </span>
+    </a>
+    <button class="icon-btn sidebar-close" type="button" data-sidebar-close aria-label="Close navigation">
+      {{ icon('close') }}
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group">
+      <p class="nav-label">Watch</p>
+      <a class="nav-item" href="/" {% if path == '/' %}aria-current="page"{% endif %}>
+        {{ icon('overview') }}<span>Overview</span>
+      </a>
+      <a class="nav-item" href="/instances" {% if area == 'instances' %}aria-current="page"{% endif %}>
+        {{ icon('instances') }}<span>Instances</span>
+        {% if nav.updates %}<span class="nav-dot" title="{{ nav.updates }} update{% if nav.updates != 1 %}s{% endif %} waiting" aria-label="{{ nav.updates }} update{% if nav.updates != 1 %}s{% endif %} waiting"></span>{% endif %}
+      </a>
+      {% if isAdmin %}
+      <a class="nav-item" href="/approvals" {% if area == 'approvals' %}aria-current="page"{% endif %}>
+        {{ icon('approvals') }}<span>Approvals</span>
+        {% if pendingRequests %}<span class="count">{{ pendingRequests }}</span>{% endif %}
+      </a>
+      {% endif %}
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-label">Signals</p>
+      <a class="nav-item" href="/notifications" {% if area == 'notifications' %}aria-current="page"{% endif %}>
+        {{ icon('bell') }}<span>Notifications</span>
+        {% if nav.unread %}<span class="count">{{ nav.unread }}</span>{% endif %}
+      </a>
+      <a class="nav-item" href="/activity" {% if area == 'activity' %}aria-current="page"{% endif %}>
+        {{ icon('activity') }}<span>Activity</span>
+      </a>
+    </div>
+
+    <div class="nav-group">
+      <p class="nav-label">Control</p>
+      {% if isAdmin %}
+      <a class="nav-item" href="/settings" {% if area == 'settings' and section != 'account' %}aria-current="page"{% endif %}>
+        {{ icon('settings') }}<span>Settings</span>
+      </a>
+      <a class="nav-item" href="/users" {% if area == 'users' %}aria-current="page"{% endif %}>
+        {{ icon('users') }}<span>Users</span>
+      </a>
+      {% else %}
+      <a class="nav-item" href="/settings/account" {% if area == 'settings' %}aria-current="page"{% endif %}>
+        {{ icon('settings') }}<span>Account</span>
+      </a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="sidebar-foot">
+    <div class="status-card">
+      <p class="status-line">
+        <span class="dot {% if scheduler.running %}busy{% else %}live{% endif %}"></span>
+        <span>{% if scheduler.running %}Checking now{% else %}Watcher armed{% endif %}</span>
+      </p>
+      <p class="status-line">
+        <span>{% if scheduler.running %}Results land as they finish{% else %}Next check {{ scheduler.nextRun | countdown }}{% endif %}</span>
+      </p>
+    </div>
+    {% if currentUser %}
+    <details class="user-pop" id="user-pop">
+      <summary class="user-chip" aria-label="{{ currentUser.name | initials }} — profile menu for {{ currentUser.name }}">
+        {{ avatar(currentUser) }}
+        <span class="user-meta">
+          <span class="user-name">{{ currentUser.name }}</span>
+          <span class="user-role">{{ currentUser.role | roleLabel }} · v{{ appVersion }}</span>
+        </span>
+        <span class="user-chev">{{ icon('chevron-up') }}</span>
+      </summary>
+      <div class="user-pop-panel">
+        <div class="user-pop-head">
+          <strong>{{ currentUser.name }}</strong>
+          <span>{{ currentUser.email }}</span>
+        </div>
+        <a href="/settings/account">{{ icon('user') }} Profile</a>
+        {% if isAdmin %}<a href="/settings">{{ icon('settings') }} Settings</a>{% endif %}
+        <form method="post" action="/logout">
+          {% include "partials/csrf.njk" %}
+          <button type="submit">{{ icon('logout') }} Sign out</button>
+        </form>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</aside>

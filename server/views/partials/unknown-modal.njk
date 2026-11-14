@@ -1,0 +1,59 @@
+{% from "partials/icon.njk" import icon %}
+<dialog id="unknown-dialog" aria-labelledby="unknown-dialog-title">
+  <form id="unknown-form" method="post" action="">
+    {% include "partials/csrf.njk" %}
+    <div class="dialog-head">
+      <div>
+        <h2 class="dialog-title" id="unknown-dialog-title">Unknown mod detected</h2>
+        <p class="dialog-sub">This jar has no Modrinth match. Tell ModWatch where it comes from.</p>
+      </div>
+      <button class="icon-btn" type="button" data-dialog-close aria-label="Close">{{ icon('close') }}</button>
+    </div>
+    <div class="dialog-body">
+      <div class="dialog-file">
+        <strong id="unknown-file">Unknown file</strong>
+        <span id="unknown-jar">No mod metadata inside the jar</span>
+        <div class="dialog-facts">
+          <span id="unknown-version">Unknown version</span>
+          <span id="unknown-folder">mods/</span>
+          <span id="unknown-reason">No match on Modrinth or CurseForge</span>
+        </div>
+      </div>
+
+      <div class="radio-stack">
+        <label class="radio-card">
+          <input type="radio" name="action" value="source" checked>
+          <span>
+            <strong>Link a project page</strong>
+            <span>Paste a Modrinth, CurseForge or GitHub URL. ModWatch reads the project and starts watching it.</span>
+          </span>
+        </label>
+        <div data-unknown-section="source" class="dialog-section">
+          <label class="sr-only" for="unknown-source">Project URL</label>
+          <input class="input" id="unknown-source" name="project_url" type="url" placeholder="https://modrinth.com/mod/…" autocomplete="off">
+          <p class="dialog-help">The installed file stays attached to this mod, so the first check compares the version you already run.</p>
+        </div>
+
+        <label class="radio-card">
+          <input type="radio" name="action" value="manual">
+          <span>
+            <strong>Track as a manual mod</strong>
+            <span>Keep the file and its hashes in the instance without querying a source. Useful for private builds.</span>
+          </span>
+        </label>
+
+        <label class="radio-card">
+          <input type="radio" name="action" value="ignore">
+          <span>
+            <strong>Ignore this file</strong>
+            <span>Hide it from the board. You can still see ignored files with the Ignored filter.</span>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" type="button" data-dialog-close>Cancel</button>
+      <button class="btn primary" type="submit">Save decision</button>
+    </div>
+  </form>
+</dialog>

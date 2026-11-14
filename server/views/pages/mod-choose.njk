@@ -1,0 +1,208 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% set src = source | sourceMeta %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}/mods/new">{{ icon('arrow-left') }} Back to search</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <div class="row" style="gap:13px;align-items:flex-start">
+      {% if iconUrl %}
+      <img class="mod-icon" src="{{ iconUrl }}" alt="" width="42" height="42" style="width:42px;height:42px;border-radius:10px" data-fallback="{{ name | initials }}">
+      {% else %}
+      <span class="instance-mark">{{ name | initials }}</span>
+      {% endif %}
+      <div>
+        <p class="eyebrow" style="margin-bottom:4px">{{ src.label }}{% if manual %} · manual entry{% endif %}</p>
+        <h1 class="instance-title">{{ name or 'Choose a version' }}</h1>
+        <p class="page-sub" style="margin-top:4px">Pick the build that is already installed. ModWatch stores it as the baseline, then checks forward from there.</p>
+      </div>
+    </div>
+  </div>
+  <div class="page-actions">
+    <div class="scope compact">
+      <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ instance.mc_version }}</strong></span>
+      <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ instance.loader | loaderLabel }}</strong></span>
+    </div>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+{% endif %}
+
+{% if manual %}
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Manual entry</h2>
+        <p class="panel-sub">Tracked, never queried</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <form class="form" method="post" action="/instances/{{ instance.id }}/mods">
+        {% include "partials/csrf.njk" %}
+        <input type="hidden" name="source" value="manual">
+        <input type="hidden" name="name" value="{{ name }}">
+        {% if projectUrl %}<input type="hidden" name="project_url" value="{{ projectUrl }}">{% endif %}
+        <div class="form-grid">
+          <div class="field">
+            <label for="installed">Installed version</label>
+            <input id="installed" name="installed_version" type="text" placeholder="1.4.2" required>
+          </div>
+          <div class="field">
+            <label for="side">Side</label>
+            <select id="side" name="side">
+              <option value="both">Client + server</option>
+              <option value="client">Client only</option>
+              <option value="server">Server only</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label for="channel">Channel policy</label>
+            <select id="channel" name="channel_policy">
+              {% for value, label in channelOptions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit">{{ icon('plus') }} Add manual mod</button></div>
+      </form>
+    </div>
+  </section>
+</div>
+{% else %}
+
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Versions for this scope</h2>
+        <p class="panel-sub">Filtered to {{ instance.mc_version }} {{ instance.loader | loaderLabel }}{% if assetPattern %} · asset /{{ assetPattern }}/{% endif %}</p>
+      </div>
+      {% if projectUrl %}<a class="card-link" href="{{ projectUrl }}" target="_blank" rel="noopener noreferrer">Project page {{ icon('external') }}</a>{% endif %}
+    </div>
+
+    {% if versions.length %}
+    <form method="post" action="/instances/{{ instance.id }}/mods" data-version-form>
+      {% include "partials/csrf.njk" %}
+      <input type="hidden" name="source" value="{{ source }}">
+      <input type="hidden" name="project_id" value="{{ projectId }}">
+      <input type="hidden" name="project_url" value="{{ projectUrl }}">
+      <input type="hidden" name="name" value="{{ name }}">
+      <input type="hidden" name="installed_version" value="">
+      <input type="hidden" name="installed_version_id" value="">
+      <input type="hidden" name="file_name" value="">
+      <input type="hidden" name="file_sha1" value="">
+      <input type="hidden" name="file_sha512" value="">
+      <input type="hidden" name="file_size" value="">
+      <input type="hidden" name="published_at" value="">
+      <input type="hidden" name="channel" value="release">
+      <input type="hidden" name="mc_versions" value="">
+      <input type="hidden" name="loaders" value="">
+      <input type="hidden" name="changelog_url" value="">
+      <input type="hidden" name="download_page_url" value="">
+      <input type="hidden" name="icon_url" value="{{ iconUrl or '' }}">
+      <input type="hidden" name="download_url" value="">
+      <input type="hidden" name="github_asset_pattern" value="{{ assetPattern }}">
+
+      <div class="version-list">
+        {% for version in versions %}
+        <label class="version-row">
+          <input type="radio" name="picked" value="{{ loop.index }}" data-version="{{ version.version }}" data-version-id="{{ version.version_id }}" data-file="{{ version.file_name }}" data-sha1="{{ version.file_sha1 or '' }}" data-sha512="{{ version.file_sha512 or '' }}" data-size="{{ version.file_size or '' }}" data-published="{{ version.published_at or '' }}" data-channel="{{ version.channel }}" data-mc="{{ version.mc_versions | join(',') }}" data-loaders="{{ version.loaders | join(',') }}" data-changelog="{{ version.changelog_url or '' }}" data-download="{{ version.download_page_url or '' }}" data-download-url="{{ version.download_url or '' }}" {% if loop.first %}checked{% endif %}>
+          <span class="version-main">
+            <span class="version-name">{{ version.version }}</span>
+            <span class="version-meta">
+              <span class="pill {% if version.channel == 'release' %}pos{% elif version.channel == 'beta' %}warn{% else %}info{% endif %}">{{ version.channel }}</span>
+              <span>{{ version.published_at | date }}</span>
+              {% if version.mc_versions.length %}<span>{{ version.mc_versions | join(', ') }}</span>{% endif %}
+              {% if version.loaders.length %}<span>{{ version.loaders | join(', ') }}</span>{% endif %}
+              {% if version.file_size %}<span>{{ version.file_size | fileSize }}</span>{% endif %}
+            </span>
+            {% if version.file_name %}<span class="version-file">{{ version.file_name }}</span>{% endif %}
+          </span>
+          {% if version.changelog_url %}<a class="link-btn" href="{{ version.changelog_url }}" target="_blank" rel="noopener noreferrer">Changelog</a>{% endif %}
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="panel-foot" style="border-top:1px solid var(--border);padding-left:var(--card-pad);padding-right:var(--card-pad);flex-wrap:wrap;gap:12px">
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <label class="faint" style="font-size:11.5px" for="policy">Channel policy</label>
+          <select class="select" id="policy" name="channel_policy">
+            {% for value, label in channelOptions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+          <label class="faint" style="font-size:11.5px" for="choose-side">Side</label>
+          <select class="select" id="choose-side" name="side">
+            <option value="both">Client + server</option>
+            <option value="client">Client only</option>
+            <option value="server">Server only</option>
+          </select>
+        </div>
+        <button class="btn primary" type="submit">Track selected version</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('unknown') }}</span>
+          <p class="empty-title">No version fits this scope</p>
+          <p class="empty-text">The project published nothing for {{ instance.mc_version }} {{ instance.loader | loaderLabel }} inside the allowed channels. Check the loader version, or add the installed jar as a manual entry.</p>
+          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}/mods/new?manual=1">Add manually</a></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">About this project</h2>
+          <p class="panel-sub">Source and identity</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value">{{ src.label }}</span></div>
+          <div class="kv-row"><span class="kv-label">Project ID</span><span class="kv-value mono-sm" style="word-break:break-all">{{ projectId }}</span></div>
+          <div class="kv-row"><span class="kv-label">Minecraft</span><span class="kv-value">{{ instance.mc_version }}</span></div>
+          <div class="kv-row"><span class="kv-label">Loader</span><span class="kv-value">{{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</span></div>
+        </div>
+        {% if projectUrl %}<a class="btn" style="margin-top:14px;width:100%" href="{{ projectUrl }}" target="_blank" rel="noopener noreferrer">{{ icon('external') }} Open project page</a>{% endif %}
+      </div>
+    </section>
+
+    {% if source == 'github' %}
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Asset pattern</h2>
+          <p class="panel-sub">Which release jar to follow</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="faint" style="font-size:11.5px;line-height:1.6">When a release carries several jars, a pattern such as <code>forge</code> or <code>1\.20\.1</code> picks the right one. Leave it empty to use the first jar.</p>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Prefer the file?</h2>
+          <p class="panel-sub">Manual baseline</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="faint" style="font-size:11.5px;line-height:1.6">If the exact jar is a private build, add it as a manual entry instead. It appears on the board without a source lookup.</p>
+        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1">Manual entry</a>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endif %}
+{% endblock %}

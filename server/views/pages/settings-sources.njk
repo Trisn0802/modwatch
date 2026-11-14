@@ -1,0 +1,104 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Control</p>
+    <h1 class="page-title">Sources</h1>
+    <p class="page-sub">Modrinth is the primary connector. CurseForge and GitHub add coverage when credentials allow.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  {% include "partials/settings-nav.njk" %}
+
+  <div class="stack settings-panel">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Connectors</h2>
+          <p class="panel-sub">Checked in this order</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/settings/sources">
+          {% include "partials/csrf.njk" %}
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>Modrinth <span class="pill pos" style="margin-left:6px"><span class="dot"></span>On</span></strong>
+              <span>Search, hash lookup, project metadata and versions. The import preview depends on its hash endpoint.</span>
+            </div>
+            <div class="setting-control"><span class="env-state">No key needed</span></div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>CurseForge {% if not env.curseforgeReady %}<span class="pill pos" style="margin-left:6px"><span class="dot"></span>Fallback</span>{% endif %}</strong>
+              <span>Resolves project URLs and reads version lists. Without an API key, the public metadata fallback handles tracking but not hash matching or automatic jar downloads.</span>
+            </div>
+            <div class="setting-control">
+              {% if env.curseforgeReady %}
+              <label class="check">
+                <input type="checkbox" name="curseforge_enabled" {% if settings.curseforge_enabled %}checked{% endif %}>
+                <span>Use CurseForge in searches and checks</span>
+              </label>
+              {% else %}
+              <span class="env-state"><span class="dot live"></span>Public metadata · key optional</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-copy">
+              <strong>GitHub releases</strong>
+              <span>Useful for mods that ship jars in releases. A token raises rate limits; public requests work without one.</span>
+            </div>
+            <div class="setting-control">
+              <span class="env-state"><span class="dot {% if env.githubReady %}live{% endif %}"></span>{% if env.githubReady %}Token configured{% else %}Public API{% endif %}</span>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save sources</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Cache</h2>
+          <p class="panel-sub">Ten-minute memory cache per connector</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="faint" style="font-size:11.5px;line-height:1.6">Clearing the cache makes the next check and search fetch fresh data. It does not change any tracked version or reset the schedule.</p>
+        <form method="post" action="/settings/sources/clear-cache" style="margin-top:14px">
+          {% include "partials/csrf.njk" %}
+          <button class="btn" type="submit">{{ icon('refresh') }} Clear source cache</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">How a version is chosen</h2>
+          <p class="panel-sub">The comparison rules</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">1 · Scope</span><span class="kv-value">Only versions that list this instance's Minecraft version and loader are considered.</span></div>
+          <div class="kv-row"><span class="kv-label">2 · Channel</span><span class="kv-value">Filtered by the mod's policy: release, beta, or alpha. Older policies do not see prereleases.</span></div>
+          <div class="kv-row"><span class="kv-label">3 · Order</span><span class="kv-value">Newest publish date wins. Version strings are compared only when dates are unavailable.</span></div>
+          <div class="kv-row"><span class="kv-label">4 · Snooze</span><span class="kv-value">A snoozed version is recorded once and never announced again until something newer appears.</span></div>
+          <div class="kv-row"><span class="kv-label">Failures</span><span class="kv-value">A connector error keeps the previous state, writes the message on the row, and does not notify.</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

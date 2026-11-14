@@ -1,0 +1,7 @@
+{% if flash %}
+<div class="flash flash-{{ flash.type }}" role="status">
+  {% from "partials/icon.njk" import icon %}
+  {{ icon('check' if flash.type == 'ok' else 'alert') }}
+  <span>{{ flash.message }}</span>
+</div>
+{% endif %}

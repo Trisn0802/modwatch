@@ -1,0 +1,173 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/imports/new">{{ icon('arrow-left') }} Import</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Preview · nothing written yet</p>
+    <h1 class="page-title">{{ preview.pack.name }}</h1>
+    <p class="page-sub">{{ preview.file_name }}{% if preview.pack.version %} · pack version {{ preview.pack.version }}{% endif %}{% if preview.pack.summary %} · {{ preview.pack.summary | truncate(140) }}{% endif %}</p>
+    <div style="margin-top:12px">
+      <div class="scope">
+        <span class="scope-cell"><span class="scope-label">Minecraft</span><strong><span class="match"></span>{{ preview.pack.mc_version or 'unknown' }}</strong></span>
+        <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ preview.pack.loader | loaderLabel }}{% if preview.pack.loader_version %} {{ preview.pack.loader_version }}{% endif %}</strong></span>
+        <span class="scope-cell"><span class="scope-label">Pack</span><strong>{{ preview.pack.version or '—' }}</strong></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="import-summary" style="margin-bottom:16px">
+  <div class="import-stat"><strong>{{ preview.counts.mods }}</strong>mods in pack</div>
+  <div class="import-stat"><strong class="accent">{{ preview.counts.identified }}</strong>identified</div>
+  <div class="import-stat"><strong class="{% if preview.counts.unknown %}warn{% endif %}">{{ preview.counts.unknown }}</strong>need a decision</div>
+  <div class="import-stat"><strong class="faint">{{ preview.counts.skipped }}</strong>non-mod files skipped</div>
+  <div class="import-stat"><strong class="faint">{{ preview.index_file_count }}</strong>index entries</div>
+</div>
+
+<div class="layout-main">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Identified mods</h2>
+          <p class="panel-sub">Hash matched to a project and version</p>
+        </div>
+        <span class="count-note">{{ preview.identified.length }} mod{% if preview.identified.length != 1 %}s{% endif %}</span>
+      </div>
+      {% if preview.identified.length %}
+      <div class="table-wrap scroll-list">
+        <table class="board compact">
+          <thead>
+            <tr>
+              <th>Mod</th>
+              <th>Version</th>
+              <th class="hide-sm">Side</th>
+              <th class="hide-sm">File</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in preview.identified %}
+            <tr>
+              <td>
+                <div class="mod-cell">
+                  {% if item.icon_url %}
+                  <img class="mod-icon" src="{{ item.icon_url }}" alt="" width="28" height="28" loading="lazy" data-fallback="{{ item.name | initials }}">
+                  {% else %}
+                  <span class="mod-icon fallback">{{ item.name | initials }}</span>
+                  {% endif %}
+                  <span class="mod-copy"><span class="mod-name">{{ item.name }}</span></span>
+                </div>
+              </td>
+              <td class="faint">{{ item.installed_version }}</td>
+              <td class="hide-sm faint">{{ item.side | sideLabel }}</td>
+              <td class="hide-sm faint"><span class="mono-sm">{{ item.file_name }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="panel-body"><div class="empty-state"><div class="empty-inner"><p class="empty-title">No mod matched</p><p class="empty-text">The hash lookup returned nothing. You can still import and resolve every file from the instance page.</p></div></div></div>
+      {% endif %}
+    </section>
+
+    {% if preview.unknown.length %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Needs a decision</h2>
+          <p class="panel-sub">Kept as unknown files after the import</p>
+        </div>
+        <span class="pill warn">{{ preview.unknown.length }}</span>
+      </div>
+      <div class="table-wrap scroll-list">
+        <table class="board compact">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Jar</th>
+              <th class="hide-sm">Reason</th>
+              <th class="n">Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in preview.unknown %}
+            <tr>
+              <td><span class="mono-sm">{{ item.file_name }}</span></td>
+              <td class="faint">{{ item.jar_name or 'No metadata' }}{% if item.jar_version %} {{ item.jar_version }}{% endif %}</td>
+              <td class="hide-sm faint">{{ item.reason | reasonLabel }}</td>
+              <td class="n faint">{{ item.file_size | fileSize }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Confirm import</h2>
+          <p class="panel-sub">One transaction, then a check</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/imports/{{ token }}/confirm">
+          {% include "partials/csrf.njk" %}
+          <div class="radio-stack">
+            <label class="radio-card">
+              <input type="radio" name="mode" value="new" checked>
+              <span><strong>Create a new instance</strong><span>Uses the pack name. A duplicate name gets a number suffix.</span></span>
+            </label>
+            {% if existing.length %}
+            <label class="radio-card">
+              <input type="radio" name="mode" value="update">
+              <span><strong>Update an existing instance</strong><span>Moves the scope to this pack and adds any new mods.</span></span>
+            </label>
+            {% endif %}
+          </div>
+
+          {% if existing.length %}
+          <div class="field">
+            <label for="existing_id">Instance to update</label>
+            <select id="existing_id" name="existing_id">
+              {% for item in existing %}
+              <option value="{{ item.id }}">{{ item.name }} · {{ item.mc_version }} {{ item.loader | loaderLabel }}</option>
+              {% endfor %}
+            </select>
+            <p class="hint">Only instances with the same pack name and loader are listed.</p>
+          </div>
+          {% else %}
+          <p class="hint">No instance has this pack name and loader, so this import starts a new one.</p>
+          {% endif %}
+
+          <button class="btn primary" type="submit">{{ icon('download') }} Import pack</button>
+          <button class="btn ghost" type="submit" formaction="/imports/{{ token }}/cancel" formnovalidate>Cancel import</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">After the import</h2>
+          <p class="panel-sub">The first check starts automatically</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="steps">
+          <div class="step"><span class="step-num">1</span><div><strong>Identified mods</strong><p>Stored with their installed version as the baseline and queued for a check.</p></div></div>
+          <div class="step"><span class="step-num">2</span><div><strong>Unknown files</strong><p>Listed under the Unknown tab. Link a project, keep them manual, or ignore them.</p></div></div>
+          <div class="step"><span class="step-num">3</span><div><strong>Next runs</strong><p>The scheduler keeps watching. Telegram and in-app notifications fire only for new versions.</p></div></div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

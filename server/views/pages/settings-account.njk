@@ -1,0 +1,104 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/avatar.njk" import avatar %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Your account</p>
+    <h1 class="page-title">Account</h1>
+    <p class="page-sub">Your name, email and password. The email is the sign-in identifier.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  {% include "partials/settings-nav.njk" %}
+
+  <div class="stack settings-panel">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Profile</h2>
+          <p class="panel-sub">{{ account.role | roleLabel }} since {{ account.created_at | date }}</p>
+        </div>
+        {{ avatar(account, 'lg') }}
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/settings/account" enctype="multipart/form-data">
+          {% include "partials/csrf.njk" %}
+          <div class="avatar-edit">
+            {{ avatar(account, 'xl') }}
+            <div class="avatar-edit-copy">
+              <label class="btn sm" for="avatar">Choose photo</label>
+              <input class="sr-only" id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp">
+              <p class="hint">PNG, JPG or WebP. Up to 512 KB. Square works best.</p>
+              {% if account.avatar_path %}
+              <label class="check"><input type="checkbox" name="remove_avatar" value="1"><span>Remove current photo</span></label>
+              {% endif %}
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="name">Name</label>
+              <input id="name" name="name" type="text" value="{{ account.name }}" required>
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" value="{{ account.email }}" required>
+            </div>
+          </div>
+          <div class="form-actions"><button class="btn primary" type="submit">Save profile</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Password</h2>
+          <p class="panel-sub">At least eight characters</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="/settings/account/password">
+          {% include "partials/csrf.njk" %}
+          <div class="field">
+            <label for="current">Current password</label>
+            <input id="current" name="current_password" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="new">New password</label>
+              <input id="new" name="new_password" type="password" autocomplete="new-password" minlength="8" required>
+            </div>
+            <div class="field">
+              <label for="confirm">Confirm new password</label>
+              <input id="confirm" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required>
+            </div>
+          </div>
+          <div class="form-actions"><button class="btn primary" type="submit">Update password</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Session</h2>
+          <p class="panel-sub">This browser</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Role</span><span class="kv-value">{{ account.role | roleLabel }}</span></div>
+          <div class="kv-row"><span class="kv-label">Status</span><span class="kv-value">{{ account.status | capitalize }}</span></div>
+          <div class="kv-row"><span class="kv-label">Last sign-in</span><span class="kv-value">{{ account.last_login_at | relative }}</span></div>
+        </div>
+        <form method="post" action="/logout" style="margin-top:16px">
+          {% include "partials/csrf.njk" %}
+          <button class="btn" type="submit">{{ icon('logout') }} Sign out</button>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

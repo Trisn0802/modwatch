@@ -1,0 +1,79 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/avatar.njk" import avatar %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Access</p>
+    <h1 class="page-title">Users</h1>
+    <p class="page-sub">Admins manage instances and approvals. Members read the board and request mods. Accounts are local to ModWatch.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn primary" href="/users/new">{{ icon('plus') }} New user</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="table-wrap">
+    <table class="board">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th class="n hide-sm">Mods added</th>
+          <th class="n hide-sm">Requests</th>
+          <th class="hide-sm">Last sign-in</th>
+          <th aria-label="Edit"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <td>
+            <div class="user-cell">
+              {{ avatar(user) }}
+              <span class="mod-copy">
+                <span class="mod-name">{{ user.name }}</span>
+                <span class="mod-file">{{ user.email }}</span>
+              </span>
+            </div>
+          </td>
+          <td><span class="role-tag {% if user.role == 'admin' %}admin{% endif %}">{{ user.role | roleLabel }}</span></td>
+          <td>
+            {% set state = user.status | userStatus %}
+            <span class="pill {{ state.tone }}"><span class="dot"></span>{{ state.label }}</span>
+          </td>
+          <td class="n hide-sm">{{ user.mods_added }}</td>
+          <td class="n hide-sm">{{ user.requests }}</td>
+          <td class="faint hide-sm nowrap">{{ user.last_login_at | relative }}</td>
+          <td class="n"><a class="icon-btn" href="/users/{{ user.id }}/edit" aria-label="Edit {{ user.name }}">{{ icon('pencil') }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">Roles</h2>
+      <p class="panel-sub">What each role can do</p>
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="grid">
+      <div class="span-6">
+        <p class="cell-main">Admin</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.6">Creates and edits instances, imports packs, resolves unknown files, runs checks, changes settings, approves requests and manages users. The first admin comes from ADMIN_EMAIL in .env.</p>
+      </div>
+      <div class="span-6">
+        <p class="cell-main">Member</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.6">Sees every instance board and notification. Can request a mod; the request waits for an admin. Cannot import, delete or change settings.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

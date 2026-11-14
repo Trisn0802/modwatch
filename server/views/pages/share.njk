@@ -1,0 +1,97 @@
+{% extends "share-layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<section class="share-hero">
+  <div class="share-hero-main">
+    <p class="eyebrow"><span class="dot live"></span> Shared modpack</p>
+    <div class="share-title-row">
+      {% if instance.image_path %}
+      <img class="instance-photo" src="/uploads/{{ instance.image_path }}" alt="">
+      {% else %}
+      <span class="instance-mark xl">{{ instance.name | initials }}</span>
+      {% endif %}
+      <div>
+        <h1 class="share-title">{{ instance.pack_name or instance.name }}</h1>
+        <p class="share-sub">{{ overview.stats.mods }} tracked mods · {{ instance.mc_version }} · {{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</p>
+      </div>
+    </div>
+    <div class="share-actions">
+      <a class="btn primary" href="/s/{{ instance.share_token }}/export">{{ icon('download') }} Download .mrpack</a>
+      <button class="btn" type="button" data-copy="{{ shareUrl }}">{{ icon('link') }} Copy share link</button>
+    </div>
+    <p class="share-note">The download is generated from the tracked versions. Import it in Modrinth App, Prism, ATLauncher or any launcher that accepts .mrpack.</p>
+  </div>
+  <aside class="share-summary">
+    <div class="share-summary-row">
+      <span>Updates waiting</span>
+      <strong class="{% if overview.stats.updates %}accent{% endif %}">{{ overview.stats.updates }}</strong>
+    </div>
+    <div class="share-summary-row">
+      <span>Tracked mods</span>
+      <strong>{{ overview.stats.mods }}</strong>
+    </div>
+    <div class="share-summary-row">
+      <span>Disabled files</span>
+      <strong>{{ overview.stats.disabled }}</strong>
+    </div>
+    <div class="share-summary-row">
+      <span>Pack version</span>
+      <strong>{{ instance.pack_version or '—' }}</strong>
+    </div>
+    <div class="share-summary-row">
+      <span>Last check</span>
+      <strong>{{ instance.last_checked_at | relative }}</strong>
+    </div>
+  </aside>
+</section>
+
+<section class="panel share-panel">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">Updates in this pack</h2>
+      <p class="panel-sub">The newest allowed version for {{ instance.mc_version }} {{ instance.loader | loaderLabel }}</p>
+    </div>
+    <span class="pill {% if overview.updates.length %}pos{% else %}muted{% endif %}"><span class="dot"></span>{% if overview.stats.updates %}{{ overview.stats.updates }} waiting{% else %}Up to date{% endif %}</span>
+  </div>
+  {% if overview.updates.length %}
+  <div class="share-updates">
+    {% for mod in overview.updates %}
+    <div class="share-update-row">
+      {% if mod.icon_url %}
+      <img class="mod-icon" src="{{ mod.icon_url }}" alt="" width="34" height="34" data-fallback="{{ mod.name | initials }}">
+      {% else %}
+      <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+      {% endif %}
+      <div class="share-update-copy">
+        <strong>{{ mod.name }}</strong>
+        <span>{{ mod.installed_version }} → {{ mod.latest_version }}</span>
+      </div>
+      <span class="pill pos"><span class="dot"></span>Update</span>
+    </div>
+    {% endfor %}
+    {% if overview.stats.updates > overview.updates.length %}
+    <p class="share-more">+ {{ overview.stats.updates - overview.updates.length }} more update{% if overview.stats.updates - overview.updates.length != 1 %}s{% endif %} in the pack</p>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('check') }}</span>
+        <p class="empty-title">Everything is up to date</p>
+        <p class="empty-text">No tracked mod has a newer version inside its channel for this exact Minecraft version and loader.</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="share-meta">
+  <span>Shared with ModWatch</span>
+  <span class="sep"></span>
+  <span>{{ instance.pack_version or 'Pack version not set' }}</span>
+  <span class="sep"></span>
+  <span>Snapshot {{ instance.last_checked_at | relative }}</span>
+</section>
+{% endblock %}

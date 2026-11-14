@@ -1,0 +1,18 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/mark.njk" import mark %}
+
+{% block content %}
+<div class="state-page">
+  <div class="state-inner">
+    <div class="state-mark">{{ mark(44) }}</div>
+    <p class="state-code">500 · REQUEST FAILED</p>
+    <h1 class="state-title">{{ title or 'Something went wrong' }}</h1>
+    <p class="state-text">{{ message or 'The request could not be completed. The server log has the details.' }}</p>
+    <div class="state-actions">
+      <a class="btn primary" href="/">Back to overview</a>
+      <a class="btn" href="/activity">Recent activity</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

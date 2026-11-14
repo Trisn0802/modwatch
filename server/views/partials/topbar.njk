@@ -1,0 +1,96 @@
+{% from "partials/icon.njk" import icon %}
+{% from "partials/avatar.njk" import avatar %}
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="icon-btn mobile-only" type="button" id="sidebar-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
+      {{ icon('menu') }}
+    </button>
+    <button class="icon-btn mobile-only search-toggle" type="button" id="search-toggle" aria-label="Search" aria-expanded="false" aria-controls="mobile-search">
+      {{ icon('search') }}
+    </button>
+    <div class="crumb">
+      {# <span class="faint">ModWatch</span> #}
+      {# <span aria-hidden="true" class="faint">/</span> #}
+      <strong>{{ title or 'Overview' }}</strong>
+    </div>
+    <form class="topbar-search" action="/search" method="get" role="search">
+      <label class="sr-only" for="global-search">Search mods and instances</label>
+      {{ icon('search') }}
+      <input id="global-search" name="q" type="search" value="{{ q or '' }}" placeholder="Search mods and instances" autocomplete="off" data-global-search aria-autocomplete="list" aria-controls="global-search-results">
+      <kbd aria-hidden="true">/</kbd>
+      <div class="search-results" id="global-search-results" data-search-results hidden></div>
+    </form>
+  </div>
+
+  <div class="topbar-right">
+    <form method="post" action="/check-all">
+      {% include "partials/csrf.njk" %}
+      <button class="btn sm ghost" type="submit" title="Check every instance now" aria-label="Check every instance now">
+        {{ icon('refresh') }}<span class="sr-only">Check all</span>
+      </button>
+    </form>
+    <div class="theme-host" data-theme-mount></div>
+    <span class="topbar-divider" aria-hidden="true"></span>
+
+    <details class="pop" data-notif-poll>
+      <summary class="icon-btn" aria-label="Notifications{% if notif.unread %}, {{ notif.unread }} unread{% endif %}">
+        {{ icon('bell') }}
+        <span class="icon-badge" data-notif-badge {% if not notif.unread %}hidden{% endif %}>{{ notif.unread if notif.unread <= 99 else '99+' }}</span>
+      </summary>
+      <div class="pop-panel">
+        <div class="pop-head">
+          <span class="pop-title">Notifications</span>
+          <a class="card-link" href="/notifications">View all {{ icon('arrow-right') }}</a>
+        </div>
+        <div class="pop-list">
+          {% for item in notif.items %}
+          <a class="pop-item {% if item.mod_disabled %}is-disabled{% endif %}" href="{{ notifHref(item) }}" style="--i:{{ loop.index0 }}">
+            <span class="pop-item-title">{{ item.title }}</span>
+            <span class="pop-item-meta">{{ item.instance_name or 'ModWatch' }} · {{ item.created_at | relative }}</span>
+          </a>
+          {% else %}
+          <p class="pop-empty">No notifications yet. Updates land here after the first check.</p>
+          {% endfor %}
+        </div>
+        <div class="pop-foot"><a href="/notifications">Open the notification inbox</a></div>
+      </div>
+    </details>
+
+    {% if currentUser %}
+    <details class="pop">
+      <summary class="avatar-btn" aria-label="{{ currentUser.name | initials }} — account menu for {{ currentUser.name }}">
+        {{ avatar(currentUser) }}
+      </summary>
+      <div class="pop-panel">
+        <div class="pop-user">
+          <strong>{{ currentUser.name }}</strong>
+          <span>{{ currentUser.email }}</span>
+        </div>
+        <div class="pop-links">
+          <a href="/settings/account">{{ icon('user') }}Account</a>
+          {% if isAdmin %}
+          <a href="/settings">{{ icon('settings') }}Settings</a>
+          <a href="/users">{{ icon('users') }}Users</a>
+          {% endif %}
+        </div>
+        <div class="pop-foot">
+          <form method="post" action="/logout">
+            {% include "partials/csrf.njk" %}
+            <button type="submit">{{ icon('logout') }}Sign out</button>
+          </form>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+  </div>
+</header>
+
+<div class="mobile-search" id="mobile-search" hidden>
+  <form class="topbar-search" action="/search" method="get" role="search" data-search-form="mobile">
+    <label class="sr-only" for="mobile-search-input">Search mods and instances</label>
+    {{ icon('search') }}
+    <input id="mobile-search-input" name="q" type="search" value="{{ q or '' }}" placeholder="Search mods and instances" autocomplete="off" data-global-search aria-autocomplete="list" aria-controls="mobile-search-results">
+    <div class="search-results" id="mobile-search-results" data-search-results hidden></div>
+  </form>
+  <p class="search-mobile-copy">Type at least two characters. Results update as you type.</p>
+</div>

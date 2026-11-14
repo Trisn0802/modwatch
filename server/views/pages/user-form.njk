@@ -1,0 +1,102 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/avatar.njk" import avatar %}
+{% set editing = account and account.id %}
+
+{% block content %}
+<a class="backlink" href="/users">{{ icon('arrow-left') }} Users</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">{% if editing %}Edit user{% else %}New user{% endif %}</p>
+    <h1 class="page-title">{% if editing %}{{ account.name }}{% else %}Add someone{% endif %}</h1>
+    <p class="page-sub">{% if editing %}Change the role, status or password. Email is the sign-in identifier.{% else %}Create a local account. Share the password out of band; there is no email invite.{% endif %}</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+{% endif %}
+
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Account details</h2>
+        <p class="panel-sub">Name, email and access</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <form class="form" method="post" action="{% if editing %}/users/{{ account.id }}{% else %}/users{% endif %}" enctype="multipart/form-data">
+        {% include "partials/csrf.njk" %}
+        <div class="avatar-edit">
+          {% if editing %}{{ avatar(account, 'xl') }}{% else %}<span class="avatar xl">?</span>{% endif %}
+          <div class="avatar-edit-copy">
+            <label class="btn sm" for="avatar">Choose photo</label>
+            <input class="sr-only" id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp">
+            <p class="hint">PNG, JPG or WebP. Up to 512 KB.</p>
+            {% if editing and account.avatar_path %}
+            <label class="check"><input type="checkbox" name="remove_avatar" value="1"><span>Remove current photo</span></label>
+            {% endif %}
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" value="{{ account.name or '' }}" required autofocus>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" value="{{ account.email or '' }}" required>
+          </div>
+          <div class="field">
+            <label for="role">Role</label>
+            <select id="role" name="role">
+              {% for value, label in roles %}
+              <option value="{{ value }}" {% if (account.role or 'member') == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if editing %}
+          <div class="field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+              <option value="active" {% if account.status == 'active' %}selected{% endif %}>Active</option>
+              <option value="disabled" {% if account.status == 'disabled' %}selected{% endif %}>Disabled</option>
+            </select>
+            <p class="hint">Disabled accounts keep their history but cannot sign in.</p>
+          </div>
+          {% endif %}
+          <div class="field {% if not editing %}full{% endif %}">
+            <label for="password">{% if editing %}New password{% else %}Password{% endif %}</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" {% if not editing %}required{% endif %}>
+            <p class="hint">{% if editing %}Leave empty to keep the current password.{% else %}At least eight characters.{% endif %}</p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="submit">{% if editing %}Save user{% else %}Create user{% endif %}</button>
+          <a class="btn ghost" href="/users">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Role boundary</h2>
+          <p class="panel-sub">The short version</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Admin</span><span class="kv-value">Full control of instances, checks, sources, settings and users.</span></div>
+          <div class="kv-row"><span class="kv-label">Member</span><span class="kv-value">Read-only board plus mod requests. Good for server players.</span></div>
+        </div>
+        <p class="faint" style="margin-top:14px;font-size:11px;line-height:1.55">You cannot demote or disable your own account. At least one active admin must remain.</p>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

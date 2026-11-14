@@ -1,0 +1,128 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot live"></span> Watch list</p>
+    <h1 class="page-title">Instances</h1>
+    <p class="page-sub">{{ instances.length }} instance{% if instances.length != 1 %}s{% endif %}, each locked to one Minecraft version and loader. An update only counts when a release matches that scope.</p>
+  </div>
+  <div class="page-actions">
+    {% if isAdmin %}<a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>{% endif %}
+    <a class="btn primary" href="/instances/new">{{ icon('plus') }} New instance</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <label class="search-field">
+        {{ icon('search') }}
+        <span class="sr-only">Filter instances</span>
+        <input type="search" placeholder="Filter by name, version or loader" data-filter data-filter-target="#instance-table" data-filter-empty="#instance-filter-empty" autocomplete="off">
+      </label>
+    </div>
+    <div class="toolbar-right">
+      <span class="count-note">{{ instances.length }} instance{% if instances.length != 1 %}s{% endif %}</span>
+    </div>
+  </div>
+
+  {% if instances.length %}
+  <div class="table-wrap">
+    <table class="board" id="instance-table">
+      <thead>
+        <tr>
+          <th>Instance</th>
+          <th>Scope</th>
+          <th class="n">Mods</th>
+          <th class="n">Updates</th>
+          <th class="n">Unknown</th>
+          <th class="hide-sm">Last check</th>
+          <th aria-label="Actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in instances %}
+        <tr data-row>
+          <td>
+            <div class="mod-cell">
+              {% if item.image_path %}
+              <img class="instance-thumb" src="/uploads/{{ item.image_path }}" alt="">
+              {% else %}
+              <span class="mod-icon fallback">{{ item.name | initials }}</span>
+              {% endif %}
+              <span class="mod-copy">
+                <a class="mod-name" href="/instances/{{ item.id }}">{{ item.name }}</a>
+                <span class="mod-file">{% if item.pack_version %}{{ item.pack_name }} {{ item.pack_version }}{% else %}Manually created{% endif %}</span>
+              </span>
+            </div>
+          </td>
+          <td>
+            <div class="scope compact">
+              <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ item.mc_version }}</strong></span>
+              <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ item.loader | loaderLabel }}{% if item.loader_version %} {{ item.loader_version }}{% endif %}</strong></span>
+            </div>
+          </td>
+          <td class="n">{{ item.mod_count }}</td>
+          <td class="n">{% if item.updates %}<strong class="brand-ink">{{ item.updates }}</strong>{% else %}<span class="faint">0</span>{% endif %}</td>
+          <td class="n">{% if item.unknown %}<span class="pill warn">{{ item.unknown }}</span>{% else %}<span class="faint">—</span>{% endif %}</td>
+          <td class="faint nowrap hide-sm">{{ item.last_checked_at | relative }}</td>
+          <td class="n">
+            <span class="row" style="gap:2px;justify-content:flex-end">
+              <a class="icon-btn" href="/instances/{{ item.id }}/edit" aria-label="Edit {{ item.name }}">{{ icon('pencil') }}</a>
+              <a class="icon-btn" href="/instances/{{ item.id }}" aria-label="Open {{ item.name }}">{{ icon('chevron-right') }}</a>
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div id="instance-filter-empty" hidden>
+    <div class="panel-body">
+      <div class="empty-state"><div class="empty-inner"><p class="empty-title">No instance matches that filter</p><p class="empty-text">Try the pack name, its Minecraft version, or the loader.</p></div></div>
+    </div>
+  </div>
+  {% else %}
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('instances') }}</span>
+        <p class="empty-title">No instances yet</p>
+        <p class="empty-text">An instance is one modpack on one Minecraft version and loader. Import a .mrpack to get its mod list in one step, or add the details by hand.</p>
+        <div class="empty-actions">
+          <a class="btn primary" href="/instances/new">Create an instance</a>
+          {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">How the scope works</h2>
+      <p class="panel-sub">The rule the checker follows on every run</p>
+    </div>
+  </div>
+  <div class="panel-body">
+    <div class="grid">
+      <div class="span-4">
+        <p class="cell-main">Exact version and loader</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.55">A Forge 1.20.1 instance compares against Forge 1.20.1 builds. Fabric, NeoForge and newer Minecraft versions never register as updates.</p>
+      </div>
+      <div class="span-4">
+        <p class="cell-main">Release policy per mod</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.55">Release only by default. Beta and alpha are opt-in per mod, so a prerelease never silently replaces a stable jar.</p>
+      </div>
+      <div class="span-4">
+        <p class="cell-main">Installed, not guessed</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.55">The board compares the jar you actually run with the newest version inside policy. Hash matches keep the pair honest across imports.</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

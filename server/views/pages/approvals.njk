@@ -1,0 +1,118 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot {% if pending.length %}warn{% else %}live{% endif %}"></span> Member requests</p>
+    <h1 class="page-title">Approvals</h1>
+    <p class="page-sub">Mods members asked to add. Approving writes the mod and runs a check; rejecting leaves the instance untouched.</p>
+  </div>
+  <div class="page-actions">
+    <span class="pill {% if pending.length %}warn{% else %}pos{% endif %}"><span class="dot"></span>{{ pending.length }} waiting</span>
+  </div>
+</div>
+
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Waiting for a decision</h2>
+        <p class="panel-sub">Oldest request first</p>
+      </div>
+    </div>
+    {% for request in pending %}
+    {% set src = request.payload.source | sourceMeta %}
+    <article class="request-card">
+      <div class="request-head">
+        <div>
+          <p class="request-mod">{{ request.payload.name }}</p>
+          <div class="request-meta">
+            <span>{{ request.requester_name }} · {{ request.requester_email }}</span>
+            <span>·</span>
+            <span>{{ request.instance_name }}</span>
+            <span>·</span>
+            <span>{{ request.created_at | relative }}</span>
+          </div>
+        </div>
+        <span class="pill info">{{ src.label }}</span>
+      </div>
+
+      <div class="request-scope">
+        <div class="scope compact">
+          <span class="scope-cell"><span class="scope-label">Installed</span><strong>{{ request.payload.installed_version or '—' }}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Side</span><strong>{{ request.payload.side | sideLabel }}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Policy</span><strong>{{ request.payload.channel_policy | channelLabel }}</strong></span>
+        </div>
+      </div>
+
+      {% if request.payload.project_url %}
+      <p class="faint" style="margin-top:10px;font-size:10.5px;word-break:break-all"><a class="card-link" href="{{ request.payload.project_url }}" target="_blank" rel="noopener noreferrer">{{ request.payload.project_url }} {{ icon('external') }}</a></p>
+      {% endif %}
+
+      <form class="request-forms" method="post" action="/approvals/{{ request.id }}/approve">
+        {% include "partials/csrf.njk" %}
+        <label class="sr-only" for="note-{{ request.id }}">Decision note</label>
+        <input class="input" id="note-{{ request.id }}" name="note" type="text" placeholder="Optional note back to {{ request.requester_name }}">
+        <div class="btn-row">
+          <button class="btn primary" type="submit">{{ icon('check') }} Approve and add</button>
+          <button class="btn danger" type="submit" formaction="/approvals/{{ request.id }}/reject" formnovalidate>{{ icon('close') }} Reject</button>
+        </div>
+      </form>
+    </article>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('check') }}</span>
+          <p class="empty-title">Nothing is waiting</p>
+          <p class="empty-text">When a member adds a mod, it lands here for an admin to approve. Approved requests go straight to the instance board.</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Decided</h2>
+          <p class="panel-sub">Last 15 decisions</p>
+        </div>
+      </div>
+      <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
+        {% for request in decided %}
+        <div class="decision-row">
+          <span class="dot {% if request.status == 'approved' %}live{% else %}bad{% endif %}" style="margin-top:7px"></span>
+          <div style="min-width:0">
+            <p style="font-size:12px"><strong>{{ request.payload.name }}</strong> <span class="faint">· {{ request.instance_name }}</span></p>
+            <p class="faint" style="font-size:10.5px;margin-top:2px">
+              {{ request.status | capitalize }} by {{ request.decider_name or 'an admin' }} · {{ request.decided_at | relative }}
+              {% if request.decision_note %} · “{{ request.decision_note | truncate(60) }}”{% endif %}
+            </p>
+          </div>
+        </div>
+        {% else %}
+        <p class="faint" style="font-size:12px;padding:12px 0">No decisions yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Who can do what</h2>
+          <p class="panel-sub">Roles in this instance</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Admin</span><span class="kv-value">Imports, edits, deletes, checks, approves and manages users.</span></div>
+          <div class="kv-row"><span class="kv-label">Member</span><span class="kv-value">Reads the board and requests mods. Requests wait here.</span></div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}
