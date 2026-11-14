@@ -88,7 +88,7 @@
           <div class="env-row"><span class="env-name">Public URL<span>{{ env.appUrl or 'Not set' }}</span></span><span class="env-state">APP_URL</span></div>
           <div class="env-row"><span class="env-name">CurseForge key</span><span class="env-state"><span class="dot {% if env.curseforgeReady %}live{% endif %}"></span>{% if env.curseforgeReady %}Configured{% else %}Not set{% endif %}</span></div>
           <div class="env-row"><span class="env-name">GitHub token</span><span class="env-state"><span class="dot {% if env.githubReady %}live{% endif %}"></span>{% if env.githubReady %}Configured{% else %}Public rate limits{% endif %}</span></div>
-          <div class="env-row"><span class="env-name">Telegram bot</span><span class="env-state"><span class="dot {% if env.telegramReady %}live{% endif %}"></span>{% if env.telegramReady %}Configured{% else %}Not set{% endif %}</span></div>
+          <div class="env-row"><span class="env-name">MyWebhook</span><span class="env-state"><span class="dot {% if env.webhookReady %}live{% endif %}"></span>{% if env.webhookReady %}Configured{% else %}Not set{% endif %}</span></div>
         </div>
         <p class="faint" style="margin-top:12px;font-size:11px;line-height:1.55">Secrets are never shown here. Change them in .env and restart the container.</p>
       </div>

@@ -34,12 +34,16 @@ export const config = {
   githubToken: process.env.GITHUB_TOKEN || "",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
+  webhookUrl: (process.env.WEBHOOK_URL || "").trim(),
   appVersion: process.env.APP_VERSION || "1.0",
   get contact() {
     return this.appUrl || this.adminEmail || "self-hosted";
   },
   get telegramReady() {
     return Boolean(this.telegramBotToken && this.telegramChatId);
+  },
+  get webhookReady() {
+    return Boolean(this.webhookUrl);
   },
   get curseforgeReady() {
     return Boolean(this.curseforgeApiKey);

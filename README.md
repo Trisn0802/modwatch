@@ -10,7 +10,7 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 - **`.mrpack` import.** Upload a Modrinth pack, review the detected scope and mod list, then commit. Jars without a match land in an "Unknown mod detected" flow instead of being dropped.
 - **Connectors.** Modrinth works without credentials. CurseForge uses a public metadata fallback without a key and the official API when a key is configured. GitHub reads releases and can filter assets by pattern. Manual entries track private jars with no project page.
 - **Scheduled checks.** A background scheduler runs every N hours. Manual checks run from the dashboard, an instance or a single mod.
-- **Notifications.** In-app inbox, topbar popover and optional Telegram messages for updates, unknown files, requests and source errors.
+- **Notifications.** In-app inbox, topbar popover and MyWebhook delivery (Telegram bot + chat configured on the hook) for updates, unknown files, requests and source errors.
 - **Approvals.** Admins manage instances and users. Members can propose mods; requests wait on the Approvals page and become tracked mods only after approval.
 - **Photos.** Profile photos and instance icons, stored in the uploads volume with initials as the fallback.
 - **Version controls.** Snooze one release, freeze the installed version, disable a file (exported as `.jar.disabled`), or ignore it entirely.
@@ -118,8 +118,9 @@ All runtime settings live in `.env`. Compose passes only the variables declared 
 | `APP_VERSION` | `1.0` | Version label in the UI |
 | `CURSEFORGE_API_KEY` | empty | Official CurseForge API; without it ModWatch uses the public metadata fallback |
 | `GITHUB_TOKEN` | empty | Raises GitHub API limits |
-| `TELEGRAM_BOT_TOKEN` | empty | Telegram bot token |
-| `TELEGRAM_CHAT_ID` | empty | Telegram chat or channel ID |
+| `WEBHOOK_URL` | empty | MyWebhook endpoint used for delivery |
+| `TELEGRAM_BOT_TOKEN` | empty | Legacy direct Telegram token |
+| `TELEGRAM_CHAT_ID` | empty | Legacy direct Telegram chat ID |
 
 The scheduler honours the last finished check on restart. A database with no completed run schedules its first check after 90 seconds, then every configured interval.
 
@@ -132,12 +133,13 @@ The scheduler honours the last finished check on restart. A database with no com
 
 Unknown files can be linked to a Modrinth, CurseForge or GitHub project URL. The CurseForge fallback downloads the matching jar into the uploads volume so exports stay complete.
 
-### Telegram
+### MyWebhook
 
-1. Create a bot with [@BotFather](https://t.me/BotFather).
-2. Put the token in `TELEGRAM_BOT_TOKEN`.
-3. Send `/start` to the bot (the bot cannot message a chat it has never seen).
-4. Put the chat ID in `TELEGRAM_CHAT_ID`, enable Telegram in **Settings → Notifications** and send a test.
+1. Create a hook at [MyWebhook](https://webhook.trisnahome.my.id) and connect the Telegram bot/chat there.
+2. Paste the hook endpoint into **Settings → Notifications**, or set `WEBHOOK_URL`.
+3. Enable **MyWebhook delivery** and press **Send test message**.
+
+ModWatch posts one JSON body per event: `{ "message": "..." }`. The bot token and chat ID stay inside MyWebhook; ModWatch never stores them. Direct Telegram delivery remains available through the legacy `TELEGRAM_*` variables if you deliberately use it.
 
 ## CurseForge API application
 

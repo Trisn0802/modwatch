@@ -54,25 +54,27 @@ export async function notificationFeed(userId, limit = 8) {
   return { items: rows, unread };
 }
 
+// Notifications are delivered through MyWebhook, which owns the Telegram bot
+// and chat pairing. The endpoint is editable in Settings → Notifications.
 export async function telegramSend(text) {
   const settings = await getSettings();
-  if (!settings.telegram_enabled || !config.telegramBotToken) return false;
-  const chatId = settings.telegram_chat_id || config.telegramChatId;
-  if (!chatId) return false;
+  const url = String(settings.webhook_url || config.webhookUrl || "").trim();
+  const enabled = settings.webhook_enabled ?? settings.telegram_enabled;
+  if (!enabled || !url) return false;
   try {
-    const res = await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
+    const res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true,
-      }),
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ message: text }),
+      signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) console.error("telegram send failed:", res.status);
-    return res.ok;
+    if (!res.ok) {
+      console.error("webhook send failed:", res.status, (await res.text().catch(() => "")).slice(0, 180));
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.error("telegram send failed:", err.message);
+    console.error("webhook send failed:", err.message);
     return false;
   }
 }

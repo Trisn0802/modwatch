@@ -4,6 +4,8 @@ import { config } from "./config.js";
 const DEFAULTS = {
   check_interval_hours: config.checkIntervalHours,
   default_channel_policy: "release",
+  webhook_url: config.webhookUrl || "",
+  webhook_enabled: Boolean(config.webhookUrl),
   telegram_chat_id: config.telegramChatId || "",
   telegram_enabled: config.telegramReady,
   curseforge_enabled: config.curseforgeReady,

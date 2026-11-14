@@ -23,6 +23,8 @@ async function settingsLocals() {
       curseforgeFallback: config.curseforgeFallback,
       githubReady: Boolean(config.githubToken),
       telegramReady: config.telegramReady,
+      webhookReady: Boolean(settings.webhook_url || config.webhookUrl),
+      webhookUrl: settings.webhook_url || config.webhookUrl || "",
       appUrl: config.appUrl,
       contact: config.contact,
     },
@@ -78,9 +80,14 @@ settingsRouter.get("/settings/notifications", requireAdmin, async (req, res, nex
 
 settingsRouter.post("/settings/notifications", requireAdmin, async (req, res, next) => {
   try {
-    await setSetting("telegram_enabled", req.body.telegram_enabled === "on");
-    await setSetting("telegram_chat_id", String(req.body.telegram_chat_id || "").trim());
-    flash(req, "ok", "Notification settings saved.");
+    const webhookUrl = String(req.body.webhook_url || "").trim();
+    if (webhookUrl && !/^https?:\/\//i.test(webhookUrl)) {
+      flash(req, "error", "The MyWebhook endpoint must start with http:// or https://.");
+      return res.redirect("/settings/notifications");
+    }
+    await setSetting("webhook_enabled", req.body.webhook_enabled === "on");
+    await setSetting("webhook_url", webhookUrl);
+    flash(req, "ok", "Notification delivery saved.");
     res.redirect("/settings/notifications");
   } catch (err) {
     next(err);
@@ -89,10 +96,10 @@ settingsRouter.post("/settings/notifications", requireAdmin, async (req, res, ne
 
 settingsRouter.post("/settings/notifications/test", requireAdmin, async (req, res, next) => {
   try {
-    const sent = await telegramSend("ModWatch · test notification\nTelegram is connected to your instance.");
+    const sent = await telegramSend("ModWatch · test notification\nMyWebhook is connected to your instance.");
     flash(req, sent ? "ok" : "error", sent
-      ? "Test message sent to Telegram."
-      : "Telegram is not ready. Set TELEGRAM_BOT_TOKEN in .env and enable it here.");
+      ? "Test message sent through MyWebhook."
+      : "MyWebhook is not ready. Save an endpoint and enable delivery first.");
     res.redirect("/settings/notifications");
   } catch (err) {
     next(err);

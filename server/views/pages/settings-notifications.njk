@@ -6,7 +6,7 @@
   <div class="page-head-main">
     <p class="eyebrow">Control</p>
     <h1 class="page-title">Notifications</h1>
-    <p class="page-sub">In-app notices are always on. Telegram mirrors them to a chat you choose.</p>
+    <p class="page-sub">In-app notices are always on. MyWebhook mirrors them to the Telegram chat configured on your hook.</p>
   </div>
 </div>
 
@@ -36,25 +36,25 @@
 
           <div class="setting-row">
             <div class="setting-copy">
-              <strong>Telegram</strong>
-              <span>Send updates, unknown files and requests to a chat. Requires TELEGRAM_BOT_TOKEN in .env.</span>
+              <strong>MyWebhook</strong>
+              <span>Send updates, unknown files and requests through your MyWebhook endpoint. The bot and chat pairing live there.</span>
             </div>
             <div class="setting-control">
               <label class="check">
-                <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %} {% if not env.telegramReady %}disabled{% endif %}>
-                <span>{% if env.telegramReady %}Enable Telegram delivery{% else %}Add a bot token first{% endif %}</span>
+                <input type="checkbox" name="webhook_enabled" {% if settings.webhook_enabled %}checked{% endif %}>
+                <span>Enable MyWebhook delivery</span>
               </label>
             </div>
           </div>
 
           <div class="setting-row">
             <div class="setting-copy">
-              <strong>Chat ID</strong>
-              <span>The numeric chat or channel id. A group id usually starts with a minus sign.</span>
+              <strong>Webhook endpoint</strong>
+              <span>Copy the hook URL from MyWebhook. ModWatch sends one JSON POST with a <code>message</code> field per event.</span>
             </div>
             <div class="setting-control">
-              <label class="sr-only" for="chat">Telegram chat ID</label>
-              <input class="input" id="chat" name="telegram_chat_id" type="text" value="{{ settings.telegram_chat_id }}" placeholder="-1001234567890">
+              <label class="sr-only" for="webhook-url">MyWebhook endpoint</label>
+              <input class="input" id="webhook-url" name="webhook_url" type="url" value="{{ settings.webhook_url }}" placeholder="https://webhook.example.com/hook/…">
             </div>
           </div>
 
@@ -73,7 +73,7 @@
         </div>
       </div>
       <div class="panel-body">
-        <p class="faint" style="font-size:11.5px;line-height:1.6">The test uses the saved token and chat id. If it fails, the flash message names the missing piece.</p>
+        <p class="faint" style="font-size:11.5px;line-height:1.6">The test posts one message to the saved endpoint. It does not create an in-app notification.</p>
         <form method="post" action="/settings/notifications/test" style="margin-top:14px">
           {% include "partials/csrf.njk" %}
           <button class="btn" type="submit">{{ icon('telegram') }} Send test message</button>
@@ -92,7 +92,7 @@
         <div class="kv">
           <div class="kv-row"><span class="kv-label">Update</span><span class="kv-value">A newer version lands inside the mod's channel policy. The same version never notifies twice.</span></div>
           <div class="kv-row"><span class="kv-label">Unknown file</span><span class="kv-value">An import or check adds a jar with no source match.</span></div>
-          <div class="kv-row"><span class="kv-label">Request</span><span class="kv-value">A member asks to add a mod. Admins get it in-app and on Telegram.</span></div>
+          <div class="kv-row"><span class="kv-label">Request</span><span class="kv-value">A member asks to add a mod. Admins get it in-app and through MyWebhook.</span></div>
           <div class="kv-row"><span class="kv-label">Decision</span><span class="kv-value">An admin approves or rejects a request. The requester gets the note.</span></div>
           <div class="kv-row"><span class="kv-label">Source error</span><span class="kv-value">A connector fails. The mod keeps its old state and the error is visible on the row.</span></div>
         </div>
