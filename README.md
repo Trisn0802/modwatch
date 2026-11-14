@@ -14,6 +14,7 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 - **Approvals.** Admins manage instances and users. Members can propose mods; requests wait on the Approvals page and become tracked mods only after approval.
 - **Photos.** Profile photos and instance icons, stored in the uploads volume with initials as the fallback.
 - **Version controls.** Snooze one release, freeze the installed version, disable a file (exported as `.jar.disabled`), or ignore it entirely.
+- **Download and update.** Update one mod or every waiting mod: ModWatch downloads the latest allowed jar to the uploads volume, moves the installed baseline, then checks again to confirm the new version is really current.
 - **Export and share.** Admins generate a `.mrpack` from the tracked versions. A public `/s/<token>` page shows the scope and top updates, serves an OG image, and lets anyone download the pack without an account.
 - **Themes.** OLED, Dark, Light or follow the system, chosen from a compact popover and applied before first paint.
 

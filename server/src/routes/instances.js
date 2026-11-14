@@ -11,6 +11,7 @@ import { SOURCE, STATUS } from "../labels.js";
 import { resolveProjectUrl } from "../sources/index.js";
 import { instanceUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
 import { buildExport, latestExport, getExportByToken, removeInstanceFiles, ensureStoredJar } from "../export.js";
+import { updateAllInInstance } from "../updater.js";
 
 export const instancesRouter = express.Router();
 
@@ -233,6 +234,32 @@ instancesRouter.post("/instances/:id", async (req, res, next) => {
     res.redirect(`/instances/${instance.id}`);
   } catch (err) {
     next(err);
+  }
+});
+
+instancesRouter.post("/instances/:id/update-all", async (req, res, next) => {
+  try {
+    if (req.session.user.role !== "admin") {
+      flash(req, "error", "Only an admin can download and update mods.");
+      return res.redirect(`/instances/${intParam(req.params.id)}`);
+    }
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const result = await updateAllInInstance(instance.id, { userId: req.session.user.id });
+    if (!result.total) {
+      flash(req, "ok", "There are no updates waiting to download.");
+      return res.redirect(`/instances/${instance.id}`);
+    }
+    await checkInstance(instance.id, { trigger: "manual", userId: req.session.user.id }).catch(() => {});
+    const lines = [
+      `${result.updated.length} of ${result.total} mods updated and verified.`,
+      result.failed.length ? `${result.failed.length} failed: ${result.failed.map((item) => item.name).join(", ")}.` : "",
+    ].filter(Boolean);
+    flash(req, result.failed.length ? "error" : "ok", lines.join(" "));
+    res.redirect(`/instances/${instance.id}`);
+  } catch (err) {
+    flash(req, "error", err.message || "The bulk update could not finish.");
+    res.redirect(`/instances/${intParam(req.params.id)}`);
   }
 });
 

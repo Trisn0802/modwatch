@@ -8,6 +8,7 @@ import { flash } from "../middleware.js";
 import { createNotifications, telegramSend } from "../notify.js";
 import { insertMod, cacheInstalledVersion, markUpdated, VALID_SOURCES } from "../mod-service.js";
 import { ensureStoredJar, refreshStoredJar, setStoredDisabled } from "../export.js";
+import { updateModToLatest } from "../updater.js";
 import { CHANNEL, LOADER, SIDE, SOURCE, STATUS } from "../labels.js";
 
 export const modsRouter = express.Router();
@@ -255,6 +256,27 @@ modsRouter.post("/mods/:id/updated", async (req, res, next) => {
     res.redirect(req.get("referer") || `/mods/${id}`);
   } catch (err) {
     next(err);
+  }
+});
+
+modsRouter.post("/mods/:id/update", async (req, res, next) => {
+  try {
+    if (req.session.user.role !== "admin") {
+      flash(req, "error", "Only an admin can download and update a mod.");
+      return res.redirect(req.get("referer") || `/mods/${intParam(req.params.id)}`);
+    }
+    const id = intParam(req.params.id);
+    const result = await updateModToLatest(id, { userId: req.session.user.id, verify: true });
+    const verified = result.verified === "update_available"
+      ? "A newer version appeared during the download, so it is still behind."
+      : result.verified === "frozen"
+        ? "The mod is frozen, so the new baseline is recorded without notices."
+        : "Checked again: this is the newest allowed version.";
+    flash(req, "ok", `${result.mod.name} updated from ${result.from} to ${result.to}. ${verified}`);
+    res.redirect(req.get("referer") || `/mods/${id}`);
+  } catch (err) {
+    flash(req, "error", err.message || "The update could not be downloaded.");
+    res.redirect(req.get("referer") || `/mods/${intParam(req.params.id)}`);
   }
 });
 

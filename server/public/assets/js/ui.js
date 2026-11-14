@@ -459,6 +459,17 @@
     });
   }
 
+  // --- long-running forms show a pending state -------------------------------
+  for (const form of $$("form[data-busy-label]")) {
+    form.addEventListener("submit", (event) => {
+      if (event.defaultPrevented) return;
+      const button = form.querySelector('button[type="submit"]');
+      if (!button) return;
+      button.disabled = true;
+      button.textContent = form.dataset.busyLabel || "Working…";
+    });
+  }
+
   // --- copy buttons ----------------------------------------------------------
   for (const button of $$("[data-copy]")) {
     button.addEventListener("click", async () => {

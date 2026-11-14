@@ -43,6 +43,12 @@
   </div>
   <div class="instance-actions">
     <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add mod</a>
+    {% if isAdmin and stats.updates %}
+    <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
+      {% include "partials/csrf.njk" %}
+      <button class="btn" type="submit" data-busy-label="Updating…">{{ icon('download') }} Update all ({{ stats.updates }})</button>
+    </form>
+    {% endif %}
     <form method="post" action="/instances/{{ instance.id }}/check">
       {% include "partials/csrf.njk" %}
       <button class="btn primary" type="submit">{{ icon('refresh') }} Check now</button>
@@ -271,6 +277,12 @@
           <td class="hide-sm faint nowrap">{{ mod.last_checked_at | relative }}</td>
           <td class="n">
             <span class="row" style="gap:2px;justify-content:flex-end">
+              {% if isAdmin and mod.status == 'update_available' %}
+              <form method="post" action="/mods/{{ mod.id }}/update" data-confirm="Download {{ mod.latest_version }} for {{ mod.name }} to this server and move the installed baseline?">
+                {% include "partials/csrf.njk" %}
+                <button class="icon-btn" type="submit" aria-label="Download and update {{ mod.name }}" title="Download and update to {{ mod.latest_version }}">{{ icon('download') }}</button>
+              </form>
+              {% endif %}
               <form method="post" action="/mods/{{ mod.id }}/check">
                 {% include "partials/csrf.njk" %}
                 <button class="icon-btn" type="submit" aria-label="Check {{ mod.name }} now" title="Check now">{{ icon('refresh') }}</button>
