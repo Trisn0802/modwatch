@@ -1378,9 +1378,17 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .result-row { display: flex; align-items: center; gap: 11px; padding: 11px var(--card-pad); border-top: 1px solid var(--rule); }
 .result-row:first-child { border-top: 0; }
 .result-row:hover { background: var(--raised); }
+.result-icon {
+  width: 32px; height: 32px; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--raised); color: var(--faint);
+  overflow: hidden; font-size: 10px; font-weight: 600;
+}
+.result-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .result-main { min-width: 0; flex: 1; }
-.result-name { font-size: 12.5px; font-weight: 500; }
-.result-meta { margin-top: 2px; font-size: 10.5px; color: var(--faint); }
+.result-name { display: block; font-size: 12.5px; font-weight: 500; }
+.result-meta { display: block; margin-top: 2px; font-size: 10.5px; color: var(--faint); }
 
 /* ---------- state pages / auth ---------- */
 .state-page { display: grid; place-items: center; min-height: 60svh; text-align: center; }

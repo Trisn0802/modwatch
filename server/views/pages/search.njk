@@ -27,6 +27,14 @@
     {% for mod in mods %}
     {% set meta = mod.status | statusMeta %}
     <a class="result-row" href="/mods/{{ mod.id }}">
+      {% set art = mod | modIcon %}
+      <span class="result-icon">
+        {% if art %}
+        <img src="{{ art }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ mod.name | initials }}">
+        {% else %}
+        {{ mod.name | initials }}
+        {% endif %}
+      </span>
       <span class="result-main">
         <span class="result-name">{{ mod.name }}</span>
         <span class="result-meta">{{ mod.instance_name }} · {{ mod.file_name or mod.installed_version }}</span>
@@ -48,6 +56,13 @@
   <section class="panel">
     {% for item in instances %}
     <a class="result-row" href="/instances/{{ item.id }}">
+      <span class="result-icon">
+        {% if item.image_path %}
+        <img src="/uploads/{{ item.image_path }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ item.name | initials }}">
+        {% else %}
+        {{ item.name | initials }}
+        {% endif %}
+      </span>
       <span class="result-main">
         <span class="result-name">{{ item.name }}</span>
         <span class="result-meta">{{ item.mc_version }} · {{ item.loader | loaderLabel }}{% if item.loader_version %} {{ item.loader_version }}{% endif %}{% if item.pack_version %} · pack {{ item.pack_version }}{% endif %}</span>

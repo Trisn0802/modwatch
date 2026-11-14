@@ -895,7 +895,10 @@
     const avatar = image.closest(".avatar");
     if (avatar) {
       avatar.textContent = image.dataset.fallback || "?";
+      return;
     }
+    const resultIcon = image.closest(".result-icon");
+    if (resultIcon) resultIcon.textContent = image.dataset.fallback || "?";
   }, true);
 
   // --- mark page ready (enables hover transitions only after load) ----------

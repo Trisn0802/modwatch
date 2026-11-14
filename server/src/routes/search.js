@@ -22,7 +22,7 @@ searchRouter.get("/api/search", async (req, res, next) => {
         [like]
       ),
       query(
-        `SELECT i.id, i.name, i.mc_version, i.loader, i.loader_version,
+        `SELECT i.id, i.name, i.mc_version, i.loader, i.loader_version, i.image_path,
                 count(m.id) FILTER (WHERE m.status = 'update_available')::int AS updates,
                 count(*) OVER()::int AS total
            FROM instances i LEFT JOIN mods m ON m.instance_id = i.id
@@ -50,6 +50,7 @@ searchRouter.get("/api/search", async (req, res, next) => {
         name: row.name,
         scope: `${row.mc_version} · ${LOADER[row.loader] || row.loader}${row.loader_version ? ` ${row.loader_version}` : ""}`,
         state: row.updates ? `${row.updates} update${row.updates === 1 ? "" : "s"}` : "Up to date",
+        icon: row.image_path ? `/uploads/${row.image_path}` : null,
         initials: initials(row.name),
       })),
       totalMods: modResult.rows[0]?.total || 0,
