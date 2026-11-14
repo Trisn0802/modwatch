@@ -250,6 +250,66 @@
     });
   }
 
+  // --- realtime project search on the add-mod page ---------------------------
+  for (const form of $$("form[data-realtime-search]")) {
+    const target = $(form.dataset.realtimeSearch || "");
+    if (!target) continue;
+    const field = $('input[type="search"]', form);
+    const status = $("[data-search-live]", form.parentElement);
+    const statusText = $("[data-search-live-text]", form.parentElement);
+    const empty = document.createElement("div");
+    empty.className = "panel-body";
+    empty.innerHTML = '<p class="faint" style="font-size:12px;text-align:center">Search is unavailable right now. Use the Search button to retry.</p>';
+    let timer = null;
+    let controller = null;
+    let sequence = 0;
+
+    const skeleton = () => {
+      target.innerHTML = '<div class="result-skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>';
+    };
+    const setStatus = (text) => {
+      if (!status) return;
+      status.hidden = !text;
+      if (text && statusText) statusText.textContent = text;
+    };
+    const run = async () => {
+      controller?.abort();
+      controller = new AbortController();
+      const mine = ++sequence;
+      const url = new URL(form.action, location.href);
+      for (const [key, value] of new FormData(form)) if (value !== "") url.searchParams.set(key, value);
+      setStatus("Searching Modrinth and GitHub…");
+      skeleton();
+      try {
+        const response = await fetch(url.pathname + url.search, {
+          signal: controller.signal,
+          cache: "no-store",
+          headers: { "X-Requested-With": "fetch" },
+        });
+        if (!response.ok) throw new Error("search failed");
+        const html = await response.text();
+        if (mine !== sequence) return;
+        target.innerHTML = html;
+        target.querySelector(".table-wrap")?.classList.add("table-live");
+        history.replaceState(null, "", url.pathname + url.search);
+      } catch (err) {
+        if (err.name === "AbortError" || mine !== sequence) return;
+        target.replaceChildren(empty);
+      } finally {
+        if (mine === sequence) setStatus("");
+      }
+    };
+    field?.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(run, 300);
+    });
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      window.clearTimeout(timer);
+      run();
+    });
+  }
+
   // --- realtime server-rendered table search --------------------------------
   for (const form of $$("form[data-live-search]")) {
     const targetSelector = form.dataset.liveSearch;

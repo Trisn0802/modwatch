@@ -866,6 +866,25 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 .tab .count.accent { background: var(--brand-soft); color: var(--brand-text); }
 .source-tabs { padding: 0 var(--card-pad); }
+.search-live {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px var(--card-pad);
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted); font-size: 11px;
+}
+.search-live .dot.busy { animation: mw-pulse 1s ease-in-out infinite; }
+.result-skeleton { display: grid; }
+.result-skeleton span {
+  position: relative; overflow: hidden;
+  height: 61px; border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+.result-skeleton span::after {
+  content: ""; position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 6%, transparent), transparent);
+  animation: mw-shimmer 1.2s ease-in-out infinite;
+}
 
 .toolbar {
   display: flex; align-items: center; justify-content: space-between;

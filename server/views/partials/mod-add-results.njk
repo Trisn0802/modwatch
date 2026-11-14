@@ -1,0 +1,76 @@
+{% from "partials/icon.njk" import icon %}
+    {% if searchError %}
+    <div class="panel-body"><div class="error-box" style="margin:0">{{ icon('alert') }}<span>{{ searchError }}</span></div></div>
+    {% endif %}
+
+    {% if results.length %}
+    <div class="table-wrap">
+      <table class="board">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th class="hide-sm">Source</th>
+            <th class="n hide-sm">Downloads</th>
+            <th aria-label="Choose"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in results %}
+          {% set src = result.source | sourceMeta %}
+          <tr>
+            <td>
+              <div class="mod-cell">
+                {% if result.icon_url %}
+                <img class="mod-icon" src="{{ result.icon_url }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ result.name | initials }}">
+                {% else %}
+                <span class="mod-icon fallback">{{ result.name | initials }}</span>
+                {% endif %}
+                <span class="mod-copy">
+                  <span class="mod-name">{{ result.name }}</span>
+                  <span class="mod-file">{{ result.description | truncate(110) }}</span>
+                </span>
+              </div>
+            </td>
+            <td class="hide-sm"><span class="source-label {{ result.source }}"><span class="mark"></span>{{ src.label }}{% if result.author %} · {{ result.author }}{% endif %}</span></td>
+            <td class="n hide-sm faint">{{ result.downloads | number }}</td>
+            <td class="n">
+              <a class="btn sm" href="/instances/{{ instance.id }}/mods/choose?source={{ result.source }}&project_id={{ result.project_id | urlencode }}&name={{ result.name | urlencode }}&project_url={{ result.project_url | urlencode }}&icon_url={{ (result.icon_url or '') | urlencode }}">Choose version</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif q and sourceFilter == 'curseforge' and not env.curseforgeReady %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">CurseForge search needs an API key</p>
+          <p class="empty-text">Project URLs still resolve through the public metadata fallback. Paste the CurseForge project URL in <strong>Add by URL</strong> beside this list, or wait until the API key is approved.</p>
+          <div class="empty-actions"><a class="btn" href="#add-by-url">{{ icon('link') }} Use a project URL</a></div>
+        </div>
+      </div>
+    </div>
+    {% elif q %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">No project matched “{{ q }}”</p>
+          <p class="empty-text">Check the spelling, or add a manual entry from the panel beside this list if the mod is private.</p>
+          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}/mods/new?manual=1">Add manually</a></div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('search') }}</span>
+          <p class="empty-title">Search a project name</p>
+          <p class="empty-text">Modrinth and GitHub are searched directly. CurseForge search turns on with an API key; project URLs from all three sources work now through Add by URL.</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}

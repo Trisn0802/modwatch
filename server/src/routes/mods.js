@@ -44,9 +44,7 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
         searchError = err.message;
       }
     }
-    res.render("pages/mod-add.njk", {
-      page: "instances",
-      title: `Add a mod to ${instance.name}`,
+    const payload = {
       instance,
       q,
       sourceFilter,
@@ -54,6 +52,14 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
       searchError,
       manual: req.query.manual === "1",
       channelOptions: CHANNEL,
+    };
+    if (req.get("x-requested-with") === "fetch") {
+      return res.render("partials/mod-add-results.njk", payload);
+    }
+    res.render("pages/mod-add.njk", {
+      page: "instances",
+      title: `Add a mod to ${instance.name}`,
+      ...payload,
     });
   } catch (err) {
     next(err);

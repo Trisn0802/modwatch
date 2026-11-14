@@ -8,6 +8,7 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 
 - **Instances with a version lock.** Every check compares against the instance's Minecraft version and loader, not the newest release on the internet.
 - **`.mrpack` import.** Upload a Modrinth pack, review the detected scope and mod list, then commit. Jars without a match land in an "Unknown mod detected" flow instead of being dropped.
+- **Search.** Add-mod search updates as you type with a loading skeleton, source filters (All / Modrinth / CurseForge / GitHub) and direct project-URL resolution.
 - **Connectors.** Modrinth works without credentials. CurseForge uses a public metadata fallback without a key for project URLs; if the fallback does not index a project, the same slug is matched on Modrinth. The official API adds search when a key is configured. GitHub search reads releases and can filter assets by pattern. Manual entries track private jars with no project page; pasting a supported project URL into the manual form detects the source and opens version selection.
 - **Scheduled checks.** A background scheduler runs every N hours. Manual checks run from the dashboard, an instance or a single mod.
 - **Notifications.** In-app inbox, topbar popover and MyWebhook delivery (Telegram bot + chat configured on the hook) for updates, unknown files, requests and source errors.
