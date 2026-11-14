@@ -13,12 +13,14 @@ publicRouter.get("/s/:token([a-f0-9]{16})", async (req, res, next) => {
     const instance = rows[0];
     if (!instance) return next();
     const overview = await shareOverview(instance);
+    const view = req.query.view === "updates" ? "updates" : "all";
     const shareUrl = `${res.locals.baseUrl}/s/${instance.share_token}`;
     res.render("pages/share.njk", {
       page: "share",
       title: instance.pack_name || instance.name,
       instance,
       overview,
+      view,
       shareUrl,
       ogType: "website",
       ogTitle: `${instance.pack_name || instance.name} · ModWatch`,

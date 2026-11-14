@@ -87,6 +87,79 @@
   {% endif %}
 </section>
 
+<section class="panel share-panel share-mods">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">{% if view == 'updates' %}Update table{% else %}All mods{% endif %}</h2>
+      <p class="panel-sub">{% if view == 'updates' %}{{ overview.stats.updates }} mod{% if overview.stats.updates != 1 %}s{% endif %} with a newer allowed version{% else %}Every tracked mod in this pack, including disabled files{% endif %}</p>
+    </div>
+    <nav class="share-tabs" aria-label="Mod table view">
+      <a href="/s/{{ instance.share_token }}?view=all" {% if view != 'updates' %}aria-current="page"{% endif %}>All mods</a>
+      <a href="/s/{{ instance.share_token }}?view=updates" {% if view == 'updates' %}aria-current="page"{% endif %}>Updates</a>
+    </nav>
+  </div>
+  <div class="share-mod-toolbar">
+    <label class="search-field">
+      {{ icon('search') }}
+      <span class="sr-only">Filter shared mods</span>
+      <input type="search" placeholder="Filter by mod, version or source" autocomplete="off" data-filter data-filter-target="#share-mod-table" data-filter-empty="#share-filter-empty">
+    </label>
+    <span class="count-note">{% if view == 'updates' %}{{ overview.stats.updates }} update{% if overview.stats.updates != 1 %}s{% endif %}{% else %}{{ overview.stats.mods }} mods{% endif %}</span>
+  </div>
+  <div class="table-wrap share-mod-wrap">
+    <table class="board share-mod-table" id="share-mod-table">
+      <thead>
+        <tr>
+          <th>Mod</th>
+          <th>Version</th>
+          <th class="hide-sm">Source</th>
+          <th class="hide-sm">Side</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mod in overview.mods %}
+        {% if view != 'updates' or mod.status == 'update_available' %}
+        {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
+        {% set meta = shown | statusMeta %}
+        <tr data-row class="{% if mod.disabled %}is-disabled{% endif %}">
+          <td>
+            <div class="mod-cell">
+              {% set art = mod | modIcon %}
+              {% if art %}
+              <img class="mod-icon" src="{{ art }}" alt="" width="30" height="30" loading="lazy" data-fallback="{{ mod.name | initials }}">
+              {% else %}
+              <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+              {% endif %}
+              <span class="mod-copy"><span class="mod-name">{{ mod.name }}</span></span>
+            </div>
+          </td>
+          <td>
+            {% if mod.status == 'update_available' %}
+            <span class="vshift"><span class="from">{{ mod.installed_version }}</span><span class="arrow">{{ icon('arrow-right') }}</span><span class="to">{{ mod.latest_version }}</span></span>
+            {% else %}
+            <span class="vshift same"><span class="to">{{ mod.installed_version or '—' }}</span></span>
+            {% endif %}
+          </td>
+          <td class="hide-sm">{% set src = mod.source | sourceMeta %}<span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span></td>
+          <td class="hide-sm faint">{{ mod.side | sideLabel }}</td>
+          <td>
+            <span class="row" style="gap:5px;flex-wrap:wrap">
+              <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
+              {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
+            </span>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body" id="share-filter-empty" hidden>
+    <p class="faint" style="font-size:12px;text-align:center">No mod matches that filter.</p>
+  </div>
+</section>
+
 <section class="share-meta">
   <span>Shared with ModWatch</span>
   <span class="sep"></span>

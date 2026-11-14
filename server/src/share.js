@@ -21,7 +21,7 @@ function clip(value, length) {
 }
 
 export async function shareOverview(instance) {
-  const [{ rows: stats }, { rows: updates }, { rows: items }] = await Promise.all([
+  const [{ rows: stats }, { rows: updates }, { rows: items }, { rows: mods }] = await Promise.all([
     query(
       `SELECT count(*)::int AS mods,
               count(*) FILTER (WHERE status = 'update_available')::int AS updates,
@@ -30,19 +30,28 @@ export async function shareOverview(instance) {
       [instance.id]
     ),
     query(
-      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, status
+      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id
          FROM mods WHERE instance_id = $1 AND status = 'update_available'
         ORDER BY name LIMIT 5`,
       [instance.id]
     ),
     query(
-      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, status
+      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id
          FROM mods WHERE instance_id = $1 AND status <> 'ignored'
         ORDER BY (status = 'update_available') DESC, name LIMIT 4`,
       [instance.id]
     ),
+    query(
+      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id, file_name
+         FROM mods WHERE instance_id = $1 AND status <> 'ignored'
+        ORDER BY name`,
+      [instance.id]
+    ),
   ]);
-  return { stats: stats[0], updates, items };
+  return { stats: stats[0], updates, items, mods };
 }
 
 export function shareSvg(instance, overview) {
