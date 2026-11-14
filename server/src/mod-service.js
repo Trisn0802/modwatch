@@ -2,11 +2,12 @@ import { query } from "./db.js";
 
 export const VALID_SOURCES = ["modrinth", "curseforge", "github", "hangar", "spigot", "manual"];
 
-export async function insertMod(instanceId, payload, userId) {
+export async function insertMod(instanceId, payload, userId, client = null) {
   const source = VALID_SOURCES.includes(payload.source) ? payload.source : "manual";
   const status = source === "manual" ? "manual" : "up_to_date";
   const installed = String(payload.installed_version || "").trim() || "unknown version";
-  const { rows } = await query(
+  const run = client ? client.query.bind(client) : query;
+  const { rows } = await run(
     `INSERT INTO mods (instance_id, name, side, source, project_id, project_url, github_asset_pattern,
         installed_version, installed_version_id, file_name, file_sha1, file_sha512, file_size,
         icon_url, download_url, channel_policy, status, latest_version, latest_version_id,

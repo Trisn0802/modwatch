@@ -1474,6 +1474,31 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 }
 .confirm-modal .dialog-foot .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--control)); }
 .confirm-modal .dialog-foot .btn.danger:hover { background: var(--pill-negative-bg); border-color: var(--danger); }
+.progress-modal { width: min(430px, calc(100vw - 28px)); }
+.progress-body { padding: 30px 26px 26px; text-align: center; }
+.progress-spinner {
+  display: block; width: 30px; height: 30px; margin: 0 auto 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: mw-spin 760ms linear infinite;
+}
+@keyframes mw-spin { to { transform: rotate(360deg); } }
+.progress-body .confirm-kicker { margin-bottom: 5px; }
+.progress-message { max-width: 34ch; margin: 8px auto 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.progress-steps {
+  display: grid; gap: 7px; margin: 20px 0 0; padding: 14px;
+  border: 1px solid var(--rule); border-radius: 9px;
+  background: var(--raised); text-align: left; list-style: none;
+}
+.progress-steps li { display: flex; align-items: center; gap: 8px; color: var(--faint); font-size: 11.5px; }
+.progress-steps li::before {
+  content: ""; width: 6px; height: 6px; flex: none;
+  border-radius: 50%; background: var(--control);
+}
+.progress-steps li.is-active { color: var(--text); }
+.progress-steps li.is-active::before { background: var(--brand); animation: mw-pulse 1s ease-in-out infinite; }
+.progress-steps li.is-done::before { background: var(--brand); }
 .dialog-section { margin-top: 12px; }
 .dialog-help { margin-top: 8px; font-size: 10.5px; color: var(--faint); line-height: 1.5; }
 

@@ -56,7 +56,7 @@ approvalsRouter.post("/approvals/:id/approve", async (req, res, next) => {
       );
       const request = rows[0];
       if (!request) return null;
-      const modId = await insertMod(request.instance_id, request.payload, request.requested_by);
+      const modId = await insertMod(request.instance_id, request.payload, request.requested_by, client);
       await client.query(
         `UPDATE mod_requests SET status = 'approved', decided_by = $2, decision_note = $3,
            mod_id = $4, decided_at = now() WHERE id = $1`,

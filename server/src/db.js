@@ -31,6 +31,9 @@ export async function withTransaction(fn) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // A stuck approval must fail fast instead of pinning the whole page and
+    // every later request on the same row.
+    await client.query("SET LOCAL lock_timeout = '15s'");
     const result = await fn(client);
     await client.query("COMMIT");
     return result;

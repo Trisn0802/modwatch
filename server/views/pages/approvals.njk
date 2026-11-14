@@ -50,7 +50,10 @@
       <p class="faint" style="margin-top:10px;font-size:10.5px;word-break:break-all"><a class="card-link" href="{{ request.payload.project_url }}" target="_blank" rel="noopener noreferrer">{{ request.payload.project_url }} {{ icon('external') }}</a></p>
       {% endif %}
 
-      <form class="request-forms" method="post" action="/approvals/{{ request.id }}/approve">
+      <form class="request-forms" method="post" action="/approvals/{{ request.id }}/approve"
+        data-progress-title="Approving {{ request.payload.name }}"
+        data-progress-message="Writing the mod to {{ request.instance_name }} and starting a source check."
+        data-progress-steps="Lock the request|Add the mod to the instance|Save the decision|Start the source check|Reload approvals">
         {% include "partials/csrf.njk" %}
         <label class="sr-only" for="note-{{ request.id }}">Decision note</label>
         <input class="input" id="note-{{ request.id }}" name="note" type="text" placeholder="Optional note back to {{ request.requester_name }}">

@@ -561,6 +561,54 @@
     });
   }
 
+  // --- progress dialog for long writes --------------------------------------
+  for (const form of $$("form[data-progress-title]")) {
+    form.addEventListener("submit", (event) => {
+      if (form.dataset.progressBypass === "1") return;
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      const modal = $("#progress-modal");
+      if (!modal) return;
+      const title = $("#progress-title", modal);
+      const message = $("#progress-message", modal);
+      const list = $("#progress-steps", modal);
+      const kicker = $("#progress-kicker", modal);
+      if (title) title.textContent = form.dataset.progressTitle || "Working…";
+      if (message) message.textContent = form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
+      if (kicker) kicker.textContent = form.dataset.progressKicker || "Working";
+      if (list) {
+        list.replaceChildren();
+        const steps = String(form.dataset.progressSteps || "").split("|").filter(Boolean);
+        steps.forEach((step, index) => {
+          const item = document.createElement("li");
+          item.textContent = step;
+          if (index === 0) item.classList.add("is-active");
+          list.appendChild(item);
+        });
+        if (steps.length > 1) {
+          let active = 0;
+          window.setInterval(() => {
+            const items = [...list.children];
+            if (!items.length) return;
+            items[active]?.classList.remove("is-active");
+            items[active]?.classList.add("is-done");
+            active = Math.min(active + 1, items.length - 1);
+            items[active]?.classList.add("is-active");
+          }, 900);
+        }
+      }
+      if (typeof modal.showModal === "function") {
+        if (!modal.open) modal.showModal();
+      } else modal.setAttribute("open", "");
+      document.body.classList.add("dialog-open");
+      form.dataset.progressBypass = "1";
+      window.setTimeout(() => {
+        if (typeof form.requestSubmit === "function") form.requestSubmit();
+        else form.submit();
+      }, 650);
+    });
+  }
+
   // --- copy buttons ----------------------------------------------------------
   for (const button of $$("[data-copy]")) {
     button.addEventListener("click", async () => {
