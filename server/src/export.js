@@ -204,12 +204,13 @@ export async function buildExport(instance, { userId = null } = {}) {
         return null;
       });
       if (file?.download_url && file.sha1) {
+        const size = Number(file.file_size);
         files.push({
           path: `mods/${file.file_name || jarFileName(mod)}`,
           hashes: { sha1: file.sha1, ...(file.sha512 ? { sha512: file.sha512 } : {}) },
           env: envFor(mod.side),
           downloads: [file.download_url],
-          fileSize: file.file_size || undefined,
+          ...(Number.isFinite(size) && size > 0 ? { fileSize: Math.trunc(size) } : {}),
         });
         continue;
       }
@@ -230,6 +231,9 @@ export async function buildExport(instance, { userId = null } = {}) {
     else warnings.push(`${item.file_name}: unknown file has no stored jar.`);
   }
 
+  for (const file of files) {
+    if (file.fileSize != null) file.fileSize = Math.trunc(Number(file.fileSize));
+  }
   const deps = { minecraft: instance.mc_version };
   deps[loaderKey(instance.loader)] = instance.loader_version || "*";
   const index = {
