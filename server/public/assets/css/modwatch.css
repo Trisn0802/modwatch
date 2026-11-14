@@ -222,10 +222,9 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
 .brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-mark {
   width: 28px; height: 28px; flex: none;
-  display: grid; place-items: center;
-  color: var(--text);
+  display: block; object-fit: contain;
+  border-radius: 7px;
 }
-.brand-mark svg { width: 28px; height: 28px; }
 .brand-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 .brand-tag {
   display: block; margin-top: -1px;
@@ -392,7 +391,7 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
 }
 .topbar-right { display: flex; align-items: center; gap: 6px; }
 .topbar-divider { width: 1px; height: 28px; background: var(--border); margin: 0 6px; }
-.search-toggle { flex: none; }
+.topbar .search-toggle { display: none; flex: none; }
 .search-results {
   position: absolute; left: 0; right: 0; top: calc(100% + 7px);
   z-index: 50;
@@ -1144,10 +1143,14 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .menu > summary:hover { background: var(--raised); color: var(--text); }
 .menu-panel {
   position: absolute; right: 0; top: calc(100% + 4px);
-  min-width: 176px; padding: 4px;
+  min-width: 196px; max-height: min(70vh, 420px); overflow-y: auto;
+  padding: 4px;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--surface); z-index: 20;
+  background: var(--surface); z-index: 80;
+  box-shadow: var(--shadow-pop);
 }
+.menu[open] { z-index: 81; }
+.page-head, .instance-head { position: relative; z-index: 6; }
 .menu-panel a, .menu-panel button {
   display: flex; align-items: center; gap: 8px;
   width: 100%; padding: 7px 8px;
@@ -1485,6 +1488,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .hide-sm { display: none !important; }
   .topbar { gap: 8px; }
   .topbar-search { display: none; }
+  .topbar .search-toggle { display: inline-grid; }
   .crumb { font-size: 12px; }
   .crumb .faint { display: none; }
   .topbar-divider { margin: 0 3px; }

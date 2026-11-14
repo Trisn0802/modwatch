@@ -5,7 +5,7 @@
     <button class="icon-btn mobile-only" type="button" id="sidebar-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar">
       {{ icon('menu') }}
     </button>
-    <button class="icon-btn mobile-only search-toggle" type="button" id="search-toggle" aria-label="Search" aria-expanded="false" aria-controls="mobile-search">
+    <button class="icon-btn search-toggle" type="button" id="search-toggle" aria-label="Search" aria-expanded="false" aria-controls="mobile-search">
       {{ icon('search') }}
     </button>
     <div class="crumb">
@@ -56,7 +56,7 @@
       </div>
     </details>
 
-    {% if currentUser %}
+    {# {% if currentUser %}
     <details class="pop">
       <summary class="avatar-btn" aria-label="{{ currentUser.name | initials }} — account menu for {{ currentUser.name }}">
         {{ avatar(currentUser) }}
@@ -81,7 +81,7 @@
         </div>
       </div>
     </details>
-    {% endif %}
+    {% endif %} #}
   </div>
 </header>
 
