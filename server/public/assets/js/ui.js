@@ -623,19 +623,39 @@
 
   // --- progress dialog for long writes --------------------------------------
   for (const form of $$("form[data-progress-title]")) {
-    form.addEventListener("submit", (event) => {
-      if (form.dataset.progressBypass === "1") return;
+    form.addEventListener("submit", async (event) => {
       if (event.defaultPrevented) return;
       event.preventDefault();
       const modal = $("#progress-modal");
-      if (!modal) return;
+      if (!modal) {
+        form.submit();
+        return;
+      }
+      const body = $(".progress-body", modal);
+      const spinner = $(".progress-spinner", modal);
+      const check = $("#progress-check", modal);
       const title = $("#progress-title", modal);
       const message = $("#progress-message", modal);
       const list = $("#progress-steps", modal);
       const kicker = $("#progress-kicker", modal);
+      const errorBox = $("#progress-error", modal);
+      const foot = $("#progress-foot", modal);
+      const cont = $("#progress-continue", modal);
+      let interval = null;
+      let busy = true;
+      modal.oncancel = (cancelEvent) => { if (busy) cancelEvent.preventDefault(); };
+
+      body?.classList.remove("is-done", "is-error");
+      if (check) check.hidden = true;
+      if (spinner) spinner.style.display = "";
+      if (foot) foot.hidden = true;
+      if (cont) cont.hidden = true;
+      if (errorBox) { errorBox.hidden = true; errorBox.textContent = ""; }
       if (title) title.textContent = form.dataset.progressTitle || "Working…";
       if (message) message.textContent = form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
       if (kicker) kicker.textContent = form.dataset.progressKicker || "Working";
+      modal.setAttribute("aria-busy", "true");
+
       if (list) {
         list.replaceChildren();
         const steps = String(form.dataset.progressSteps || "").split("|").filter(Boolean);
@@ -647,7 +667,7 @@
         });
         if (steps.length > 1) {
           let active = 0;
-          window.setInterval(() => {
+          interval = window.setInterval(() => {
             const items = [...list.children];
             if (!items.length) return;
             items[active]?.classList.remove("is-active");
@@ -657,15 +677,68 @@
           }, 900);
         }
       }
+
       if (typeof modal.showModal === "function") {
         if (!modal.open) modal.showModal();
       } else modal.setAttribute("open", "");
       document.body.classList.add("dialog-open");
-      form.dataset.progressBypass = "1";
-      window.setTimeout(() => {
-        if (typeof form.requestSubmit === "function") form.requestSubmit();
-        else form.submit();
-      }, 650);
+
+      const finish = (mode, text, nextUrl, label) => {
+        busy = false;
+        window.clearInterval(interval);
+        modal.setAttribute("aria-busy", "false");
+        if (list) {
+          for (const item of list.children) {
+            item.classList.remove("is-active");
+            item.classList.add("is-done");
+          }
+        }
+        if (mode === "ok") {
+          body?.classList.add("is-done");
+          if (spinner) spinner.style.display = "none";
+          if (check) check.hidden = false;
+          if (title) title.textContent = form.dataset.progressDoneTitle || "Request processed";
+          if (message) message.textContent = text || "The request was processed.";
+          if (kicker) kicker.textContent = "Complete";
+        } else {
+          body?.classList.add("is-error");
+          if (spinner) spinner.style.display = "none";
+          if (title) title.textContent = "Could not finish";
+          if (message) message.textContent = "The request did not complete.";
+          if (kicker) kicker.textContent = "Failed";
+          if (errorBox) { errorBox.hidden = false; errorBox.textContent = text; }
+        }
+        if (foot) foot.hidden = false;
+        if (cont) {
+          cont.hidden = false;
+          cont.href = nextUrl || location.href;
+          cont.textContent = label || (mode === "ok" ? "Continue" : "Back to approvals");
+        }
+      };
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          redirect: "follow",
+          headers: { "X-Requested-With": "fetch" },
+        });
+        const finalUrl = response.url || location.href;
+        const html = await response.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
+        const errorText = doc.querySelector(".flash-error")?.textContent.trim() || "";
+        if (new URL(finalUrl, location.href).pathname === "/login") {
+          return finish("error", "Your session expired. Sign in again.", "/login", "Sign in");
+        }
+        if (!response.ok) {
+          return finish("error", `The server returned ${response.status}. Try again from approvals.`, "/approvals", "Back to approvals");
+        }
+        if (errorText) return finish("error", errorText, finalUrl, "Back to approvals");
+        finish("ok", successText, finalUrl, form.dataset.progressDoneLabel || "Continue to approvals");
+      } catch (err) {
+        finish("error", err.message || "The request could not reach the server.", location.href, "Reload page");
+      }
     });
   }
 
