@@ -1,3 +1,4 @@
+{% from "partials/source-icon.njk" import sourceIcon %}
 {% from "partials/mark.njk" import mark %}
 <!doctype html>
 <html lang="en" data-theme="oled" data-theme-mode="oled">
@@ -41,21 +42,21 @@
       <div class="auth-support-list">
         <div class="auth-support-row">
           <div class="auth-support-copy">
-            <span class="source-label modrinth"><span class="mark"></span>Modrinth</span>
+            <span class="source-label modrinth">{{ sourceIcon('modrinth') }}Modrinth</span>
             <small>Search, hash lookup and version checks</small>
           </div>
           <span class="pill pos"><span class="dot"></span>Supported</span>
         </div>
         <div class="auth-support-row">
           <div class="auth-support-copy">
-            <span class="source-label github"><span class="mark"></span>GitHub</span>
+            <span class="source-label github">{{ sourceIcon('github') }}GitHub</span>
             <small>{% if env.githubReady %}Token connected · release checks{% else %}Public API · release checks{% endif %}</small>
           </div>
           <span class="pill pos"><span class="dot"></span>Supported</span>
         </div>
         <div class="auth-support-row">
           <div class="auth-support-copy">
-            <span class="source-label curseforge"><span class="mark"></span>CurseForge</span>
+            <span class="source-label curseforge">{{ sourceIcon('curseforge') }}CurseForge</span>
             <small>{% if env.curseforgeReady %}Official API connected · search and files{% else %}URL resolver ready · search key pending{% endif %}</small>
           </div>
           {% if env.curseforgeReady %}

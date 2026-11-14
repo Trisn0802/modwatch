@@ -1,4 +1,5 @@
 {% from "partials/icon.njk" import icon %}
+{% from "partials/source-icon.njk" import sourceIcon %}
     {% if searchError %}
     <div class="panel-body"><div class="error-box" style="margin:0">{{ icon('alert') }}<span>{{ searchError }}</span></div></div>
     {% endif %}
@@ -31,7 +32,7 @@
                 </span>
               </div>
             </td>
-            <td class="hide-sm"><span class="source-label {{ result.source }}"><span class="mark"></span>{{ src.label }}{% if result.author %} · {{ result.author }}{% endif %}</span></td>
+            <td class="hide-sm"><span class="source-label {{ result.source }}">{{ sourceIcon(result.source) }}{{ src.label }}{% if result.author %} · {{ result.author }}{% endif %}</span></td>
             <td class="n hide-sm faint">{{ result.downloads | number }}</td>
             <td class="n">
               <a class="btn sm" href="/instances/{{ instance.id }}/mods/choose?source={{ result.source }}&project_id={{ result.project_id | urlencode }}&name={{ result.name | urlencode }}&project_url={{ result.project_url | urlencode }}&icon_url={{ (result.icon_url or '') | urlencode }}">Choose version</a>

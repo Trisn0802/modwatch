@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/source-icon.njk" import sourceIcon %}
 {% from "partials/pager.njk" import pager %}
 
 {% block content %}
@@ -249,7 +250,7 @@
           </td>
           <td class="hide-sm">
             {% set src = mod.source | sourceMeta %}
-            <span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span>
+            <span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span>
           </td>
           <td>
             {% if mod.status == 'update_available' %}

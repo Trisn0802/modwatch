@@ -834,6 +834,8 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   width: 6px; height: 6px; border-radius: 2px;
   background: var(--faint); flex: none;
 }
+.source-label .source-icon { width: 14px; height: 14px; flex: none; display: block; }
+.source-label.github .source-icon { color: var(--text); }
 .source-label.modrinth .mark { background: var(--brand); }
 .source-label.github .mark { background: #c8d1db; }
 .source-label.curseforge .mark { background: #f2b33d; }

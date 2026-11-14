@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/source-icon.njk" import sourceIcon %}
 {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
 {% set meta = shown | statusMeta %}
 {% set src = sourceMeta or (mod.source | sourceMeta) %}
@@ -23,7 +24,7 @@
           {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
         </div>
         <div class="instance-meta">
-          <span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span>
+          <span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span>
           <span class="sep"></span>
           <span>{{ mod.mc_version }} · {{ mod.loader | loaderLabel }}</span>
           <span class="sep"></span>
@@ -151,7 +152,7 @@
       </div>
       <div class="panel-body">
         <div class="kv">
-          <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value"><span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span></span></div>
+          <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value"><span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span></span></div>
           <div class="kv-row"><span class="kv-label">Project</span><span class="kv-value">{% if mod.project_url %}<a class="card-link" href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ mod.project_id or mod.project_url }} {{ icon('external') }}</a>{% else %}<span class="faint">Manual entry</span>{% endif %}</span></div>
           <div class="kv-row"><span class="kv-label">File</span><span class="kv-value">{{ mod.file_name or '—' }}</span></div>
           <div class="kv-row"><span class="kv-label">Size</span><span class="kv-value">{{ mod.file_size | fileSize }}</span></div>

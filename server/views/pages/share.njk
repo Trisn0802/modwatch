@@ -1,5 +1,6 @@
 {% extends "share-layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/source-icon.njk" import sourceIcon %}
 
 {% block content %}
 <section class="share-hero">
@@ -141,7 +142,7 @@
             <span class="vshift same"><span class="to">{{ mod.installed_version or '—' }}</span></span>
             {% endif %}
           </td>
-          <td class="hide-sm">{% set src = mod.source | sourceMeta %}<span class="source-label {{ mod.source }}"><span class="mark"></span>{{ src.label }}</span></td>
+          <td class="hide-sm">{% set src = mod.source | sourceMeta %}<span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span></td>
           <td class="hide-sm faint">{{ mod.side | sideLabel }}</td>
           <td>
             <span class="row" style="gap:5px;flex-wrap:wrap">
