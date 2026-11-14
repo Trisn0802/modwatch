@@ -1604,6 +1604,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .share-actions .btn { flex: 1; justify-content: center; }
   .public-foot { flex-direction: column; padding: 0 14px 24px; }
 }
+@media (max-width: 760px) {
+  .share-panel .panel-head { align-items: flex-start; }
+}
 
 /* ---------- motion ---------- */
 @keyframes mw-pop-in {
