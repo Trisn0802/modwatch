@@ -5,7 +5,7 @@
 <div class="auth-form-wrap">
   <p class="eyebrow" style="margin-bottom:10px">Self-hosted · member account</p>
   <h1 class="auth-title">Create account</h1>
-  <p class="auth-sub">Registration creates a Member account. Admin roles are granted by the instance owner.</p>
+  <p class="auth-sub">Registration creates a Member account.</p>
 
   {% if error %}
   <div class="auth-error" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
@@ -34,7 +34,9 @@
 
   <p class="auth-note">
     Already have an account? <a href="/login">Sign in</a>.
-    Need Admin access? Register as a Member, then use <strong>Request admin role</strong> from Account. The owner reviews it in Users.
   </p>
+
+  <p class="auth-credit">Made by <a class="link-btn" href="https://github.com/Trisn0802" target="_blank" rel="noopener">Trisna Almuti</a></p>
+  <p class="auth-credit-note">Admin roles are granted by the instance owner after a request from Account.</p>
 </div>
 {% endblock %}
