@@ -130,7 +130,8 @@ export async function ensureStoredJar(mod, { force = false } = {}) {
     : await matchStoredFile(mod);
   if (!file?.download_url) return existing ? mod.stored_path : null;
   const buffer = await download(file.download_url);
-  const stored = await saveJar(mod.instance_id, file.file_name || jarFileName(mod), buffer);
+  const storedName = mod.disabled ? disabledName(file.file_name || jarFileName(mod)) : (file.file_name || jarFileName(mod));
+  const stored = await saveJar(mod.instance_id, storedName, buffer);
   await query(
     "UPDATE mods SET stored_path = $2, stored_version_id = $3, download_url = COALESCE(download_url, $4) WHERE id = $1",
     [mod.id, stored, file.version_id || mod.installed_version_id, file.download_url]
@@ -150,6 +151,18 @@ export async function refreshStoredJar(modId) {
 
 function disabledName(name) {
   return /\.disabled$/i.test(name) ? name : `${name}.disabled`;
+}
+
+export async function setStoredDisabled(mod, disabled) {
+  if (!mod?.stored_path) return;
+  const current = jarAbsolute(mod.stored_path);
+  if (!current) return;
+  const wanted = disabled ? disabledName(current) : current.replace(/\.disabled$/i, "");
+  if (wanted === current) return;
+  await fs.promises.rename(current, wanted);
+  const relative = path.relative(path.join(process.cwd(), "uploads"), wanted).split(path.sep).join("/");
+  await query("UPDATE mods SET stored_path = $2 WHERE id = $1", [mod.id, relative]);
+  mod.stored_path = relative;
 }
 
 export async function buildExport(instance, { userId = null } = {}) {

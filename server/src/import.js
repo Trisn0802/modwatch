@@ -490,7 +490,7 @@ export async function createInstanceFromPreview(preview, { userId, mode = "new",
         added += 1;
         const jar = mod.jar_entry ? overrideMap.get(mod.jar_entry) : null;
         if (jar) {
-          const stored = await saveJar(instance.id, mod.file_name, jar);
+          const stored = await saveJar(instance.id, mod.disabled ? `${mod.file_name}.disabled` : mod.file_name, jar);
           await client.query(
             "UPDATE mods SET stored_path = $2, stored_version_id = installed_version_id WHERE id = $1",
             [rows[0].id, stored]

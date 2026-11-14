@@ -7,7 +7,7 @@ import { logActivity } from "../activity.js";
 import { flash } from "../middleware.js";
 import { createNotifications, telegramSend } from "../notify.js";
 import { insertMod, cacheInstalledVersion, markUpdated, VALID_SOURCES } from "../mod-service.js";
-import { ensureStoredJar, refreshStoredJar } from "../export.js";
+import { ensureStoredJar, refreshStoredJar, setStoredDisabled } from "../export.js";
 import { CHANNEL, LOADER, SIDE, SOURCE, STATUS } from "../labels.js";
 
 export const modsRouter = express.Router();
@@ -226,7 +226,27 @@ modsRouter.post("/mods/:id/updated", async (req, res, next) => {
       return res.redirect(req.get("referer") || `/mods/${id}`);
     }
     await markUpdated(mod);
-    if (mod.disabled) await refreshStoredJar(mod.id);
+    if (mod.source !== "manual" && mod.project_id && mod.latest_version_id) {
+      try {
+        const instance = await instanceById(mod.instance_id);
+        const versions = await listSourceVersions(
+          mod.source, mod.project_id, instance, mod.channel_policy, mod.github_asset_pattern
+        );
+        const picked = versions.find((version) => version.version_id === mod.latest_version_id);
+        if (picked) {
+          await query(
+            `UPDATE mods SET download_url = $2, file_name = COALESCE(NULLIF($3,''), file_name),
+                file_sha1 = $4, file_sha512 = $5, file_size = $6
+              WHERE id = $1`,
+            [mod.id, picked.download_url || null, picked.file_name || "",
+             picked.file_sha1 || null, picked.file_sha512 || null, picked.file_size || null]
+          );
+        }
+      } catch (err) {
+        console.error("mark updated file:", err.message);
+      }
+    }
+    if (mod.disabled || mod.stored_path) await refreshStoredJar(mod.id);
     await logActivity({
       userId: req.session.user.id, action: "mod_updated", subjectType: "mod", subjectId: mod.id,
       meta: { name: mod.name, from: mod.installed_version, to: mod.latest_version },
@@ -331,6 +351,8 @@ modsRouter.post("/mods/:id/disable", async (req, res, next) => {
     let warning = "";
     try {
       await ensureStoredJar(mod);
+      const { rows: fresh } = await query("SELECT * FROM mods WHERE id = $1", [id]);
+      await setStoredDisabled(fresh[0], true);
     } catch (err) {
       warning = ` The jar could not be stored yet: ${err.message}`;
     }
@@ -350,6 +372,7 @@ modsRouter.post("/mods/:id/enable", async (req, res, next) => {
     const id = intParam(req.params.id);
     const { rows } = await query("UPDATE mods SET disabled = false WHERE id = $1 RETURNING *", [id]);
     if (!rows.length) return next();
+    await setStoredDisabled(rows[0], false).catch(() => {});
     await logActivity({
       userId: req.session.user.id, action: "mod_enabled", subjectType: "mod", subjectId: id,
       meta: { name: rows[0].name },
