@@ -25,7 +25,13 @@
       </div>
     </div>
     <div class="panel-body">
-      <form class="form" method="post" action="/imports/upload" enctype="multipart/form-data">
+      <form class="form" id="import-upload-form" method="post" action="/imports/upload" enctype="multipart/form-data"
+        data-progress-upload
+        data-progress-title="Reading the pack"
+        data-progress-message="Uploading the archive, then hashing every project file and matching it on Modrinth."
+        data-progress-steps="Upload the .mrpack|Read modrinth.index.json|Hash project files|Match hashes on Modrinth|Build the folder tree|Open the preview"
+        data-progress-done-title="Preview ready"
+        data-progress-done-label="Open the preview">
         {% include "partials/csrf.njk" %}
         <div class="dropzone" data-dropzone>
           <input type="file" name="pack" accept=".mrpack,application/x-zip-compressed,application/zip" required aria-label="Modpack file">

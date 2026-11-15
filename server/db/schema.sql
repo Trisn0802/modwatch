@@ -34,6 +34,7 @@ ALTER TABLE instances ADD COLUMN IF NOT EXISTS image_path TEXT;
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS share_token TEXT;
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS share_created_at TIMESTAMPTZ;
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS telegram_updates BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS config_public BOOLEAN NOT NULL DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS instances_share_token_uq ON instances (share_token) WHERE share_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS imports (
@@ -142,6 +143,28 @@ CREATE TABLE IF NOT EXISTS unknown_mods (
   UNIQUE (instance_id, file_sha1)
 );
 ALTER TABLE unknown_mods ADD COLUMN IF NOT EXISTS stored_path TEXT;
+ALTER TABLE unknown_mods ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'mod';
+ALTER TABLE unknown_mods DROP CONSTRAINT IF EXISTS unknown_mods_kind_check;
+ALTER TABLE unknown_mods ADD CONSTRAINT unknown_mods_kind_check
+  CHECK (kind IN ('mod','resourcepack','datapack','shader'));
+
+-- Bytes from the pack that are not tracked projects: configs, defaults,
+-- scripts and other overrides the user chose to keep with the instance.
+CREATE TABLE IF NOT EXISTS instance_files (
+  id          SERIAL PRIMARY KEY,
+  instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  import_id   INTEGER REFERENCES imports(id) ON DELETE SET NULL,
+  path        TEXT NOT NULL,
+  folder      TEXT NOT NULL DEFAULT '',
+  file_name   TEXT NOT NULL,
+  file_size   BIGINT NOT NULL DEFAULT 0,
+  file_sha1   TEXT,
+  stored_path TEXT NOT NULL,
+  modified_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (instance_id, path)
+);
+CREATE INDEX IF NOT EXISTS instance_files_instance_idx ON instance_files (instance_id, path);
 
 CREATE TABLE IF NOT EXISTS exports (
   id          SERIAL PRIMARY KEY,
@@ -154,6 +177,7 @@ CREATE TABLE IF NOT EXISTS exports (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS exports_instance_idx ON exports (instance_id, created_at DESC);
+ALTER TABLE exports ADD COLUMN IF NOT EXISTS include_files BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS mod_requests (
   id            SERIAL PRIMARY KEY,

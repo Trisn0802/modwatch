@@ -55,7 +55,10 @@ publicRouter.post("/s/:token([a-f0-9]{16})/download-zip", async (req, res, next)
     const all = String(req.body.all || "") === "1";
     const mods = await listModsForZip(instance, { modIds: ids, all });
     if (!mods.length) return res.redirect(`/s/${instance.share_token}`);
-    await streamModZip(instance, mods, res);
+    const extraFiles = all && instance.config_public
+      ? (await query("SELECT path, stored_path FROM instance_files WHERE instance_id = $1 ORDER BY path", [instance.id])).rows
+      : [];
+    await streamModZip(instance, mods, res, { extraFiles });
   } catch (err) {
     if (res.headersSent) {
       console.error("share zip:", err.message);
@@ -85,7 +88,7 @@ publicRouter.get("/s/:token([a-f0-9]{16})/export", async (req, res, next) => {
     const { rows } = await query("SELECT * FROM instances WHERE share_token = $1", [req.params.token]);
     const instance = rows[0];
     if (!instance) return next();
-    const record = await getOrCreateExport(instance, { maxAgeMinutes: 1 });
+    const record = await getOrCreateExport(instance, { maxAgeMinutes: 1, includeFiles: instance.config_public === true });
     res.download(path.join(process.cwd(), "uploads", record.file_path), `${instance.pack_name || instance.name}.mrpack`);
   } catch (err) {
     next(err);

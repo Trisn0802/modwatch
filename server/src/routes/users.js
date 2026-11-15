@@ -4,7 +4,7 @@ import { query } from "../db.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { ROLE, USER_STATUS } from "../labels.js";
-import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
+import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage } from "../uploads.js";
 
 export const usersRouter = express.Router();
 
@@ -65,9 +65,17 @@ usersRouter.post("/users", async (req, res, next) => {
         error: "An account with that email already exists.",
       });
     }
+    let avatarPath = null;
+    try {
+      avatarPath = await finalizeImage(req.file, "avatars");
+    } catch (err) {
+      return res.status(400).render("pages/user-form.njk", {
+        page: "users", title: "New user", account: req.body, roles: ROLE, error: uploadMessage(err),
+      });
+    }
     const { rows } = await query(
       `INSERT INTO users (name, email, role, password_hash, avatar_path) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-      [name, email, role, await bcrypt.hash(password, 12), uploadPath(req.file, "avatars")]
+      [name, email, role, await bcrypt.hash(password, 12), avatarPath]
     );
     await logActivity({
       userId: req.session.user.id, action: "user_created", subjectType: "user", subjectId: rows[0].id,
@@ -153,7 +161,12 @@ usersRouter.post("/users/:id", async (req, res, next) => {
     }
     let avatarPath = account.avatar_path;
     if (req.file) {
-      avatarPath = uploadPath(req.file, "avatars");
+      try {
+        avatarPath = await finalizeImage(req.file, "avatars");
+      } catch (err) {
+        flash(req, "error", uploadMessage(err));
+        return res.redirect(`/users/${id}/edit`);
+      }
       await removeUpload(account.avatar_path);
     } else if (req.body.remove_avatar === "1") {
       await removeUpload(account.avatar_path);

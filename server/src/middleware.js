@@ -19,9 +19,23 @@ export function csrfValid(req) {
 
 export function csrfProtection(req, res, next) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
-  // Multipart bodies are still unparsed at this layer. Every multipart route
-  // parses the file first and calls csrfValid() before touching the database.
-  if (req.is("multipart/form-data")) return next();
+  // Multipart bodies are still unparsed at this layer. Only the routes that
+  // parse the file themselves continue; they call csrfValid() before writing.
+  if (req.is("multipart/form-data")) {
+    const multipartRoutes = [
+      /^\/imports\/upload$/,
+      /^\/instances$/,
+      /^\/instances\/\d+$/,
+      /^\/users$/,
+      /^\/users\/\d+\/edit$/,
+      /^\/settings\/account$/,
+    ];
+    if (multipartRoutes.some((pattern) => pattern.test(req.path))) return next();
+    return res.status(403).render("pages/403.njk", {
+      page: "", title: "Request expired",
+      message: "Your form session expired. Reload the page and try again.",
+    });
+  }
   if (!csrfValid(req)) {
     return res.status(403).render("pages/403.njk", {
       page: "",

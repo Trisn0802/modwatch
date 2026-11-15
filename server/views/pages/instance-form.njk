@@ -35,7 +35,7 @@
           {% endif %}
           <div class="avatar-edit-copy">
             <label class="btn sm" for="image">Choose photo</label>
-            <input class="sr-only" id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp">
+            <input class="sr-only" id="image" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.png,.jpg,.jpeg,.webp,.gif,.svg">
             <p class="hint">PNG, JPG or WebP. Up to 2 MB. Square works best.</p>
             {% if instance and instance.image_path %}
             <label class="check"><input type="checkbox" name="remove_image" value="1"><span>Remove current photo</span></label>
@@ -78,6 +78,10 @@
           <div class="field full">
             <label class="check"><input type="checkbox" name="telegram_updates" value="1" {% if instance.telegram_updates != false %}checked{% endif %}><span>Telegram update digest</span></label>
             <p class="hint">Sends the update digest to Telegram and MyWebhook. In-app notifications still arrive when this is off.</p>
+          </div>
+          <div class="field full">
+            <label class="check"><input type="checkbox" name="config_public" value="1" {% if instance.config_public %}checked{% endif %}><span>Include config files in public downloads</span></label>
+            <p class="hint">Off by default. When on, anyone with the share link can download the stored config and pack files inside the public .mrpack and ZIP. Leave it off if those files contain addresses, keys or player data.</p>
           </div>
           {% endif %}
         </div>

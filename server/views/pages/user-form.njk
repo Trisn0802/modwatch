@@ -33,7 +33,7 @@
           {% if editing %}{{ avatar(account, 'xl') }}{% else %}<span class="avatar xl">?</span>{% endif %}
           <div class="avatar-edit-copy">
             <label class="btn sm" for="avatar">Choose photo</label>
-            <input class="sr-only" id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp">
+            <input class="sr-only" id="avatar" name="avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.png,.jpg,.jpeg,.webp,.gif,.svg">
             <p class="hint">PNG, JPG or WebP. Up to 512 KB.</p>
             {% if editing and account.avatar_path %}
             <label class="check"><input type="checkbox" name="remove_avatar" value="1"><span>Remove current photo</span></label>

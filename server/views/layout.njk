@@ -30,6 +30,7 @@
 </head>
 <body data-page="{{ page or '' }}" data-csrf="{{ csrfToken }}" data-user-id="{{ currentUser.id }}"
   {%- if pusher.enabled %} data-pusher-key="{{ pusher.key }}" data-pusher-cluster="{{ pusher.cluster }}" data-pusher-user="{{ pusher.userId }}"{% endif %}>
+<div class="mw-progress-bar" id="mw-progress-bar" aria-hidden="true"><span></span></div>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="app">
   {% include "partials/sidebar.njk" %}

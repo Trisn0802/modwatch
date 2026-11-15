@@ -197,19 +197,23 @@ export async function setStoredDisabled(mod, disabled) {
   mod.stored_path = relative;
 }
 
-export async function buildExport(instance, { userId = null } = {}) {
+export async function buildExport(instance, { userId = null, includeFiles = false } = {}) {
   if (!loaderKey(instance.loader)) {
     const err = new Error("This loader cannot be exported as a .mrpack");
     err.code = "unsupported_loader";
     throw err;
   }
-  const [{ rows: mods }, { rows: unknown }] = await Promise.all([
+  const [{ rows: mods }, { rows: unknown }, fileResult] = await Promise.all([
     query("SELECT * FROM mods WHERE instance_id = $1 AND status <> 'ignored' ORDER BY name", [instance.id]),
     query(
       "SELECT * FROM unknown_mods WHERE instance_id = $1 AND resolution = 'pending' ORDER BY file_name",
       [instance.id]
     ),
+    includeFiles
+      ? query("SELECT * FROM instance_files WHERE instance_id = $1 ORDER BY path", [instance.id])
+      : Promise.resolve({ rows: [] }),
   ]);
+  const instanceFiles = fileResult.rows;
 
   const files = [];
   const overrides = [];
@@ -259,8 +263,14 @@ export async function buildExport(instance, { userId = null } = {}) {
 
   for (const item of unknown) {
     const absolute = jarAbsolute(item.stored_path);
-    if (absolute) overrides.push({ path: `mods/${jarFileName({ file_name: item.file_name, name: item.file_name, installed_version: "" })}`, absolute });
-    else warnings.push(`${item.file_name}: unknown file has no stored jar.`);
+    if (absolute) overrides.push({ path: `${kindFolder(item.kind)}/${jarFileName({ file_name: item.file_name, name: item.file_name, installed_version: "", kind: item.kind })}`, absolute });
+    else warnings.push(`${item.file_name}: unknown file has no stored file.`);
+  }
+
+  for (const file of instanceFiles) {
+    const absolute = jarAbsolute(file.stored_path);
+    if (absolute) overrides.push({ path: file.path, absolute });
+    else warnings.push(`${file.path}: stored pack file is missing from the server.`);
   }
 
   for (const file of files) {
@@ -311,13 +321,13 @@ export async function buildExport(instance, { userId = null } = {}) {
 
   await withTransaction(async (client) => {
     await client.query(
-      `INSERT INTO exports (instance_id, token, file_path, file_size, counts, created_by)
-       VALUES ($1,$2,$3,$4,$5::jsonb,$6)`,
+      `INSERT INTO exports (instance_id, token, file_path, file_size, counts, created_by, include_files)
+       VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)`,
       [instance.id, token, stored.path, stored.size, JSON.stringify({
         index: files.length,
         overrides: added.size,
         warnings: warnings.length,
-      }), userId]
+      }), userId, includeFiles]
     );
     const { rows } = await client.query(
       "SELECT id, file_path FROM exports WHERE instance_id = $1 ORDER BY created_at DESC OFFSET 3",
@@ -332,18 +342,20 @@ export async function buildExport(instance, { userId = null } = {}) {
   return { token, file_path: stored.path, path: stored.path, size: stored.size, counts: { files: files.length, overrides: added.size, warnings } };
 }
 
-export async function latestExport(instanceId) {
+export async function latestExport(instanceId, { includeFiles = null } = {}) {
   const { rows } = await query(
-    "SELECT * FROM exports WHERE instance_id = $1 ORDER BY created_at DESC LIMIT 1",
-    [instanceId]
+    `SELECT * FROM exports WHERE instance_id = $1
+       ${includeFiles == null ? "" : "AND include_files = $2"}
+     ORDER BY created_at DESC LIMIT 1`,
+    includeFiles == null ? [instanceId] : [instanceId, includeFiles]
   );
   return rows[0] || null;
 }
 
-export async function getOrCreateExport(instance, { userId = null, maxAgeMinutes = 60 } = {}) {
-  const latest = await latestExport(instance.id);
+export async function getOrCreateExport(instance, { userId = null, maxAgeMinutes = 60, includeFiles = false } = {}) {
+  const latest = await latestExport(instance.id, { includeFiles });
   if (latest && Date.now() - new Date(latest.created_at).getTime() < maxAgeMinutes * 60_000) return latest;
-  const built = await buildExport(instance, { userId });
+  const built = await buildExport(instance, { userId, includeFiles });
   return { ...built, created_at: new Date() };
 }
 
@@ -353,5 +365,8 @@ export async function getExportByToken(token) {
 }
 
 export async function removeInstanceFiles(instanceId) {
-  await fs.promises.rm(path.join(process.cwd(), "uploads", "jars", `instance-${instanceId}`), { recursive: true, force: true }).catch(() => {});
+  await Promise.all([
+    fs.promises.rm(path.join(process.cwd(), "uploads", "jars", `instance-${instanceId}`), { recursive: true, force: true }),
+    fs.promises.rm(path.join(process.cwd(), "uploads", "files", `instance-${instanceId}`), { recursive: true, force: true }),
+  ]).catch(() => {});
 }

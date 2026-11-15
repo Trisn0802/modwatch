@@ -1,0 +1,52 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot live"></span> Pack files</p>
+    <h1 class="page-title">{{ instance.name }} files</h1>
+    <p class="page-sub">{{ files.length }} stored file{% if files.length != 1 %}s{% endif %} · {{ totalSize | fileSize }} · imports keep the configs and extra folders you selected.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} Back to projects</a>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">Stored pack contents</h2>
+      <p class="panel-sub">Read-only. Open a text or image file to preview it, or download it as it was imported.</p>
+    </div>
+    <span class="count-note">Signed-in members only</span>
+  </div>
+  {% if files.length %}
+  <div class="panel-body">
+    <div class="tree-summary">
+      <span class="faint">{{ files.length }} file{% if files.length != 1 %}s{% endif %}</span>
+      <span class="faint">{{ totalSize | fileSize }} total</span>
+    </div>
+    <div class="file-tree" data-file-tree data-tree-source="#file-tree-data"></div>
+    <p class="hint" style="margin-top:10px">These files stay private to members. Public .mrpack and ZIP downloads include them only when an admin turns on “Include config files in public downloads” for this instance.</p>
+  </div>
+  <script type="application/json" id="file-tree-data">{{ treeJson | safe }}</script>
+  {% else %}
+  <div class="panel-body">
+    <div class="empty-state">
+      <div class="empty-inner">
+        <span class="empty-icon">{{ icon('folder') }}</span>
+        <p class="empty-title">No pack files stored</p>
+        <p class="empty-text">Import a .mrpack and select config or other folders in the preview. Those files will appear here for members to inspect.</p>
+        <div class="empty-actions">
+          {% if isAdmin %}<a class="btn primary" href="/imports/new">{{ icon('upload') }} Import a .mrpack</a>{% endif %}
+          <a class="btn" href="/instances/{{ instance.id }}">Back to the project board</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

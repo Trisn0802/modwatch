@@ -64,7 +64,13 @@
         </div>
       </div>
       <div class="panel-body">
-        <form class="form" method="get" action="/instances/{{ instance.id }}/mods/resolve">
+        <form class="form" method="get" action="/instances/{{ instance.id }}/mods/resolve"
+          data-progress-nav
+          data-progress-title="Resolving the project"
+          data-progress-message="Checking the URL against Modrinth, CurseForge or GitHub, then loading versions for this instance."
+          data-progress-steps="Read the project URL|Ask the source|Find the project|Load versions|Open the version list"
+          data-progress-done-title="Project found"
+          data-progress-done-label="Open versions">
           <input type="hidden" name="kind" value="{{ kind }}">
           <label class="sr-only" for="add-url">Project URL</label>
           <input class="input" id="add-url" name="url" type="url" placeholder="https://www.curseforge.com/minecraft/mc-mods/…" required>

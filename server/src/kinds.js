@@ -80,3 +80,35 @@ export function kindFromCurseforgePath(pathType = "") {
   if (["customization", "shaders", "shader"].includes(type)) return "shader";
   return "mod";
 }
+
+const FOLDER_KIND = {
+  mods: "mod",
+  resourcepacks: "resourcepack",
+  datapacks: "datapack",
+  shaderpacks: "shader",
+  shaders: "shader",
+};
+
+const PROJECT_TYPE_KIND = {
+  mod: "mod",
+  resourcepack: "resourcepack",
+  datapack: "datapack",
+  shader: "shader",
+};
+
+// A path may be an index entry (`resourcepacks/foo.zip`) or an override
+// (`overrides/resourcepacks/foo.zip`). Only the first folder decides the kind.
+export function kindFromPackPath(value) {
+  const clean = String(value || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  const parts = clean.split("/").filter(Boolean);
+  if (parts[0] === "overrides") parts.shift();
+  return FOLDER_KIND[String(parts[0] || "").toLowerCase()] || "";
+}
+
+export function kindFromProjectType(value) {
+  return PROJECT_TYPE_KIND[String(value || "").toLowerCase()] || "";
+}
+
+export function folderKind(value) {
+  return FOLDER_KIND[String(value || "").toLowerCase()] || "";
+}

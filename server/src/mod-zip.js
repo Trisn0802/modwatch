@@ -58,7 +58,7 @@ export async function listModsForZip(instance, { modIds = [], all = false, sourc
   return rows;
 }
 
-export async function streamModZip(instance, mods, res) {
+export async function streamModZip(instance, mods, res, { extraFiles = [] } = {}) {
   const zip = new yazl.ZipFile();
   const warnings = [];
   const included = [];
@@ -66,11 +66,11 @@ export async function streamModZip(instance, mods, res) {
   const used = new Set();
   const queue = [...mods];
   const safe = slug(instance.pack_name || instance.name) || "modwatch";
-  const filename = `${safe}-mods.zip`;
+  const filename = `${safe}-files.zip`;
 
   res.status(200).set({
     "Content-Type": "application/zip",
-    "Content-Disposition": `attachment; filename="${safe}-mods.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    "Content-Disposition": `attachment; filename="${safe}-files.zip"; filename*=UTF-8''${encodeURIComponent(filename)}`,
     "Cache-Control": "no-store",
     "X-Accel-Buffering": "no",
   });
@@ -108,6 +108,25 @@ export async function streamModZip(instance, mods, res) {
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
   if (res.destroyed) return;
 
+  let packFiles = 0;
+  for (const file of extraFiles) {
+    const relative = String(file.path || "").replace(/\\/g, "/").replace(/^\/+/, "");
+    if (!relative || relative.includes("..")) continue;
+    const absolute = jarAbsolute(file.stored_path);
+    if (!absolute) continue;
+    zip.addFile(absolute, relative, { compress: false });
+    included.push({
+      folder: relative.split("/")[0],
+      kind: "file",
+      file: relative,
+      name: relative,
+      version: "",
+      source: "pack",
+      disabled: false,
+    });
+    packFiles += 1;
+  }
+
   const summary = {
     instance: {
       name: instance.name,
@@ -119,6 +138,7 @@ export async function streamModZip(instance, mods, res) {
     },
     generated_at: new Date().toISOString(),
     folders: folderCounts,
+    pack_files: packFiles,
     included: included.sort((a, b) => `${a.folder}/${a.file}`.localeCompare(`${b.folder}/${b.file}`)),
     warnings,
   };
@@ -133,6 +153,7 @@ export async function streamModZip(instance, mods, res) {
     ...Object.entries(folderCounts).sort().map(([folder, count]) => `  ${folder}/ — ${count} file${count === 1 ? "" : "s"}`),
     "",
     "Disabled projects are saved with a .disabled suffix.",
+    packFiles ? `${packFiles} stored config or pack file(s) are included at their original paths.` : "",
     "Unresolved/unknown files are not included.",
     warnings.length ? `${warnings.length} project(s) could not be downloaded; see modwatch-download.json.` : "",
     "",

@@ -42,7 +42,12 @@
       </div>
     </div>
     <div class="panel-body">
-      <form class="form" method="post" action="/instances/{{ instance.id }}/mods">
+      <form class="form" method="post" action="/instances/{{ instance.id }}/mods"
+      data-progress-title="Tracking {{ name }}"
+      data-progress-message="Saving the installed version, then starting a source check."
+      data-progress-steps="Save the project|Download the installed file|Record the baseline|Refresh the instance"
+      data-progress-done-title="Project tracked"
+      data-progress-done-label="Open the instance">
         {% include "partials/csrf.njk" %}
         <input type="hidden" name="source" value="manual">
         <input type="hidden" name="kind" value="{{ kind }}">
@@ -86,7 +91,12 @@
     </div>
 
     {% if versions.length %}
-    <form method="post" action="/instances/{{ instance.id }}/mods" data-version-form>
+    <form method="post" action="/instances/{{ instance.id }}/mods" data-version-form
+      data-progress-title="Tracking {{ name }}"
+      data-progress-message="Saving the installed version, then starting a source check."
+      data-progress-steps="Save the project|Download the installed file|Record the baseline|Refresh the instance"
+      data-progress-done-title="Project tracked"
+      data-progress-done-label="Open the instance">
       {% include "partials/csrf.njk" %}
       <input type="hidden" name="source" value="{{ source }}">
       <input type="hidden" name="kind" value="{{ kind }}">

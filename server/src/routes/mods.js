@@ -11,6 +11,7 @@ import { ensureStoredJar, refreshStoredJar, setStoredDisabled } from "../export.
 import { updateModToLatest } from "../updater.js";
 import { CHANNEL, LOADER, SIDE, SOURCE, STATUS } from "../labels.js";
 import { KIND_ORDER, kindLabel, normalizeKind } from "../kinds.js";
+import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
 
 export const modsRouter = express.Router();
 
@@ -75,6 +76,8 @@ modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
   try {
     const instance = await instanceById(intParam(req.params.id));
     if (!instance) return next();
+    const op = isProgressOp(req.query.progress_op) ? req.query.progress_op : "";
+    publishProgress(op, { stage: "resolve", message: "Reading the project URL", percent: 20 });
     const url = String(req.query.url || "").trim();
     const resolved = await resolveProjectUrl(url);
     if (!resolved) {
@@ -83,6 +86,7 @@ modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
     }
     const existing = await trackedProject(instance.id, resolved);
     if (existing) {
+      finishProgress(op, `${existing.name} is already tracked`);
       flash(req, "ok", `${existing.name} is already tracked in this instance from ${SOURCE[existing.source]?.label || existing.source}.`);
       return res.redirect(`/mods/${existing.id}`);
     }
@@ -100,6 +104,8 @@ modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
       creator_url: resolved.creator_url || "",
       creator_avatar_url: resolved.creator_avatar_url || "",
     });
+    if (op) params.set("progress_op", op);
+    publishProgress(op, { stage: "resolved", message: `Found ${resolved.name || "the project"} on ${SOURCE[resolved.source]?.label || resolved.source}`, percent: 55 });
     res.redirect(`/instances/${instance.id}/mods/choose?${params}`);
   } catch (err) {
     next(err);
@@ -115,8 +121,10 @@ modsRouter.get("/instances/:id/mods/choose", async (req, res, next) => {
     const name = String(req.query.name || "");
     const projectUrl = String(req.query.project_url || "");
     const kind = normalizeKind(req.query.kind);
+    const op = isProgressOp(req.query.progress_op) ? req.query.progress_op : "";
     if (!projectId) return res.redirect(`/instances/${instance.id}/mods/new`);
 
+    publishProgress(op, { stage: "versions", message: "Loading versions for this instance", percent: 70 });
     let versions = [];
     let error = null;
     try {
@@ -124,6 +132,7 @@ modsRouter.get("/instances/:id/mods/choose", async (req, res, next) => {
     } catch (err) {
       error = err.message;
     }
+    publishProgress(op, { stage: "versions", message: `${versions.length} version${versions.length === 1 ? "" : "s"} available`, percent: 95 });
     const manual = req.query.manual === "1" || source === "manual";
     res.render("pages/mod-choose.njk", {
       page: "instances",
@@ -219,6 +228,8 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
       flash(req, "error", "A project name is required.");
       return res.redirect(`/instances/${instance.id}/mods/new?kind=${kind}`);
     }
+    const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+    publishProgress(op, { stage: "save", message: "Saving the project baseline", percent: 30 });
     if (payload.source !== "manual" && payload.project_id) {
       const existing = await trackedProject(instance.id, payload);
       if (existing) {
@@ -255,10 +266,12 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
         userId: req.session.user.id, action: "request_created", subjectType: "request",
         subjectId: rows[0].id, meta: { mod: payload.name, instance: instance.name },
       });
+      finishProgress(op, "Request sent for approval");
       flash(req, "ok", "Request sent. An admin will review it on the Approvals page.");
       return res.redirect(`/instances/${instance.id}`);
     }
 
+    publishProgress(op, { stage: "store", message: "Storing the installed version", percent: 65 });
     const id = await insertMod(instance.id, payload, req.session.user.id);
     if (payload.source !== "manual") await cacheInstalledVersion(id, payload, instance);
     await logActivity({
@@ -266,9 +279,11 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
       meta: { name: payload.name, instance: instance.name, source },
     });
     if (payload.source !== "manual") checkOne(id, { userId: req.session.user.id }).catch(() => {});
+    finishProgress(op, `${payload.name} is tracked`);
     flash(req, "ok", `${payload.name} is tracked in ${instance.name}.`);
     res.redirect(`/instances/${instance.id}`);
   } catch (err) {
+    failProgress(isProgressOp(req.body.progress_op) ? req.body.progress_op : "", err.message);
     if (err.code === "23505") {
       flash(req, "error", "That project is already tracked in this instance.");
       return res.redirect(`/instances/${req.params.id}`);

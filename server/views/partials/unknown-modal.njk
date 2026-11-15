@@ -4,8 +4,8 @@
     {% include "partials/csrf.njk" %}
     <div class="dialog-head">
       <div>
-        <h2 class="dialog-title" id="unknown-dialog-title">Unknown mod detected</h2>
-        <p class="dialog-sub">This jar has no Modrinth match. Tell ModWatch where it comes from.</p>
+        <h2 class="dialog-title" id="unknown-dialog-title">Unknown project file detected</h2>
+        <p class="dialog-sub">This file has no Modrinth match. Tell ModWatch where it comes from.</p>
       </div>
       <button class="icon-btn" type="button" data-dialog-close aria-label="Close">{{ icon('close') }}</button>
     </div>
@@ -37,7 +37,7 @@
         <label class="radio-card">
           <input type="radio" name="action" value="manual">
           <span>
-            <strong>Track as a manual mod</strong>
+            <strong>Track as a manual project</strong>
             <span>Keep the file and its hashes in the instance without querying a source. Useful for private builds.</span>
           </span>
         </label>

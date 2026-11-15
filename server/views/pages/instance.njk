@@ -44,6 +44,7 @@
   </div>
   <div class="instance-actions">
     <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add project</a>
+    <a class="btn" href="/instances/{{ instance.id }}/files">{{ icon('folder') }} Files{% if fileCount %} ({{ fileCount }}){% endif %}</a>
     {% if isAdmin and stats.updates %}
     <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm-title="Update all mods?" data-confirm-label="Update all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
       {% include "partials/csrf.njk" %}
@@ -197,6 +198,7 @@
       <div class="unknown-copy">
         <p class="unknown-file">{{ item.file_name }}</p>
         <div class="unknown-meta">
+          <span class="kind-badge kind-{{ item.kind }}">{{ item.kind | kindLabel }}</span>
           {% if item.jar_name %}<span>{{ item.jar_name }}{% if item.jar_version %} {{ item.jar_version }}{% endif %}</span>{% else %}<span>No jar metadata</span>{% endif %}
           {% if item.jar_loaders.length %}<span>{{ item.jar_loaders | join(', ') }}</span>{% endif %}
           <span>{{ item.reason | reasonLabel }}</span>
@@ -213,7 +215,8 @@
           data-unknown-jar="{{ (item.jar_name or 'No mod metadata inside the jar') ~ ((' ' ~ item.jar_version) if item.jar_version else '') }}"
           data-unknown-version="{{ item.jar_version or 'Unknown version' }}"
           data-unknown-reason="{{ item.reason | reasonLabel }}"
-          data-unknown-folder="mods/"
+          data-unknown-folder="{{ item.kind | kindFolder }}/"
+          data-unknown-kind="{{ item.kind }}"
           data-unknown-url=""
           data-unknown-action="/instances/{{ instance.id }}/unknown/{{ item.id }}"
         >Resolve</button>

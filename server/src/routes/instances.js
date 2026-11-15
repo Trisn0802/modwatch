@@ -10,10 +10,11 @@ import { flash, csrfValid } from "../middleware.js";
 import { SOURCE, STATUS } from "../labels.js";
 import { resolveProjectUrl } from "../sources/index.js";
 import { KIND_ORDER, isKind, kindPlural } from "../kinds.js";
-import { instanceUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
+import { instanceUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage, instanceFileAbsolute } from "../uploads.js";
 import { buildExport, latestExport, getExportByToken, removeInstanceFiles, ensureStoredJar } from "../export.js";
 import { updateAllInInstance } from "../updater.js";
 import { listModsForZip, streamModZip } from "../mod-zip.js";
+import { buildFileTree, contentTypeFor, instanceFileByPath, listInstanceFiles } from "../instance-files.js";
 
 export const instancesRouter = express.Router();
 
@@ -107,10 +108,20 @@ instancesRouter.post("/instances", async (req, res, next) => {
         error: "An instance with that name already exists.",
       });
     }
+    let imagePath = null;
+    try {
+      imagePath = await finalizeImage(req.file, "instances");
+    } catch (err) {
+      return res.status(400).render("pages/instance-form.njk", {
+        page: "instances", title: "New instance", instance: req.body, loaders: LOADERS,
+        error: uploadMessage(err),
+      });
+    }
+    const configPublic = req.session.user.role === "admin" && req.body.config_public === "1";
     const { rows } = await query(
-      `INSERT INTO instances (name, mc_version, loader, loader_version, pack_version, notes, image_path, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [name, mcVersion, loader, loaderVersion, packVersion, notes, uploadPath(req.file, "instances"), req.session.user.id]
+      `INSERT INTO instances (name, mc_version, loader, loader_version, pack_version, notes, image_path, created_by, config_public)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [name, mcVersion, loader, loaderVersion, packVersion, notes, imagePath, req.session.user.id, configPublic]
     );
     await logActivity({
       userId: req.session.user.id, action: "instance_created",
@@ -178,7 +189,7 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       req.query.page = safePage;
     }
 
-    const [{ rows: sourceRows }, { rows: kindRows }] = await Promise.all([
+    const [{ rows: sourceRows }, { rows: kindRows }, { rows: fileRows }] = await Promise.all([
       query(
         "SELECT source, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY source",
         [instance.id]
@@ -187,6 +198,7 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
         "SELECT kind, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY kind",
         [instance.id]
       ),
+      query("SELECT count(*)::int AS n FROM instance_files WHERE instance_id = $1", [instance.id]),
     ]);
     const sourceCounts = Object.fromEntries(sourceRows.map((r) => [r.source, r.n]));
     const kindCounts = Object.fromEntries(kindRows.map((r) => [r.kind, r.n]));
@@ -233,6 +245,7 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       selectedSources: sources,
       selectedSourcesLabel: selectedSources.join(", "),
       chips,
+      fileCount: fileRows[0]?.n || 0,
       filterCount: kinds.length + sources.length,
       filterResetHref: instanceHref(instance.id, { status, q }),
       kindOptions: KIND_ORDER.map((kind) => ({ value: kind, label: kindPlural(kind), count: kindCounts[kind] || 0 })),
@@ -246,6 +259,62 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       sourceCounts,
       kindCounts,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/files", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const files = await listInstanceFiles(instance.id);
+    const tree = buildFileTree(instance.id, files);
+    res.render("pages/instance-files.njk", {
+      page: "instances",
+      title: `${instance.name} files`,
+      instance,
+      files,
+      treeJson: JSON.stringify(tree).replace(/</g, "\\u003c"),
+      totalSize: files.reduce((sum, file) => sum + (Number(file.file_size) || 0), 0),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/files/download", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const row = await instanceFileByPath(instance.id, String(req.query.path || ""));
+    if (!row) return next();
+    const absolute = instanceFileAbsolute(row.stored_path);
+    if (!absolute) {
+      flash(req, "error", "That stored file is missing from the server.");
+      return res.redirect(`/instances/${instance.id}/files`);
+    }
+    res.download(absolute, row.file_name);
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/files/view", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const row = await instanceFileByPath(instance.id, String(req.query.path || ""));
+    if (!row) return next();
+    const absolute = instanceFileAbsolute(row.stored_path);
+    if (!absolute) return next();
+    res.set({
+      "Content-Type": contentTypeFor(row),
+      "Content-Disposition": `inline; filename="${String(row.file_name || "file").replace(/["\r\n]/g, "_")}"`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, max-age=60",
+    });
+    res.sendFile(absolute);
   } catch (err) {
     next(err);
   }
@@ -293,7 +362,14 @@ instancesRouter.post("/instances/:id", async (req, res, next) => {
     }
     let imagePath = instance.image_path;
     if (req.file) {
-      imagePath = uploadPath(req.file, "instances");
+      try {
+        imagePath = await finalizeImage(req.file, "instances");
+      } catch (err) {
+        return res.status(400).render("pages/instance-form.njk", {
+          page: "instances", title: `Edit ${instance.name}`, instance: { ...instance, ...req.body },
+          loaders: LOADERS, error: uploadMessage(err),
+        });
+      }
       await removeUpload(instance.image_path);
     } else if (req.body.remove_image === "1") {
       await removeUpload(instance.image_path);
@@ -302,10 +378,14 @@ instancesRouter.post("/instances/:id", async (req, res, next) => {
     const telegramUpdates = req.session.user.role === "admin"
       ? req.body.telegram_updates === "1"
       : instance.telegram_updates;
+    const configPublic = req.session.user.role === "admin"
+      ? req.body.config_public === "1"
+      : instance.config_public;
     await query(
       `UPDATE instances SET name = $1, mc_version = $2, loader = $3, loader_version = $4,
-         pack_version = $5, notes = $6, image_path = $7, telegram_updates = $8 WHERE id = $9`,
-      [name, mcVersion, loader, loaderVersion, packVersion, notes, imagePath, telegramUpdates, instance.id]
+         pack_version = $5, notes = $6, image_path = $7, telegram_updates = $8,
+         config_public = $9 WHERE id = $10`,
+      [name, mcVersion, loader, loaderVersion, packVersion, notes, imagePath, telegramUpdates, configPublic, instance.id]
     );
     await logActivity({
       userId: req.session.user.id, action: "instance_updated",
@@ -412,7 +492,7 @@ instancesRouter.post("/instances/:id/export", async (req, res, next) => {
     }
     const instance = await instanceById(intParam(req.params.id));
     if (!instance) return next();
-    const result = await buildExport(instance, { userId: req.session.user.id });
+    const result = await buildExport(instance, { userId: req.session.user.id, includeFiles: true });
     await logActivity({
       userId: req.session.user.id, action: "import", subjectType: "instance", subjectId: instance.id,
       meta: { export: true, name: instance.name, counts: result.counts },
@@ -440,10 +520,13 @@ instancesRouter.post("/instances/:id/download-zip", async (req, res, next) => {
     const kinds = multiParam(req.body.kind).filter(isKind);
     const mods = await listModsForZip(instance, { modIds: ids, all, source, kinds });
     if (!mods.length) {
-      flash(req, "error", "Select at least one mod to download.");
+      flash(req, "error", "Select at least one project to download.");
       return res.redirect(`/instances/${instance.id}`);
     }
-    await streamModZip(instance, mods, res);
+    const { rows: extraFiles } = all
+      ? await query("SELECT path, stored_path FROM instance_files WHERE instance_id = $1 ORDER BY path", [instance.id])
+      : { rows: [] };
+    await streamModZip(instance, mods, res, { extraFiles });
   } catch (err) {
     if (res.headersSent) {
       console.error("mod zip:", err.message);
@@ -458,9 +541,9 @@ instancesRouter.get("/instances/:id/export/latest", async (req, res, next) => {
   try {
     const instance = await instanceById(intParam(req.params.id));
     if (!instance) return next();
-    let record = await latestExport(instance.id);
+    let record = await latestExport(instance.id, { includeFiles: true });
     if (!record && req.session.user.role === "admin") {
-      const built = await buildExport(instance, { userId: req.session.user.id });
+      const built = await buildExport(instance, { userId: req.session.user.id, includeFiles: true });
       record = { file_path: built.file_path };
     }
     if (!record) {
@@ -599,12 +682,13 @@ instancesRouter.post("/instances/:id/unknown/:unknownId", async (req, res, next)
 
     if (action === "manual") {
       const { rows: inserted } = await query(
-        `INSERT INTO mods (instance_id, name, source, installed_version, file_name, file_sha1, file_sha512,
+        `INSERT INTO mods (instance_id, name, source, kind, installed_version, file_name, file_sha1, file_sha512,
             file_size, stored_path, status, latest_version, added_by)
-         VALUES ($1,$2,'manual',$3,$4,$5,$6,$7,$8,'manual',$3,$9) RETURNING id`,
+         VALUES ($1,$2,'manual',$3,$4,$5,$6,$7,$8,$9,'manual',$4,$10) RETURNING id`,
         [
           instance.id,
-          item.jar_name || item.file_name.replace(/\.jar$/i, ""),
+          item.jar_name || item.file_name.replace(/\.(?:jar|zip)$/i, ""),
+          item.kind || "mod",
           item.jar_version || "unknown version",
           item.file_name, item.file_sha1, item.file_sha512, item.file_size, item.stored_path || null,
           req.session.user.id,
@@ -618,7 +702,7 @@ instancesRouter.post("/instances/:id/unknown/:unknownId", async (req, res, next)
         userId: req.session.user.id, action: "unknown_resolved", subjectType: "instance",
         subjectId: instance.id, meta: { file: item.file_name, resolution: "manual" },
       });
-      flash(req, "ok", `${item.file_name} is now tracked as a manual mod.`);
+      flash(req, "ok", `${item.file_name} is now tracked as a manual project.`);
       return res.redirect(`/instances/${instance.id}?status=unknown`);
     }
 
@@ -630,11 +714,12 @@ instancesRouter.post("/instances/:id/unknown/:unknownId", async (req, res, next)
         return res.redirect(`/instances/${instance.id}?status=unknown`);
       }
       const { rows: inserted } = await query(
-        `INSERT INTO mods (instance_id, name, source, project_id, project_url, installed_version, file_name,
+        `INSERT INTO mods (instance_id, name, source, kind, project_id, project_url, installed_version, file_name,
             file_sha1, file_sha512, file_size, icon_url, stored_path, status, latest_version, added_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'up_to_date',$6,$13) RETURNING id`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'up_to_date',$7,$14) RETURNING id`,
         [
-          instance.id, resolved.name, resolved.source, resolved.project_id, resolved.project_url,
+          instance.id, resolved.name, resolved.source, resolved.kind || item.kind || "mod",
+          resolved.project_id, resolved.project_url,
           item.jar_version || "unknown version", item.file_name, item.file_sha1, item.file_sha512,
           item.file_size, resolved.icon_url || null, item.stored_path || null, req.session.user.id,
         ]

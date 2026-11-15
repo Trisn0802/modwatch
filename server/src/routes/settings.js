@@ -9,7 +9,7 @@ import { telegramSend, createNotifications } from "../notify.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { CHANNEL } from "../labels.js";
-import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
+import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage } from "../uploads.js";
 
 export const settingsRouter = express.Router();
 
@@ -181,7 +181,12 @@ settingsRouter.post("/settings/account", async (req, res, next) => {
     }
     let avatarPath = current.avatar_path;
     if (req.file) {
-      avatarPath = uploadPath(req.file, "avatars");
+      try {
+        avatarPath = await finalizeImage(req.file, "avatars");
+      } catch (err) {
+        flash(req, "error", uploadMessage(err));
+        return res.redirect("/settings/account");
+      }
       await removeUpload(current.avatar_path);
     } else if (req.body.remove_avatar === "1") {
       await removeUpload(current.avatar_path);

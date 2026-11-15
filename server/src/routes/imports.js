@@ -9,6 +9,7 @@ import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { parseMrpack, savePreview, loadPreview, discardPreview, createInstanceFromPreview } from "../import.js";
 import { checkInstance } from "../checker.js";
 import { logActivity } from "../activity.js";
+import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
 
 export const importsRouter = express.Router();
 
@@ -56,16 +57,20 @@ importsRouter.post("/imports/upload", async (req, res, next) => {
       });
     }
     if (!req.file) {
+      failProgress(isProgressOp(req.body.progress_op) ? req.body.progress_op : "", "Choose a .mrpack file to upload.");
       return res.status(400).render("pages/import-upload.njk", {
         page: "instances", title: "Import a .mrpack", maxUploadMb: config.maxUploadMb,
         error: "Choose a .mrpack file to upload.",
       });
     }
+    const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+    publishProgress(op, { stage: "received", message: "Upload received; reading the archive", percent: 12 });
     const handle = await fs.promises.open(req.file.path, "r");
     const magic = Buffer.alloc(4);
     await handle.read(magic, 0, 4, 0);
     await handle.close();
     if (magic.toString("binary") !== "PK\u0003\u0004") {
+      failProgress(op, "That file is not a zip archive.");
       await fs.promises.rm(req.file.path, { force: true });
       return res.status(400).render("pages/import-upload.njk", {
         page: "instances", title: "Import a .mrpack", maxUploadMb: config.maxUploadMb,
@@ -74,8 +79,11 @@ importsRouter.post("/imports/upload", async (req, res, next) => {
     }
     let preview;
     try {
-      preview = await parseMrpack(req.file.path, req.file.originalname);
+      preview = await parseMrpack(req.file.path, req.file.originalname, {
+        onProgress: (event) => publishProgress(op, event),
+      });
     } catch (err) {
+      failProgress(op, err.message);
       await fs.promises.rm(req.file.path, { force: true });
       return res.status(400).render("pages/import-upload.njk", {
         page: "instances", title: "Import a .mrpack", maxUploadMb: config.maxUploadMb,
@@ -83,12 +91,14 @@ importsRouter.post("/imports/upload", async (req, res, next) => {
       });
     }
     const token = await savePreview(preview);
+    finishProgress(op, "Preview ready");
     res.redirect(`/imports/${token}`);
   } catch (err) {
     if (err instanceof multer.MulterError) {
       const message = err.code === "LIMIT_FILE_SIZE"
         ? `The pack is larger than the ${config.maxUploadMb} MB limit.`
         : err.message;
+      failProgress(isProgressOp(req.body?.progress_op) ? req.body.progress_op : "", message);
       return res.status(400).render("pages/import-upload.njk", {
         page: "instances", title: "Import a .mrpack", maxUploadMb: config.maxUploadMb, error: message,
       });
@@ -119,6 +129,11 @@ importsRouter.get("/imports/:token", async (req, res, next) => {
       preview,
       token: req.params.token,
       existing,
+      treeJson: JSON.stringify(preview.tree || []).replace(/</g, "\\u003c"),
+      selectedFileCount: (() => {
+        const count = (nodes) => nodes.reduce((sum, node) => sum + (node.type === "folder" ? count(node.children) : node.selectable && node.defaultChecked ? 1 : 0), 0);
+        return count(preview.tree || []);
+      })(),
     });
   } catch (err) {
     next(err);
@@ -127,25 +142,38 @@ importsRouter.get("/imports/:token", async (req, res, next) => {
 
 importsRouter.post("/imports/:token/confirm", async (req, res, next) => {
   try {
+    if (!csrfValid(req)) {
+      return res.status(403).render("pages/403.njk", {
+        page: "", title: "Request expired",
+        message: "Your form session expired. Reload the page and try again.",
+      });
+    }
     const preview = await loadPreview(req.params.token);
     if (!preview) {
       flash(req, "error", "That import preview expired. Upload the pack again.");
       return res.redirect("/imports/new");
     }
+    const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+    publishProgress(op, { stage: "start", message: "Starting the import", percent: 5 });
     const mode = req.body.mode === "update" ? "update" : "new";
     const existingId = Number.parseInt(req.body.existing_id, 10) || null;
+    const selectedFiles = [].concat(req.body.files || []).map((value) => String(value || "").trim()).filter(Boolean);
     const result = await createInstanceFromPreview(preview, {
       userId: req.session.user.id,
       mode,
       existingId,
+      selectedFiles,
+      onProgress: (event) => publishProgress(op, event),
     });
     await discardPreview(req.params.token);
     checkInstance(result.instance.id, { trigger: "import", userId: req.session.user.id }).catch((err) =>
       console.error("post-import check:", err.message)
     );
-    flash(req, "ok", `${result.instance.name}: ${result.added} mods added, ${result.unknownAdded} files need a decision.`);
+    finishProgress(op, `${result.instance.name} is ready`);
+    flash(req, "ok", `${result.instance.name}: ${result.added} projects added, ${result.filesAdded} pack files stored, ${result.unknownAdded} need a decision.`);
     res.redirect(`/instances/${result.instance.id}`);
   } catch (err) {
+    failProgress(isProgressOp(req.body.progress_op) ? req.body.progress_op : "", err.message);
     next(err);
   }
 });

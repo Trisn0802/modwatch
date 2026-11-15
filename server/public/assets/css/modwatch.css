@@ -1667,6 +1667,80 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .progress-body.is-done .progress-spinner { display: none; }
 .progress-error { margin-top: 14px; }
 .progress-foot[hidden] { display: none; }
+.progress-meter {
+  height: 5px; max-width: 280px; margin: 16px auto 0;
+  border-radius: 999px; background: var(--raised); overflow: hidden;
+}
+.progress-meter[hidden] { display: none; }
+.progress-meter span { display: block; height: 100%; width: 0; background: var(--brand); transition: width 220ms var(--ease-out); }
+.progress-steps li.is-log { font-size: 11px; }
+.progress-steps li.is-log::before { width: 5px; height: 5px; }
+
+/* global top loading bar */
+.mw-progress-bar {
+  position: fixed; inset: 0 0 auto; height: 3px; z-index: 130;
+  pointer-events: none; opacity: 0; transition: opacity 160ms ease;
+}
+.mw-progress-bar.is-active { opacity: 1; }
+.mw-progress-bar span {
+  display: block; height: 100%; width: 32%;
+  background: var(--brand); border-radius: 0 999px 999px 0;
+  animation: mw-bar-slide 1.15s ease-in-out infinite;
+}
+.mw-progress-bar.is-done span { animation: none; width: 100%; }
+@keyframes mw-bar-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(330%); }
+}
+
+/* import pack tree and instance file browser */
+.tree-actions { gap: 6px; flex-wrap: wrap; }
+.tree-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 9px; font-size: 11px; }
+.file-tree {
+  max-height: 420px; overflow: auto;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface);
+}
+.tree-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px 6px calc(9px + var(--depth, 0) * 15px);
+  border-top: 1px solid var(--rule);
+  font-size: 11.5px; color: var(--muted);
+  min-height: 34px;
+}
+.tree-root > .tree-row:first-child { border-top: 0; }
+.tree-row:hover { background: var(--raised); }
+.tree-row.is-folder { color: var(--text); }
+.tree-toggle {
+  width: 16px; height: 16px; flex: none; display: grid; place-items: center;
+  border: 0; background: transparent; color: var(--faint); padding: 0; cursor: pointer;
+}
+.tree-toggle svg { width: 12px; height: 12px; transition: transform 140ms ease; }
+.tree-row.is-open .tree-toggle svg { transform: rotate(90deg); }
+.tree-check { width: 15px; height: 15px; margin: 0; flex: none; accent-color: var(--brand); cursor: pointer; }
+.tree-check:disabled { cursor: default; opacity: 0.8; }
+.tree-check-spacer { width: 15px; height: 15px; flex: none; }
+.tree-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--faint); }
+.tree-ico svg { width: 15px; height: 15px; }
+.tree-row.is-folder .tree-ico { color: var(--brand-text); }
+.tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-badge {
+  flex: none; display: inline-flex; align-items: center; height: 16px; padding: 0 5px;
+  border-radius: 4px; background: var(--raised); color: var(--faint);
+  font-size: 8.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.tree-badge.muted { background: transparent; border: 1px solid var(--rule); }
+.tree-size { flex: none; width: 78px; text-align: right; color: var(--faint); font-size: 10.5px; }
+.tree-date { flex: none; width: 88px; text-align: right; color: var(--faint); font-size: 10.5px; }
+.tree-links { flex: none; display: flex; gap: 8px; width: 116px; justify-content: flex-end; }
+.tree-links a { color: var(--muted); font-size: 10.5px; }
+.tree-links a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.tree-children[hidden] { display: none; }
+@media (max-width: 640px) {
+  .tree-date { display: none; }
+  .tree-links { width: auto; }
+  .tree-size { width: 62px; }
+}
 .progress-body .confirm-kicker { margin-bottom: 5px; }
 .progress-message { max-width: 34ch; margin: 8px auto 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .progress-steps {

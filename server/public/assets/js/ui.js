@@ -773,85 +773,158 @@
     });
   }
 
-  // --- progress dialog for long writes --------------------------------------
-  for (const form of $$("form[data-progress-title]")) {
+  // A progress operation id is only needed while the request runs. Strip it
+  // from the address bar so copied links stay clean.
+  try {
+    const current = new URL(location.href);
+    if (current.searchParams.has("progress_op")) {
+      current.searchParams.delete("progress_op");
+      history.replaceState(null, "", `${current.pathname}${current.search}${current.hash}`);
+    }
+  } catch {}
+
+  // --- global top loading bar ----------------------------------------------
+  const topBar = $("#mw-progress-bar");
+  let topTimer = null;
+  let topVisible = false;
+  let topCount = 0;
+  const topStart = () => {
+    topCount += 1;
+    if (topVisible) return;
+    window.clearTimeout(topTimer);
+    topTimer = window.setTimeout(() => {
+      if (topCount <= 0 || !topBar) return;
+      topVisible = true;
+      topBar.classList.remove("is-done");
+      topBar.classList.add("is-active");
+    }, 120);
+  };
+  const topFinish = () => {
+    topCount = Math.max(0, topCount - 1);
+    if (topCount > 0) return;
+    window.clearTimeout(topTimer);
+    if (!topVisible || !topBar) return;
+    topBar.classList.add("is-done");
+    window.setTimeout(() => {
+      topBar.classList.remove("is-active", "is-done");
+      topVisible = false;
+    }, 320);
+  };
+  window.addEventListener("pageshow", () => { topCount = 0; topFinish(); });
+  document.addEventListener("submit", topStart, true);
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest("a[href]");
+    if (!link) return;
+    const href = link.getAttribute("href");
+    if (!href || href.startsWith("#") || link.target === "_blank" || link.hasAttribute("download")) return;
+    try {
+      const url = new URL(link.href, location.href);
+      if (url.origin !== location.origin) return;
+    } catch { return; }
+    topStart();
+  }, true);
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (...args) => {
+    topStart();
+    return nativeFetch(...args).finally(topFinish);
+  };
+
+  // --- progress dialog for long writes, uploads and navigations --------------
+  const progressModal = $("#progress-modal");
+
+  const makeOp = () => {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  };
+
+  const progressOpFor = (form) => {
+    let input = form.querySelector('input[name="progress_op"]');
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "progress_op";
+      form.appendChild(input);
+    }
+    if (!input.value) input.value = makeOp();
+    return input.value;
+  };
+
+  const bindProgress = (form, mode) => {
     form.addEventListener("submit", async (event) => {
       if (event.defaultPrevented) return;
       event.preventDefault();
-      const modal = $("#progress-modal");
-      if (!modal) {
-        form.submit();
+      if (!progressModal) {
+        if (mode === "upload" || mode === "nav") {
+          // A native submit keeps the old page visible while the server works.
+          form.submit();
+        } else {
+          HTMLFormElement.prototype.submit.call(form);
+        }
         return;
       }
-      const body = $(".progress-body", modal);
-      const spinner = $(".progress-spinner", modal);
-      const check = $("#progress-check", modal);
-      const title = $("#progress-title", modal);
-      const message = $("#progress-message", modal);
-      const list = $("#progress-steps", modal);
-      const kicker = $("#progress-kicker", modal);
-      const errorBox = $("#progress-error", modal);
-      const foot = $("#progress-foot", modal);
-      const cont = $("#progress-continue", modal);
+
+      const body = $(".progress-body", progressModal);
+      const spinner = $(".progress-spinner", progressModal);
+      const check = $("#progress-check", progressModal);
+      const title = $("#progress-title", progressModal);
+      const message = $("#progress-message", progressModal);
+      const list = $("#progress-steps", progressModal);
+      const kicker = $("#progress-kicker", progressModal);
+      const errorBox = $("#progress-error", progressModal);
+      const foot = $("#progress-foot", progressModal);
+      const cont = $("#progress-continue", progressModal);
+      const meter = $("#progress-meter", progressModal);
+      const meterFill = $("#progress-meter-fill", progressModal);
       let interval = null;
+      let source = null;
       let busy = true;
-      modal.oncancel = (cancelEvent) => { if (busy) cancelEvent.preventDefault(); };
+      let sseSeen = false;
+      let navigated = false;
+      let lastPercent = 0;
 
-      body?.classList.remove("is-done", "is-error");
-      if (check) check.hidden = true;
-      if (spinner) spinner.style.display = "";
-      if (foot) foot.hidden = true;
-      if (cont) cont.hidden = true;
-      if (errorBox) { errorBox.hidden = true; errorBox.textContent = ""; }
-      if (title) title.textContent = form.dataset.progressTitle || "Working…";
-      if (message) message.textContent = form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
-      if (kicker) kicker.textContent = form.dataset.progressKicker || "Working";
-      modal.setAttribute("aria-busy", "true");
-
-      if (list) {
-        list.replaceChildren();
-        const steps = String(form.dataset.progressSteps || "").split("|").filter(Boolean);
-        steps.forEach((step, index) => {
-          const item = document.createElement("li");
-          item.textContent = step;
-          if (index === 0) item.classList.add("is-active");
-          list.appendChild(item);
-        });
-        if (steps.length > 1) {
-          let active = 0;
-          interval = window.setInterval(() => {
-            const items = [...list.children];
-            if (!items.length) return;
-            items[active]?.classList.remove("is-active");
-            items[active]?.classList.add("is-done");
-            active = Math.min(active + 1, items.length - 1);
-            items[active]?.classList.add("is-active");
-          }, 900);
-        }
-      }
-
-      if (typeof modal.showModal === "function") {
-        if (!modal.open) modal.showModal();
-      } else modal.setAttribute("open", "");
-      document.body.classList.add("dialog-open");
-
-      const finish = (mode, text, nextUrl, label) => {
+      const stopTimer = () => { if (interval) { window.clearInterval(interval); interval = null; } };
+      const closeSource = () => { if (source) { source.close(); source = null; } };
+      const setMeter = (percent) => {
+        if (!meter || !meterFill) return;
+        const value = Math.max(lastPercent, Math.min(100, Number(percent) || 0));
+        lastPercent = value;
+        meter.hidden = false;
+        meterFill.style.width = `${value}%`;
+      };
+      const logLine = (text) => {
+        if (!list || !text) return;
+        const item = document.createElement("li");
+        item.textContent = text;
+        item.classList.add("is-done", "is-log");
+        list.appendChild(item);
+        while (list.children.length > 40) list.firstElementChild.remove();
+        list.scrollTop = list.scrollHeight;
+      };
+      const finish = (result, text, nextUrl, label) => {
         busy = false;
-        window.clearInterval(interval);
-        modal.setAttribute("aria-busy", "false");
+        stopTimer();
+        closeSource();
+        progressModal.setAttribute("aria-busy", "false");
         if (list) {
           for (const item of list.children) {
             item.classList.remove("is-active");
             item.classList.add("is-done");
           }
         }
-        if (mode === "ok") {
+        if (result === "ok") {
           body?.classList.add("is-done");
           if (spinner) spinner.style.display = "none";
           if (check) check.hidden = false;
-          if (title) title.textContent = form.dataset.progressDoneTitle || "Request processed";
+          if (title) title.textContent = form.dataset.progressDoneTitle || "Complete";
           if (message) message.textContent = text || "The request was processed.";
           if (kicker) kicker.textContent = "Complete";
+          setMeter(100);
         } else {
           body?.classList.add("is-error");
           if (spinner) spinner.style.display = "none";
@@ -864,17 +937,133 @@
         if (cont) {
           cont.hidden = false;
           cont.href = nextUrl || location.href;
-          cont.textContent = label || (mode === "ok" ? "Continue" : "Back to approvals");
+          cont.textContent = label || (result === "ok" ? "Continue" : "Reload page");
         }
       };
 
-      try {
-        const response = await fetch(form.action, {
-          method: "POST",
-          body: new FormData(form),
-          redirect: "follow",
-          headers: { "X-Requested-With": "fetch" },
+      body?.classList.remove("is-done", "is-error");
+      if (check) check.hidden = true;
+      if (spinner) spinner.style.display = "";
+      if (foot) foot.hidden = true;
+      if (cont) cont.hidden = true;
+      if (errorBox) { errorBox.hidden = true; errorBox.textContent = ""; }
+      if (meter) { meter.hidden = true; meterFill && (meterFill.style.width = "0%"); }
+      if (title) title.textContent = form.dataset.progressTitle || "Working…";
+      if (message) message.textContent = form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
+      if (kicker) kicker.textContent = form.dataset.progressKicker || "Working";
+      progressModal.setAttribute("aria-busy", "true");
+
+      stopTimer();
+      if (list) {
+        list.replaceChildren();
+        const steps = String(form.dataset.progressSteps || "").split("|").filter(Boolean);
+        steps.forEach((step, index) => {
+          const item = document.createElement("li");
+          item.textContent = step;
+          if (index === 0) item.classList.add("is-active");
+          list.appendChild(item);
         });
+        if (steps.length > 1) {
+          let active = 0;
+          interval = window.setInterval(() => {
+            if (sseSeen) return;
+            const items = [...list.children];
+            if (!items.length) return;
+            items[active]?.classList.remove("is-active");
+            items[active]?.classList.add("is-done");
+            active = Math.min(active + 1, items.length - 1);
+            items[active]?.classList.add("is-active");
+          }, 1100);
+        }
+      }
+
+      if (typeof progressModal.showModal === "function") {
+        if (!progressModal.open) progressModal.showModal();
+      } else progressModal.setAttribute("open", "");
+      document.body.classList.add("dialog-open");
+      progressModal.oncancel = (cancelEvent) => { if (busy) cancelEvent.preventDefault(); };
+
+      const op = progressOpFor(form);
+      if (window.EventSource && /^[a-f0-9-]{36}$/.test(op)) {
+        source = new EventSource(`/api/progress/${op}`);
+        source.addEventListener("progress", (messageEvent) => {
+          let data = null;
+          try { data = JSON.parse(messageEvent.data); } catch { return; }
+          if (!data) return;
+          sseSeen = true;
+          stopTimer();
+          if (data.message) logLine(data.message);
+          if (data.percent != null) setMeter(data.percent);
+          if (data.stage === "done") {
+            if (title && !form.dataset.progressDoneTitle) title.textContent = "Complete";
+            if (kicker) kicker.textContent = "Complete";
+          }
+          if (data.stage === "error") {
+            finish("error", data.message || "The operation failed.", location.href, "Reload page");
+          }
+        });
+        source.addEventListener("error", () => {
+          // The HTTP request still drives completion; close quietly.
+          closeSource();
+        });
+      }
+
+      if (mode === "upload") {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", form.action, true);
+        xhr.setRequestHeader("X-Requested-With", "fetch");
+        xhr.upload.addEventListener("progress", (progressEvent) => {
+          if (!progressEvent.lengthComputable) return;
+          const percent = Math.round((progressEvent.loaded / progressEvent.total) * 55);
+          setMeter(percent);
+          if (message) message.textContent = `Uploading the archive · ${Math.round((progressEvent.loaded / progressEvent.total) * 100)}%`;
+        });
+        xhr.addEventListener("load", () => {
+          topFinish();
+          const finalUrl = xhr.responseURL || location.href;
+          if (xhr.status >= 400) {
+            let detail = `The server returned ${xhr.status}.`;
+            try {
+              const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
+              detail = doc.querySelector(".error-box")?.textContent.trim() || detail;
+            } catch {}
+            return finish("error", detail, finalUrl, "Reload the page");
+          }
+          let successText = "";
+          try {
+            const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
+            successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
+          } catch {}
+          finish("ok", successText || "The preview is ready.", finalUrl, form.dataset.progressDoneLabel || "Open the preview");
+          if (!navigated) {
+            navigated = true;
+            window.setTimeout(() => { location.href = finalUrl; }, 650);
+          }
+        });
+        xhr.addEventListener("error", () => {
+          topFinish();
+          finish("error", "The upload could not reach the server.", location.href, "Reload the page");
+        });
+        xhr.send(new FormData(form));
+        return;
+      }
+
+      let requestUrl = form.action;
+      // These forms are plain urlencoded writes. FormData would switch the
+      // request to multipart, which the server does not parse for them.
+      let requestInit = { method: "POST", body: new URLSearchParams(new FormData(form)), redirect: "follow", headers: { "X-Requested-With": "fetch" } };
+      if (mode === "nav") {
+        const url = new URL(form.action, location.href);
+        url.search = "";
+        for (const [key, value] of new FormData(form)) {
+          if (value !== "") url.searchParams.append(key, value);
+        }
+        requestUrl = url.toString();
+        requestInit = { method: "GET", redirect: "follow", headers: { "X-Requested-With": "fetch" } };
+      }
+
+      try {
+        const response = await fetch(requestUrl, requestInit);
         const finalUrl = response.url || location.href;
         const html = await response.text();
         const doc = new DOMParser().parseFromString(html, "text/html");
@@ -884,14 +1073,244 @@
           return finish("error", "Your session expired. Sign in again.", "/login", "Sign in");
         }
         if (!response.ok) {
-          return finish("error", `The server returned ${response.status}. Try again from approvals.`, "/approvals", "Back to approvals");
+          const detail = doc.querySelector(".error-box")?.textContent.trim() || `The server returned ${response.status}.`;
+          return finish("error", detail, finalUrl, "Reload the page");
         }
-        if (errorText) return finish("error", errorText, finalUrl, "Back to approvals");
-        finish("ok", successText, finalUrl, form.dataset.progressDoneLabel || "Continue to approvals");
+        if (errorText) return finish("error", errorText, finalUrl, "Reload the page");
+        finish("ok", successText, finalUrl, form.dataset.progressDoneLabel || "Continue");
+        if (mode === "nav" && !navigated) {
+          navigated = true;
+          window.setTimeout(() => { location.href = finalUrl; }, 550);
+        }
       } catch (err) {
-        finish("error", err.message || "The request could not reach the server.", location.href, "Reload page");
+        finish("error", err.message || "The request could not reach the server.", location.href, "Reload the page");
       }
     });
+  };
+
+  for (const form of $$("form[data-progress-title]")) {
+    if (form.hasAttribute("data-progress-upload")) bindProgress(form, "upload");
+    else if (form.hasAttribute("data-progress-nav")) bindProgress(form, "nav");
+    else bindProgress(form, "post");
+  }
+
+  // --- import pack tree and instance file browser ---------------------------
+  const formatBytes = (value) => {
+    const size = Number(value) || 0;
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KiB`;
+    if (size < 1024 * 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
+    return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+  };
+  const formatTreeDate = (value) => {
+    if (!value) return "";
+    try {
+      return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value));
+    } catch { return ""; }
+  };
+  const TREE_ICONS = {
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2.2h8.5A1.5 1.5 0 0 1 21 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5"/></svg>',
+    archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="3" width="16" height="18" rx="1.4"/><path d="M12 3v4M12 9v2M12 13v2M12 17v2"/></svg>',
+    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4 4 3 3-2.5 4 3.5"/></svg>',
+    code: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg>',
+    jar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3h8v4l2 3v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9l2-3z"/><path d="M9 14h6"/></svg>',
+  };
+  const treeIconFor = (name) => {
+    const ext = String(name || "").split(".").pop().toLowerCase();
+    if (["zip", "mrpack", "7z", "tar", "gz"].includes(ext)) return TREE_ICONS.archive;
+    if (["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext)) return TREE_ICONS.image;
+    if (["json", "toml", "yml", "yaml", "js", "ts", "cfg", "conf", "properties", "mcmeta", "txt", "md"].includes(ext)) return TREE_ICONS.code;
+    if (ext === "jar") return TREE_ICONS.jar;
+    return TREE_ICONS.file;
+  };
+
+  const renderFileTree = (container, nodes, options = {}) => {
+    const formId = options.formId || "";
+    const selectable = Boolean(options.selectable);
+    const summaryCount = options.countEl;
+    const summarySize = options.sizeEl;
+    const root = document.createElement("div");
+    root.className = "tree-root";
+    const selectableFiles = [];
+
+    const updateSummary = () => {
+      if (!selectable) return;
+      const picked = selectableFiles.filter((entry) => entry.box.checked);
+      const total = picked.reduce((sum, entry) => sum + (entry.node.size || 0), 0);
+      if (summaryCount) summaryCount.textContent = `${picked.length} file${picked.length === 1 ? "" : "s"} selected`;
+      if (summarySize) summarySize.textContent = picked.length ? formatBytes(total) : "";
+    };
+
+    const makeRow = (node, depth, childrenWrap) => {
+      const row = document.createElement("div");
+      row.className = `tree-row ${node.type === "folder" ? "is-folder" : "is-file"}`;
+      row.style.setProperty("--depth", depth);
+      const isFolder = node.type === "folder";
+      if (isFolder) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "tree-toggle";
+        toggle.setAttribute("aria-label", `${node.name} folder`);
+        toggle.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>';
+        row.appendChild(toggle);
+      } else {
+        row.appendChild(Object.assign(document.createElement("span"), { className: "tree-toggle" }));
+      }
+      let box = null;
+      if (selectable && (node.type === "folder" || node.selectable)) {
+        box = document.createElement("input");
+        box.type = "checkbox";
+        box.className = "tree-check";
+        if (selectable && formId) box.setAttribute("form", formId);
+        row.appendChild(box);
+      } else if (selectable && node.project) {
+        box = document.createElement("input");
+        box.type = "checkbox";
+        box.className = "tree-check";
+        box.checked = true;
+        box.disabled = true;
+        row.appendChild(box);
+      } else {
+        row.appendChild(Object.assign(document.createElement("span"), { className: "tree-check-spacer" }));
+      }
+      const icon = document.createElement("span");
+      icon.className = "tree-ico";
+      icon.innerHTML = isFolder ? TREE_ICONS.folder : treeIconFor(node.name);
+      row.appendChild(icon);
+      const name = document.createElement("span");
+      name.className = "tree-name";
+      name.textContent = node.name;
+      row.appendChild(name);
+      if (node.project) {
+        const badge = document.createElement("span");
+        badge.className = "tree-badge";
+        badge.textContent = "Project";
+        row.appendChild(badge);
+      }
+      if (node.indexed) {
+        const badge = document.createElement("span");
+        badge.className = "tree-badge muted";
+        badge.textContent = "index";
+        row.appendChild(badge);
+      }
+      const size = document.createElement("span");
+      size.className = "tree-size";
+      size.textContent = isFolder ? `${node.count || 0} items` : formatBytes(node.size);
+      row.appendChild(size);
+      const date = document.createElement("span");
+      date.className = "tree-date";
+      date.textContent = formatTreeDate(node.modified_at);
+      row.appendChild(date);
+      if (options.links && node.type === "file") {
+        const actions = document.createElement("span");
+        actions.className = "tree-links";
+        if (node.view_url) {
+          const view = document.createElement("a");
+          view.href = node.view_url;
+          view.target = "_blank";
+          view.rel = "noopener";
+          view.textContent = "View";
+          actions.appendChild(view);
+        }
+        if (node.download_url) {
+          const download = document.createElement("a");
+          download.href = node.download_url;
+          download.textContent = "Download";
+          actions.appendChild(download);
+        }
+        row.appendChild(actions);
+      }
+      childrenWrap.appendChild(row);
+
+      const entry = { node, box, row, children: [], allBoxes: [] };
+      if (node.type === "folder") {
+        const kids = document.createElement("div");
+        kids.className = "tree-children";
+        kids.hidden = depth > 0;
+        childrenWrap.appendChild(kids);
+        row.querySelector(".tree-toggle")?.addEventListener("click", () => {
+          kids.hidden = !kids.hidden;
+          row.classList.toggle("is-open", !kids.hidden);
+        });
+        for (const child of node.children || []) {
+          entry.children.push(makeRow(child, depth + 1, kids));
+        }
+        entry.allBoxes = entry.children.flatMap((child) => (child.type === "folder" ? child.allBoxes : child.box ? [child.box] : []));
+        if (box) {
+          const hasProjectFiles = entry.children.some((child) => child.type === "file" || (child.type === "folder" && child.allBoxes.length === 0));
+          box.disabled = entry.allBoxes.length === 0;
+          const checked = entry.allBoxes.filter((item) => item.checked).length;
+          box.checked = entry.allBoxes.length > 0 ? checked === entry.allBoxes.length : hasProjectFiles;
+          box.indeterminate = checked > 0 && checked < entry.allBoxes.length;
+          box.addEventListener("change", () => {
+            for (const child of entry.allBoxes) child.checked = box.checked;
+            box.indeterminate = false;
+            refreshParents(container);
+            updateSummary();
+          });
+        }
+      } else if (box && selectable && node.selectable) {
+        box.name = "files";
+        box.value = node.path;
+        selectableFiles.push({ box, node });
+        box.checked = Boolean(node.defaultChecked);
+        box.addEventListener("change", () => { refreshParents(container); updateSummary(); });
+      }
+      return entry;
+    };
+
+    const rootEntry = { type: "folder", children: [], box: null, allBoxes: [] };
+    for (const node of nodes) rootEntry.children.push(makeRow(node, 0, root));
+    container.replaceChildren(root);
+
+    const refreshParents = (scope) => {
+      const walk = (entry) => {
+        for (const child of entry.children) if (child.type === "folder") walk(child);
+        if (entry.box) {
+          const all = entry.allBoxes || [];
+          const checked = all.filter((item) => item.checked).length;
+          const hasProjectFiles = entry.children.some((child) => child.type === "file" || (child.type === "folder" && child.allBoxes.length === 0));
+          entry.box.checked = all.length > 0 ? checked === all.length : hasProjectFiles;
+          entry.box.indeterminate = checked > 0 && checked < all.length;
+        }
+      };
+      walk({ children: rootEntry.children, box: null, allBoxes: [] });
+      void scope;
+    };
+
+    const setAll = (value) => {
+      for (const entry of selectableFiles) entry.box.checked = value;
+      refreshParents(container);
+      updateSummary();
+    };
+    const scope = container.closest(".panel") || document;
+    for (const button of $$("[data-tree-select]", scope)) {
+      button.addEventListener("click", () => setAll(button.dataset.treeSelect === "all"));
+    }
+    updateSummary();
+  };
+
+  for (const container of $$("[data-import-tree]")) {
+    const source = $(container.dataset.treeSource || "");
+    if (!source) continue;
+    let nodes = [];
+    try { nodes = JSON.parse(source.textContent || "[]"); } catch { nodes = []; }
+    const panel = container.closest(".panel") || document;
+    renderFileTree(container, nodes, {
+      formId: "import-confirm-form",
+      selectable: true,
+      countEl: $("[data-tree-count]", panel),
+      sizeEl: $("[data-tree-size]", panel),
+    });
+  }
+
+  for (const container of $$("[data-file-tree]")) {
+    const source = $(container.dataset.treeSource || "");
+    if (!source) continue;
+    let nodes = [];
+    try { nodes = JSON.parse(source.textContent || "[]"); } catch { nodes = []; }
+    renderFileTree(container, nodes, { selectable: false, links: true });
   }
 
   // --- copy buttons ----------------------------------------------------------
@@ -964,7 +1383,7 @@
         const input = form.querySelector(`input[name="${name}"]`);
         if (input) input.value = picked.dataset[key] || "";
       }
-    });
+    }, true);
   }
 
   // --- twelve-month updates and downloads chart ------------------------------

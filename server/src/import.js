@@ -8,7 +8,8 @@ import { config } from "./config.js";
 import { query, withTransaction } from "./db.js";
 import { lookupByHash, getProjects } from "./sources/modrinth.js";
 import { logActivity } from "./activity.js";
-import { saveJar } from "./uploads.js";
+import { saveJar, saveInstanceFile } from "./uploads.js";
+import { kindFolder, kindFromPackPath, kindFromProjectType } from "./kinds.js";
 
 const MAX_ENTRIES = 20_000;
 const MAX_UNCOMPRESSED = 2 * 1024 * 1024 * 1024;
@@ -55,19 +56,25 @@ function readEntry(zip, entry, limit) {
   });
 }
 
-function isJar(name) {
-  return /\.jar$/i.test(name);
-}
-
 function safeEntryName(name) {
   const normalized = String(name).replace(/\\/g, "/");
   if (normalized.startsWith("/") || normalized.split("/").includes("..")) return false;
   return true;
 }
 
+function entryModified(entry) {
+  try {
+    const date = entry.getLastModDate?.();
+    return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function readZipEntries(filePath, wanted) {
   const zip = await openZip(filePath);
   const found = new Map();
+  const listing = [];
   let entries = 0;
   let total = 0;
   await new Promise((resolve, reject) => {
@@ -80,6 +87,10 @@ async function readZipEntries(filePath, wanted) {
         return;
       }
       try {
+        const name = String(entry.fileName || "").replace(/\\/g, "/");
+        if (!name.endsWith("/") && safeEntryName(name)) {
+          listing.push({ name, size: entry.uncompressedSize || 0, modified_at: entryModified(entry) });
+        }
         if (!safeEntryName(entry.fileName)) {
           zip.readEntry();
           return;
@@ -100,7 +111,7 @@ async function readZipEntries(filePath, wanted) {
     zip.on("error", reject);
     zip.readEntry();
   });
-  return found;
+  return { found, listing };
 }
 
 function jwtLoader(dependencies = {}) {
@@ -197,6 +208,11 @@ export async function readJarMetadata(buffer) {
   return meta;
 }
 
+function storedProjectName(kind, fileName, disabled = false) {
+  const base = String(fileName || "project").replace(/\.disabled$/i, "");
+  return `${kind || "mod"}-${base}${disabled ? ".disabled" : ""}`;
+}
+
 function hashBuffers(buffer) {
   return {
     sha1: crypto.createHash("sha1").update(buffer).digest("hex"),
@@ -204,9 +220,124 @@ function hashBuffers(buffer) {
   };
 }
 
-export async function parseMrpack(filePath, originalName) {
-  const wanted = (name) => /^overrides\/mods\/[^/]+\.jar(?:\.disabled)?$/i.test(name);
-  const entries = await readZipEntries(filePath, wanted);
+const PROJECT_PATH_RE = /^(?:overrides\/)?(?:mods|resourcepacks|datapacks|shaderpacks)\/[^/]+\.(?:jar|zip)(?:\.disabled)?$/i;
+
+function isProjectPath(name) {
+  return PROJECT_PATH_RE.test(String(name || "").replace(/\\/g, "/"));
+}
+
+function packPath(name) {
+  return String(name || "").replace(/\\/g, "/").replace(/^overrides\//, "");
+}
+
+const DEFAULT_CHECKED_FOLDERS = new Set([
+  "mods", "resourcepacks", "datapacks", "shaderpacks", "config", "defaultconfigs", "kubejs", "scripts",
+]);
+
+function topFolder(path) {
+  return String(path || "").split("/")[0].toLowerCase();
+}
+
+function insertTreeNode(root, path, meta) {
+  const parts = String(path || "").split("/").filter(Boolean);
+  let node = root;
+  for (let index = 0; index < parts.length; index += 1) {
+    const last = index === parts.length - 1;
+    const name = parts[index];
+    let child = node.children.find((item) => item.name === name && (last ? item.type === "file" : item.type === "folder"));
+    if (!child) {
+      child = last
+        ? { type: "file", name, path, children: [] }
+        : { type: "folder", name, path: parts.slice(0, index + 1).join("/"), children: [] };
+      node.children.push(child);
+    }
+    if (last) Object.assign(child, meta);
+    node = child;
+  }
+}
+
+function decorateTree(nodes) {
+  for (const node of nodes) {
+    if (node.type === "folder") {
+      decorateTree(node.children);
+      node.size = node.children.reduce((sum, child) => sum + (child.size || 0), 0);
+      node.count = node.children.reduce((sum, child) => sum + (child.count || (child.type === "file" ? 1 : 0)), 0);
+      node.selectable = node.children.some((child) => child.selectable || (child.type === "folder" && child.selectable));
+      node.defaultChecked = Boolean(node.selectable && node.children.some((child) => child.defaultChecked));
+    }
+  }
+  nodes.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "folder" ? -1 : 1));
+}
+
+function buildPackTree(listing, indexFiles, projectPaths, { limit = 3000 } = {}) {
+  const files = new Map();
+  for (const file of indexFiles) {
+    const path = String(file.path || "").replace(/\\/g, "/");
+    if (!path) continue;
+    files.set(path, {
+      path,
+      size: Number(file.fileSize) || 0,
+      modified_at: null,
+      indexed: true,
+    });
+  }
+  for (const entry of listing) {
+    if (entry.name === "modrinth.index.json" || !entry.name.startsWith("overrides/")) continue;
+    const path = packPath(entry.name);
+    if (!path) continue;
+    if (files.has(path) && files.get(path).indexed) continue;
+    files.set(path, {
+      path,
+      size: entry.size || 0,
+      modified_at: entry.modified_at || null,
+      indexed: false,
+    });
+  }
+
+  let items = [...files.values()];
+  const knownProjects = new Set(projectPaths);
+  for (const item of items) {
+    item.project = knownProjects.has(item.path) || knownProjects.has(`overrides/${item.path}`);
+    item.kind = kindFromPackPath(item.path);
+  }
+  let truncated = false;
+  if (items.length > limit) {
+    const projects = items.filter((item) => item.project);
+    const rest = items.filter((item) => !item.project).slice(0, Math.max(0, limit - projects.length));
+    items = [...projects, ...rest];
+    truncated = true;
+  }
+
+  const root = { children: [] };
+  for (const item of items) {
+    const selectable = !item.project;
+    insertTreeNode(root, item.path, {
+      project: Boolean(item.project),
+      selectable,
+      indexed: Boolean(item.indexed),
+      kind: item.kind || "",
+      size: item.size || 0,
+      modified_at: item.modified_at || null,
+      defaultChecked: selectable && DEFAULT_CHECKED_FOLDERS.has(topFolder(item.path)) && !["saves", "screenshots", "logs", "crash-reports", "backups"].includes(topFolder(item.path)),
+    });
+  }
+  decorateTree(root.children);
+  return { tree: root.children, truncated, files: items };
+}
+
+function allSelectablePaths(nodes, out = []) {
+  for (const node of nodes) {
+    if (node.type === "folder") allSelectablePaths(node.children, out);
+    else if (node.selectable) out.push(node.path);
+  }
+  return out;
+}
+
+export async function parseMrpack(filePath, originalName, { onProgress } = {}) {
+  const report = (event) => { try { onProgress?.(event); } catch {} };
+  report({ stage: "read-index", message: "Reading the pack index and file list", percent: 8 });
+  const wanted = (name) => isProjectPath(name);
+  const { found: entries, listing } = await readZipEntries(filePath, wanted);
   const indexEntry = entries.get("modrinth.index.json");
   if (!indexEntry) throw new Error("This zip has no modrinth.index.json, so it is not a .mrpack");
 
@@ -224,30 +355,35 @@ export async function parseMrpack(filePath, originalName) {
   const packVersion = String(index.versionId || "");
 
   const fileEntries = Array.isArray(index.files) ? index.files : [];
-  const modEntries = fileEntries.filter((f) => /^mods\/[^/]+\.jar$/i.test(f.path || ""));
-  const skipped = fileEntries.length - modEntries.length;
+  const projectEntries = fileEntries.filter((file) => isProjectPath(file.path || ""));
+  const skipped = fileEntries.length - projectEntries.length;
 
+  report({ stage: "hash", message: `Hashing ${projectEntries.length} index file${projectEntries.length === 1 ? "" : "s"} and overrides`, percent: 22 });
   const overrideJars = [...entries.entries()]
-    .filter(([name]) => /^overrides\/mods\/[^/]+\.jar(?:\.disabled)?$/i.test(name))
+    .filter(([name]) => name !== "modrinth.index.json" && isProjectPath(name))
     .map(([name, value]) => {
       const entry = path.basename(name);
       const disabled = /\.disabled$/i.test(entry);
+      const packName = packPath(name);
       return {
         entry,
+        path: packName,
         name: disabled ? entry.replace(/\.disabled$/i, "") : entry,
         disabled,
+        kind: kindFromPackPath(packName),
         buffer: value.buffer,
         ...hashBuffers(value.buffer),
       };
     });
 
   const hashes = new Map();
-  for (const file of modEntries) {
+  for (const file of projectEntries) {
     const sha1 = file.hashes?.sha1;
     if (sha1) hashes.set(sha1, { file });
   }
   for (const jar of overrideJars) hashes.set(jar.sha1, { jar });
 
+  report({ stage: "match", message: `Matching ${hashes.size} hash${hashes.size === 1 ? "" : "es"} on Modrinth`, percent: 42 });
   let hashLookup = new Map();
   try {
     hashLookup = await lookupByHash([...hashes.keys()]);
@@ -255,26 +391,34 @@ export async function parseMrpack(filePath, originalName) {
     console.error("mrpack hash lookup:", err.message);
   }
 
-  const projectIds = [...new Set([...hashLookup.values()].map((v) => v.project_id).filter(Boolean))];
+  const projectIds = [...new Set([...hashLookup.values()].map((value) => value.project_id).filter(Boolean))];
   const projects = projectIds.length ? await getProjects(projectIds).catch(() => new Map()) : new Map();
 
   const identified = [];
   const unknown = [];
   const seenProjects = new Set();
 
-  for (const file of modEntries) {
+  // The folder in the pack decides where the file will be installed; the
+  // Modrinth project type is only a fallback (Modrinth calls datapacks "mod").
+  const projectKind = (project, packFile) =>
+    kindFromPackPath(packFile) || kindFromProjectType(project?.project_type) || "mod";
+
+  for (const file of projectEntries) {
     const sha1 = file.hashes?.sha1 || "";
     const version = hashLookup.get(sha1);
+    const pathKind = kindFromPackPath(file.path);
     if (version) {
       const project = projects.get(version.project_id);
       const key = `${version.project_id}`;
       if (seenProjects.has(key)) continue;
       seenProjects.add(key);
+      const kind = projectKind(project, file.path);
       identified.push({
         source: "modrinth",
         project_id: version.project_id,
+        kind,
         name: project?.title || version.name || file.path,
-        project_url: `https://modrinth.com/mod/${project?.slug || version.project_id}`,
+        project_url: `https://modrinth.com/${kindFolder(kind)}/${project?.slug || version.project_id}`,
         installed_version: version.version,
         installed_version_id: version.version_id,
         published_at: version.published_at,
@@ -289,6 +433,7 @@ export async function parseMrpack(filePath, originalName) {
       });
     } else {
       unknown.push({
+        kind: pathKind || "mod",
         file_name: file.path.split("/").pop() || file.path,
         file_sha1: sha1,
         file_sha512: file.hashes?.sha512 || null,
@@ -308,11 +453,13 @@ export async function parseMrpack(filePath, originalName) {
       const project = projects.get(version.project_id);
       if (!seenProjects.has(version.project_id)) {
         seenProjects.add(version.project_id);
+        const kind = projectKind(project, jar.path);
         identified.push({
           source: "modrinth",
           project_id: version.project_id,
+          kind,
           name: project?.title || version.name || jar.name,
-          project_url: `https://modrinth.com/mod/${project?.slug || version.project_id}`,
+          project_url: `https://modrinth.com/${kindFolder(kind)}/${project?.slug || version.project_id}`,
           installed_version: version.version,
           installed_version_id: version.version_id,
           published_at: version.published_at,
@@ -325,14 +472,17 @@ export async function parseMrpack(filePath, originalName) {
           download_url: "",
           disabled: jar.disabled,
           jar_entry: jar.entry,
+          jar_path: jar.path,
         });
         continue;
       }
     }
     const meta = await readJarMetadata(jar.buffer).catch(() => null);
     unknown.push({
+      kind: jar.kind || "mod",
       file_name: jar.name,
       jar_entry: jar.entry,
+      jar_path: jar.path,
       file_sha1: jar.sha1,
       file_sha512: jar.sha512,
       file_size: jar.buffer.length,
@@ -343,6 +493,20 @@ export async function parseMrpack(filePath, originalName) {
       reason: "no_match",
     });
   }
+
+  const projectPaths = new Set();
+  for (const file of projectEntries) projectPaths.add(String(file.path || "").replace(/\\/g, "/"));
+  for (const item of [...identified, ...unknown]) {
+    if (item.jar_path) projectPaths.add(`overrides/${item.jar_path}`);
+    else if (item.jar_entry) projectPaths.add(`overrides/${item.jar_entry}`);
+  }
+
+  report({ stage: "tree", message: "Building the folder tree", percent: 82 });
+  const { tree, truncated, files: treeFiles } = buildPackTree(listing, fileEntries, projectPaths);
+  const selectableCount = allSelectablePaths(tree).length;
+  const folders = new Set(treeFiles.map((item) => topFolder(item.path)).filter(Boolean));
+
+  report({ stage: "done", message: `Preview ready: ${identified.length} tracked, ${unknown.length} to resolve`, percent: 100 });
 
   return {
     file_name: originalName,
@@ -356,13 +520,17 @@ export async function parseMrpack(filePath, originalName) {
       summary: index.summary || "",
     },
     counts: {
+      projects: identified.length + unknown.length,
       mods: identified.length + unknown.length,
       identified: identified.length,
       unknown: unknown.length,
+      files: selectableCount,
       skipped,
     },
     identified,
     unknown,
+    tree,
+    tree_truncated: truncated,
     index_file_count: fileEntries.length,
   };
 }
@@ -406,8 +574,16 @@ async function uniqueInstanceName(client, base) {
   }
 }
 
-export async function createInstanceFromPreview(preview, { userId, mode = "new", existingId = null }) {
+export async function createInstanceFromPreview(preview, {
+  userId,
+  mode = "new",
+  existingId = null,
+  selectedFiles = [],
+  onProgress = null,
+} = {}) {
+  const report = (event) => { try { onProgress?.(event); } catch {} };
   return withTransaction(async (client) => {
+    report({ stage: "instance", message: "Creating the instance", percent: 10 });
     let instance;
     if (mode === "update" && existingId) {
       const found = await client.query("SELECT * FROM instances WHERE id = $1", [existingId]);
@@ -453,34 +629,40 @@ export async function createInstanceFromPreview(preview, { userId, mode = "new",
     );
     const importId = importRows[0].id;
 
-    // Override jars are the only bytes present in the uploaded .mrpack. Keep
-    // them so a disabled/manual file can be exported later without reupload.
+    report({ stage: "projects", message: "Writing tracked projects", percent: 25 });
+    // Override project files are the only bytes present in the uploaded .mrpack.
+    // Keep them so a disabled/manual file can be exported later without reupload.
     const overrideMap = new Map();
     try {
-      const jarEntries = await readZipEntries(
-        preview.file_path,
-        (name) => /^overrides\/mods\/[^/]+\.jar(?:\.disabled)?$/i.test(name)
-      );
-      for (const [name, value] of jarEntries) overrideMap.set(path.basename(name), value.buffer);
+      const { found: jarEntries } = await readZipEntries(preview.file_path, (name) => isProjectPath(name));
+      for (const [name, value] of jarEntries) {
+        if (name === "modrinth.index.json") continue;
+        const relative = packPath(name);
+        overrideMap.set(relative, value.buffer);
+        if (!overrideMap.has(path.basename(relative))) overrideMap.set(path.basename(relative), value.buffer);
+      }
     } catch (err) {
-      console.error("import override jars:", err.message);
+      console.error("import override files:", err.message);
     }
 
     const channel = (await client.query("SELECT value FROM settings WHERE key = 'default_channel_policy'")).rows[0]?.value || "release";
     const seen = new Set();
     let added = 0;
+    const totalProjects = preview.identified.length + preview.unknown.length;
+    let writtenProjects = 0;
     for (const mod of preview.identified) {
       if (!mod.project_id || seen.has(mod.project_id)) continue;
       seen.add(mod.project_id);
+      const kind = mod.kind || "mod";
       const { rows } = await client.query(
-        `INSERT INTO mods (instance_id, name, side, source, project_id, project_url, installed_version,
+        `INSERT INTO mods (instance_id, name, side, source, kind, project_id, project_url, installed_version,
             installed_version_id, file_name, file_sha1, file_sha512, file_size, icon_url, download_url,
             channel_policy, status, latest_version, latest_version_id, latest_published_at, added_by, disabled)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'up_to_date',$7,$8,$16,$17,$18)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'up_to_date',$8,$9,$17,$18,$19)
          ON CONFLICT (instance_id, source, project_id) WHERE project_id IS NOT NULL DO NOTHING
          RETURNING id`,
         [
-          instance.id, mod.name, mod.side || "both", mod.source, mod.project_id, mod.project_url,
+          instance.id, mod.name, mod.side || "both", mod.source, kind, mod.project_id, mod.project_url,
           mod.installed_version, mod.installed_version_id, mod.file_name, mod.file_sha1,
           mod.file_sha512, mod.file_size, mod.icon_url || null, mod.download_url || null,
           channel, mod.published_at, userId, Boolean(mod.disabled),
@@ -488,9 +670,10 @@ export async function createInstanceFromPreview(preview, { userId, mode = "new",
       );
       if (rows.length) {
         added += 1;
-        const jar = mod.jar_entry ? overrideMap.get(mod.jar_entry) : null;
+        writtenProjects += 1;
+        const jar = mod.jar_path ? overrideMap.get(mod.jar_path) : mod.jar_entry ? overrideMap.get(mod.jar_entry) : null;
         if (jar) {
-          const stored = await saveJar(instance.id, mod.disabled ? `${mod.file_name}.disabled` : mod.file_name, jar);
+          const stored = await saveJar(instance.id, storedProjectName(mod.kind, mod.file_name, mod.disabled), jar);
           await client.query(
             "UPDATE mods SET stored_path = $2, stored_version_id = installed_version_id WHERE id = $1",
             [rows[0].id, stored]
@@ -510,28 +693,82 @@ export async function createInstanceFromPreview(preview, { userId, mode = "new",
           );
         }
       }
+      if (writtenProjects && writtenProjects % 10 === 0 && totalProjects) {
+        report({
+          stage: "projects",
+          message: `Wrote ${writtenProjects} of ${totalProjects} projects`,
+          percent: 25 + Math.round((writtenProjects / totalProjects) * 30),
+        });
+      }
     }
 
     let unknownAdded = 0;
     for (const item of preview.unknown) {
       const { rows } = await client.query(
         `INSERT INTO unknown_mods (instance_id, import_id, file_name, file_sha1, file_sha512, file_size,
-            jar_mod_id, jar_name, jar_version, jar_loaders, reason)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            kind, jar_mod_id, jar_name, jar_version, jar_loaders, reason)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          ON CONFLICT (instance_id, file_sha1) DO NOTHING RETURNING id`,
         [
           instance.id, importId, item.file_name, item.file_sha1, item.file_sha512, item.file_size,
-          item.jar_mod_id || null, item.jar_name || null, item.jar_version || null,
+          item.kind || "mod", item.jar_mod_id || null, item.jar_name || null, item.jar_version || null,
           item.jar_loaders || [], item.reason || "no_match",
         ]
       );
       if (rows.length) {
         unknownAdded += 1;
-        const jar = item.jar_entry ? overrideMap.get(item.jar_entry) : null;
+        const jar = item.jar_path ? overrideMap.get(item.jar_path) : item.jar_entry ? overrideMap.get(item.jar_entry) : null;
         if (jar) {
-          const stored = await saveJar(instance.id, item.file_name, jar);
+          const stored = await saveJar(instance.id, storedProjectName(item.kind, item.file_name), jar);
           await client.query("UPDATE unknown_mods SET stored_path = $2 WHERE id = $1", [rows[0].id, stored]);
         }
+      }
+    }
+
+    report({ stage: "files", message: "Storing the selected pack files", percent: 65 });
+    const allowed = new Set(allSelectablePaths(preview.tree || []));
+    const wanted = [...new Set(selectedFiles.map((value) => String(value || "").trim()).filter(Boolean))]
+      .filter((value) => allowed.has(value));
+    let filesAdded = 0;
+    let storedBytes = 0;
+    if (wanted.length) {
+      const wantedEntries = new Set(wanted.map((value) => `overrides/${value}`));
+      try {
+        const { found: picked } = await readZipEntries(preview.file_path, (name) => wantedEntries.has(name));
+        for (const relative of wanted) {
+          const entryName = `overrides/${relative}`;
+          const value = picked.get(entryName);
+          if (!value || !value.buffer) continue;
+          if (value.buffer.length > 50 * 1024 * 1024) continue;
+          if (storedBytes + value.buffer.length > 512 * 1024 * 1024) {
+            report({ stage: "files", message: "File budget reached; remaining files were skipped", percent: 92 });
+            break;
+          }
+          const hashes = hashBuffers(value.buffer);
+          const stored = await saveInstanceFile(instance.id, relative, value.buffer);
+          const folder = topFolder(relative);
+          await client.query(
+            `INSERT INTO instance_files (instance_id, import_id, path, folder, file_name, file_size, file_sha1, stored_path, modified_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             ON CONFLICT (instance_id, path) DO NOTHING`,
+            [
+              instance.id, importId, relative, folder, path.basename(relative),
+              value.buffer.length, hashes.sha1, stored, entryModified(value.entry),
+            ]
+          );
+          storedBytes += value.buffer.length;
+          filesAdded += 1;
+          if (filesAdded % 25 === 0) {
+            report({
+              stage: "files",
+              message: `Stored ${filesAdded} of ${wanted.length} pack files`,
+              percent: 65 + Math.round((filesAdded / Math.max(1, wanted.length)) * 25),
+            });
+          }
+        }
+      } catch (err) {
+        console.error("import instance files:", err.message);
+        report({ stage: "files", message: `Some pack files could not be stored: ${err.message}`, percent: 92 });
       }
     }
 
@@ -540,10 +777,11 @@ export async function createInstanceFromPreview(preview, { userId, mode = "new",
       action: "import",
       subjectType: "instance",
       subjectId: instance.id,
-      meta: { file: preview.file_name, counts: preview.counts, added, unknownAdded },
+      meta: { file: preview.file_name, counts: preview.counts, added, unknownAdded, filesAdded },
     });
 
-    return { instance, importId, added, unknownAdded };
+    report({ stage: "done", message: `${added} projects, ${unknownAdded} to resolve, ${filesAdded} files stored`, percent: 100 });
+    return { instance, importId, added, unknownAdded, filesAdded };
   });
 }
 

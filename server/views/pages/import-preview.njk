@@ -20,11 +20,11 @@
 </div>
 
 <div class="import-summary" style="margin-bottom:16px">
-  <div class="import-stat"><strong>{{ preview.counts.mods }}</strong>mods in pack</div>
+  <div class="import-stat"><strong>{{ preview.counts.projects }}</strong>projects in pack</div>
   <div class="import-stat"><strong class="accent">{{ preview.counts.identified }}</strong>identified</div>
   <div class="import-stat"><strong class="{% if preview.counts.unknown %}warn{% endif %}">{{ preview.counts.unknown }}</strong>need a decision</div>
-  <div class="import-stat"><strong class="faint">{{ preview.counts.skipped }}</strong>non-mod files skipped</div>
-  <div class="import-stat"><strong class="faint">{{ preview.index_file_count }}</strong>index entries</div>
+  <div class="import-stat"><strong class="faint">{{ preview.counts.files }}</strong>pack files to keep</div>
+  <div class="import-stat"><strong class="faint">{{ preview.counts.skipped }}</strong>other index entries</div>
 </div>
 
 <div class="layout-main">
@@ -32,17 +32,18 @@
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Identified mods</h2>
-          <p class="panel-sub">Hash matched to a project and version</p>
+          <h2 class="panel-title">Tracked projects</h2>
+          <p class="panel-sub">Hash matched to a project and version, any kind</p>
         </div>
-        <span class="count-note">{{ preview.identified.length }} mod{% if preview.identified.length != 1 %}s{% endif %}</span>
+        <span class="count-note">{{ preview.identified.length }} project{% if preview.identified.length != 1 %}s{% endif %}</span>
       </div>
       {% if preview.identified.length %}
       <div class="table-wrap scroll-list">
         <table class="board compact">
           <thead>
             <tr>
-              <th>Mod</th>
+              <th>Project</th>
+              <th>Kind</th>
               <th>Version</th>
               <th class="hide-sm">Side</th>
               <th class="hide-sm">File</th>
@@ -58,9 +59,13 @@
                   {% else %}
                   <span class="mod-icon fallback">{{ item.name | initials }}</span>
                   {% endif %}
-                  <span class="mod-copy"><span class="mod-name">{{ item.name }}</span></span>
+                  <span class="mod-copy">
+                    <span class="mod-name">{{ item.name }}</span>
+                    {% if item.project_url %}<a class="mod-file" href="{{ item.project_url }}" target="_blank" rel="noopener noreferrer">{{ item.project_url }}</a>{% endif %}
+                  </span>
                 </div>
               </td>
+              <td><span class="kind-badge kind-{{ item.kind }}">{{ item.kind | kindLabel }}</span></td>
               <td class="faint">{{ item.installed_version }}</td>
               <td class="hide-sm faint">{{ item.side | sideLabel }}</td>
               <td class="hide-sm faint"><span class="mono-sm">{{ item.file_name }}</span></td>
@@ -88,6 +93,7 @@
           <thead>
             <tr>
               <th>File</th>
+              <th>Kind</th>
               <th>Jar</th>
               <th class="hide-sm">Reason</th>
               <th class="n">Size</th>
@@ -97,6 +103,7 @@
             {% for item in preview.unknown %}
             <tr>
               <td><span class="mono-sm">{{ item.file_name }}</span></td>
+              <td><span class="kind-badge kind-{{ item.kind }}">{{ item.kind | kindLabel }}</span></td>
               <td class="faint">{{ item.jar_name or 'No metadata' }}{% if item.jar_version %} {{ item.jar_version }}{% endif %}</td>
               <td class="hide-sm faint">{{ item.reason | reasonLabel }}</td>
               <td class="n faint">{{ item.file_size | fileSize }}</td>
@@ -107,6 +114,28 @@
       </div>
     </section>
     {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Pack contents</h2>
+          <p class="panel-sub">Choose which configs and extra folders stay with the instance. Project files are tracked automatically and cannot be deselected.</p>
+        </div>
+        <div class="row tree-actions">
+          <button class="btn sm ghost" type="button" data-tree-select="all">Select all</button>
+          <button class="btn sm ghost" type="button" data-tree-select="none">Select none</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="tree-summary">
+          <span class="faint" data-tree-count>{{ selectedFileCount }} file{% if selectedFileCount != 1 %}s{% endif %} selected</span>
+          <span class="faint" data-tree-size></span>
+          {% if preview.tree_truncated %}<span class="pill warn">List truncated at 3000 entries</span>{% endif %}
+        </div>
+        <div class="file-tree" id="import-file-tree" data-import-tree data-tree-source="#import-tree-data"></div>
+      </div>
+    </section>
+    <script type="application/json" id="import-tree-data">{{ treeJson | safe }}</script>
   </div>
 
   <aside class="rail">
@@ -118,7 +147,12 @@
         </div>
       </div>
       <div class="panel-body">
-        <form class="form" method="post" action="/imports/{{ token }}/confirm">
+        <form class="form" id="import-confirm-form" method="post" action="/imports/{{ token }}/confirm"
+          data-progress-title="Importing {{ preview.pack.name }}"
+          data-progress-message="Writing the tracked projects, then storing the pack files you selected."
+          data-progress-steps="Create the instance|Write tracked projects|Store selected pack files|Record the import|Start the first check"
+          data-progress-done-title="Import complete"
+          data-progress-done-label="Open the instance">
           {% include "partials/csrf.njk" %}
           <div class="radio-stack">
             <label class="radio-card">
@@ -147,6 +181,7 @@
           <p class="hint">No instance has this pack name and loader, so this import starts a new one.</p>
           {% endif %}
 
+          <p class="hint">Config and extra files are stored for signed-in members. Public downloads include them only when an admin enables that per instance.</p>
           <button class="btn primary" type="submit">{{ icon('download') }} Import pack</button>
           <button class="btn ghost" type="submit" formaction="/imports/{{ token }}/cancel" formnovalidate>Cancel import</button>
         </form>
