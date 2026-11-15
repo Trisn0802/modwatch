@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
 {% set meta = shown | statusMeta %}
@@ -20,7 +21,7 @@
       <div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <h1 class="page-title">{{ mod.name }}</h1>
-          <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+          {{ kindBadge(mod.kind) }}
           <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
           {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
         </div>

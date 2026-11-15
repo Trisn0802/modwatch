@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 {% from "partials/pager.njk" import pager %}
 
@@ -198,7 +199,7 @@
       <div class="unknown-copy">
         <p class="unknown-file">{{ item.file_name }}</p>
         <div class="unknown-meta">
-          <span class="kind-badge kind-{{ item.kind }}">{{ item.kind | kindLabel }}</span>
+          {{ kindBadge(item.kind) }}
           {% if item.jar_name %}<span>{{ item.jar_name }}{% if item.jar_version %} {{ item.jar_version }}{% endif %}</span>{% else %}<span>No jar metadata</span>{% endif %}
           {% if item.jar_loaders.length %}<span>{{ item.jar_loaders | join(', ') }}</span>{% endif %}
           <span>{{ item.reason | reasonLabel }}</span>
@@ -343,7 +344,7 @@
                 <a class="mod-name" href="/mods/{{ mod.id }}">{{ mod.name }}</a>
                 <span class="mod-file">{{ mod.file_name or mod.project_id or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
                 <span class="mod-meta-line">
-                  <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+                  {{ kindBadge(mod.kind) }}
                   {% if mod.creator_name %}
                   <span class="creator-line">
                     {% if mod.creator_avatar_url %}<img class="author-avatar" src="{{ mod.creator_avatar_url }}" alt="" loading="lazy">{% endif %}

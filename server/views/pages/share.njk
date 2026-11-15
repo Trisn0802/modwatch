@@ -1,5 +1,6 @@
 {% extends "share-layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 
 {% block content %}
@@ -133,7 +134,7 @@
                 <span class="mod-name">{{ mod.name }}</span>
                 <span class="mod-file">{{ mod.file_name or mod.installed_version or 'No file recorded' }}</span>
                 <span class="mod-meta-line">
-                  <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+                  {{ kindBadge(mod.kind) }}
                   {% if mod.creator_name %}
                   <span class="creator-line">
                     {% if mod.creator_avatar_url %}<img class="author-avatar" src="{{ mod.creator_avatar_url }}" alt="" loading="lazy">{% endif %}

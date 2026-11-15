@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
 
 {% block content %}
 <div class="page-head">
@@ -43,7 +44,7 @@
       <span class="result-main">
         <span class="result-name">{{ mod.name }}</span>
         <span class="result-meta">
-          <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+          {{ kindBadge(mod.kind) }}
           {{ mod.instance_name }} · {{ mod.file_name or mod.installed_version }}{% if mod.creator_name %} · {{ mod.creator_name }}{% endif %}
         </span>
       </span>

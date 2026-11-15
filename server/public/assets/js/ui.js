@@ -111,6 +111,15 @@
   const searchTimers = new WeakMap();
   let searchSequence = 0;
 
+  const KIND_BADGE_ICONS = {
+    mod: '<path d="M9.5 4.5a2.5 2.5 0 0 1 5 0v1h2.5a1 1 0 0 1 1 1V9h-1a2 2 0 0 0 0 4h1v2.5a1 1 0 0 1-1 1H14v1a2.5 2.5 0 0 1-5 0v-1H6.5a1 1 0 0 1-1-1V13h1a2 2 0 0 0 0-4h-1V7.5a1 1 0 0 1 1-1h3z"/>',
+    resourcepack: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4 4 3 3-2.5 4 3.5"/>',
+    datapack: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+    shader: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>',
+  };
+  const kindBadgeSvg = (kind) =>
+    `<svg class="kind-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${KIND_BADGE_ICONS[kind] || KIND_BADGE_ICONS.mod}</svg>`;
+
   function resultRow(kind, item) {
     const link = document.createElement("a");
     link.className = "search-result";
@@ -137,7 +146,10 @@
     if (kind === "mod" && item.kindLabel) {
       const badge = document.createElement("span");
       badge.className = `kind-badge kind-${item.kind || "mod"}`;
-      badge.textContent = item.kindLabel;
+      badge.innerHTML = kindBadgeSvg(item.kind || "mod");
+      const badgeLabel = document.createElement("span");
+      badgeLabel.textContent = item.kindLabel;
+      badge.appendChild(badgeLabel);
       meta.append(badge, document.createTextNode(` ${item.instance || "Instance"} · ${item.version || "No version"}`));
     } else {
       meta.textContent = kind === "mod"

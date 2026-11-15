@@ -44,6 +44,14 @@
   --pill-neutral-ink: #c8d1db;
   --pill-muted-bg: #14151a;
   --pill-muted-ink: #96a2b0;
+  --kind-mod-bg: #10251a;
+  --kind-mod-ink: #4be38d;
+  --kind-rp-bg: #12212c;
+  --kind-rp-ink: #7cc3f0;
+  --kind-dp-bg: #291f0f;
+  --kind-dp-ink: #f5c268;
+  --kind-sh-bg: #0f2624;
+  --kind-sh-ink: #6fe0c8;
 
   --chart-1: #1bd96a;
   --chart-2: #5aa9e6;
@@ -136,6 +144,14 @@
   --pill-neutral-ink: #3b4652;
   --pill-muted-bg: #f4f6f7;
   --pill-muted-ink: #66727e;
+  --kind-mod-bg: #e5f8ed;
+  --kind-mod-ink: #0b6b37;
+  --kind-rp-bg: #e8f2fa;
+  --kind-rp-ink: #1a5f91;
+  --kind-dp-bg: #fdf3e2;
+  --kind-dp-ink: #7d4f05;
+  --kind-sh-bg: #e4f7f2;
+  --kind-sh-ink: #0b6b58;
   --chart-1: #0fa653;
   --chart-2: #1f6fa8;
   --chart-muted: #d4dade;
@@ -806,15 +822,17 @@ table.board { width: 100%; border-collapse: collapse; }
 .zip-check input[type="checkbox"] { margin: 0; }
 .mod-meta-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
 .kind-badge {
-  display: inline-flex; align-items: center; height: 17px; padding: 0 6px;
+  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px;
   border: 1px solid var(--border); border-radius: 5px;
   background: var(--raised); color: var(--muted);
   font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   white-space: nowrap;
 }
-.kind-badge.kind-resourcepack { color: var(--pill-info-ink); background: var(--pill-info-bg); border-color: transparent; }
-.kind-badge.kind-datapack { color: var(--pill-warning-ink); background: var(--pill-warning-bg); border-color: transparent; }
-.kind-badge.kind-shader { color: var(--pill-info-ink); background: var(--pill-info-bg); border-color: transparent; }
+.kind-ico { width: 10px; height: 10px; flex: none; }
+.kind-badge.kind-mod { color: var(--kind-mod-ink); background: var(--kind-mod-bg); border-color: transparent; }
+.kind-badge.kind-resourcepack { color: var(--kind-rp-ink); background: var(--kind-rp-bg); border-color: transparent; }
+.kind-badge.kind-datapack { color: var(--kind-dp-ink); background: var(--kind-dp-bg); border-color: transparent; }
+.kind-badge.kind-shader { color: var(--kind-sh-ink); background: var(--kind-sh-bg); border-color: transparent; }
 .creator-line { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; color: var(--faint); }
 .creator-line a { color: var(--faint); }
 .creator-line a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
