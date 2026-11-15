@@ -89,8 +89,8 @@ export function finishProgress(op, message = "Done") {
   publishProgress(op, { stage: "done", percent: 100, message });
 }
 
-export function failProgress(op, message = "The operation failed.") {
-  publishProgress(op, { stage: "error", message });
+export function failProgress(op, message = "The operation failed.", meta = {}) {
+  publishProgress(op, { stage: "error", message, ...meta });
 }
 
 // Keep the map from growing when a browser disconnects mid-operation.

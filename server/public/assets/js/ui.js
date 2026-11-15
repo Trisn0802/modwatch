@@ -982,7 +982,7 @@
         while (list.children.length > 40) list.firstElementChild.remove();
         list.scrollTop = list.scrollHeight;
       };
-      const finish = (result, text, nextUrl, label) => {
+      const finish = (result, text, nextUrl, label, options = {}) => {
         // A successful result keeps the dialog locked until the user presses
         // the action button. Only an error frees Escape and the backdrop.
         busy = result === "ok";
@@ -1003,6 +1003,17 @@
           if (message) message.textContent = text || "The request was processed.";
           if (kicker) kicker.textContent = "Complete";
           setMeter(100);
+        } else if (result === "rolledback") {
+          body?.classList.add("is-error");
+          if (spinner) spinner.style.display = "none";
+          if (title) title.textContent = "Rolled back";
+          if (message) {
+            message.textContent = options.ready === false
+              ? "The previous files were restored, but the server did not report ready again."
+              : "The server is running again with the previous files.";
+          }
+          if (kicker) kicker.textContent = "Rolled back";
+          if (errorBox) { errorBox.hidden = false; errorBox.textContent = text || "The apply was undone."; }
         } else {
           body?.classList.add("is-error");
           if (spinner) spinner.style.display = "none";
@@ -1077,7 +1088,11 @@
             if (kicker) kicker.textContent = "Complete";
           }
           if (data.stage === "error") {
-            finish("error", data.message || "The operation failed.", location.href, "Reload page");
+            if (data.rolledBack) {
+              finish("rolledback", data.message || "The apply was undone.", location.href, "Reload page", { ready: data.restartedReady });
+            } else {
+              finish("error", data.message || "The operation failed.", location.href, "Reload page");
+            }
           }
         });
         source.addEventListener("error", () => {
@@ -1187,6 +1202,9 @@
         const doc = new DOMParser().parseFromString(html, "text/html");
         const successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
         const errorText = doc.querySelector(".flash-error")?.textContent.trim() || "";
+        const jobMarker = doc.querySelector("[data-job-status]");
+        const jobStatus = jobMarker?.getAttribute("data-job-status") || "";
+        const jobReady = jobMarker?.getAttribute("data-job-ready") !== "0";
         if (new URL(finalUrl, location.href).pathname === "/login") {
           return finish("error", "Your session expired. Sign in again.", "/login", "Sign in");
         }
@@ -1201,6 +1219,9 @@
             }
           }
           return finish("error", detail, finalUrl, "Reload the page");
+        }
+        if (errorText && jobStatus === "rolled_back") {
+          return finish("rolledback", errorText, finalUrl, "Open the job", { ready: jobReady });
         }
         if (errorText) return finish("error", errorText, finalUrl, "Reload the page");
         finish("ok", successText || "The import is done.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Continue");

@@ -287,23 +287,30 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
           );
           await amp.appStart(connection);
           await waitForGame(connection, client, startTimeoutMs);
-          await appendJobLog(job.id, logLines, "Server restarted after rollback.");
+          const restartedReady = await waitReady(client, connection, Math.min(startTimeoutMs, 180_000), {}).then(() => true).catch(() => false);
+          await appendJobLog(
+            job.id,
+            logLines,
+            restartedReady
+              ? "Server restarted after rollback and reached ready."
+              : "Server restarted after rollback but did not report ready."
+          );
           await query(
             "UPDATE sync_jobs SET status = 'rolled_back', result = $2::jsonb, finished_at = now() WHERE id = $1",
-            [job.id, JSON.stringify({ error: err.message, restored: applied.length })]
+            [job.id, JSON.stringify({ error: err.message, restored: applied.length, restarted_ready: restartedReady })]
           );
           await createNotifications({
             kind: "sync",
             instanceId: target.instance_id,
             title: `Sync rolled back: ${state.name}`,
-            body: `${err.message}. The previous jars were restored.`,
+            body: `${err.message}. The previous jars were restored and the server was restarted.`,
           });
           await telegramSend(`ModWatch · ${state.name}\nRolled back: ${err.message}`);
           await logActivity({
             userId, action: "sync_rolled_back", subjectType: "instance", subjectId: target.instance_id,
             meta: { target: target.name, error: err.message },
           });
-          return { job, ok: false, rolledBack: true, error: err.message };
+          return { job, ok: false, rolledBack: true, restartedReady, error: err.message };
         } catch (rollbackErr) {
           await appendJobLog(job.id, logLines, `ROLLBACK FAILED ${rollbackErr.message}`);
           await query(

@@ -2,6 +2,7 @@
 {% from "partials/icon.njk" import icon %}
 
 {% block content %}
+<div hidden data-job-status="{{ job.status }}" data-job-ready="{% if job.result.restarted_ready == false %}0{% else %}1{% endif %}"></div>
 <a class="backlink" href="/instances/{{ job.instance_id }}/servers">{{ icon('arrow-left') }} {{ job.instance_name }}</a>
 
 <div class="page-head">
@@ -22,6 +23,16 @@
 
 {% if job.result.error %}
 <div class="error-box" role="alert" style="margin-bottom:16px">{{ icon('alert') }}<span>{{ job.result.error }}</span></div>
+{% endif %}
+
+{% if job.status == 'rolled_back' %}
+<div class="notice" style="margin-bottom:16px">
+  {% if job.result.restarted_ready == false %}
+  The apply was undone. The previous files were restored, but the server did not report ready again — check the console.
+  {% else %}
+  The apply failed and was undone. The previous files were restored and the server is running again.
+  {% endif %}
+</div>
 {% endif %}
 
 <div class="layout-main">

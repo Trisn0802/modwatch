@@ -315,10 +315,19 @@ syncRouter.post("/instances/:id/servers/:targetId/apply", requireAdmin, async (r
       finishProgress(op, `${result.changes} change(s) applied; server is ready`);
       flash(req, "ok", `${target.name}: ${result.changes} change(s) applied. Server reached ready.`);
     } else {
-      failProgress(op, result.error || "The sync did not complete.");
-      flash(req, "error", result.rolledBack
-        ? `${target.name} failed; the previous jars were restored. ${result.error}`
-        : `${target.name} failed. ${result.error}`);
+      if (result.rolledBack) {
+        const readyNote = result.restartedReady === false
+          ? "The server restarted but did not report ready again."
+          : "The previous files are running again.";
+        failProgress(op, result.error || "The apply was undone.", {
+          rolledBack: true,
+          restartedReady: result.restartedReady !== false,
+        });
+        flash(req, "error", `${target.name}: apply failed and was rolled back. ${readyNote} ${result.error}`);
+      } else {
+        failProgress(op, result.error || "The sync did not complete.");
+        flash(req, "error", `${target.name} failed. ${result.error}`);
+      }
     }
     res.redirect(`/sync-jobs/${jobId}`);
   } catch (err) {
