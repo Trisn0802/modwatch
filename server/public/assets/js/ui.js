@@ -1196,7 +1196,8 @@
       }
       const size = document.createElement("span");
       size.className = "tree-size";
-      size.textContent = isFolder ? `${node.count || 0} items` : formatBytes(node.size);
+      const count = node.count || 0;
+      size.textContent = isFolder ? `${count} item${count === 1 ? "" : "s"}` : formatBytes(node.size);
       row.appendChild(size);
       const date = document.createElement("span");
       date.className = "tree-date";

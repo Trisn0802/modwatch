@@ -1722,7 +1722,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .tree-check-spacer { width: 15px; height: 15px; flex: none; }
 .tree-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--faint); }
 .tree-ico svg { width: 15px; height: 15px; }
-.tree-row.is-folder .tree-ico { color: var(--brand-text); }
+.tree-row.is-folder .tree-ico { color: var(--muted); }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-badge {
   flex: none; display: inline-flex; align-items: center; height: 16px; padding: 0 5px;
