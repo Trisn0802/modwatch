@@ -1784,6 +1784,7 @@ body.dialog-open { overflow: hidden; }
 }
 .progress-steps li.is-active { color: var(--text); }
 .progress-steps li.is-active::before { background: var(--brand); animation: mw-pulse 1s ease-in-out infinite; }
+.progress-steps li.is-done { padding-left: 5px; }
 .progress-steps li.is-done::before { background: var(--brand); }
 .dialog-section { margin-top: 12px; }
 .dialog-help { margin-top: 8px; font-size: 10.5px; color: var(--faint); line-height: 1.5; }
