@@ -247,10 +247,17 @@ The app sets a strict Content Security Policy. All JavaScript is served from `/a
 
 ## Contributors
 
-- **Trisna Almuti** ([@Trisn0802](https://github.com/Trisn0802)) — maintainer.
-- **DeepSeek** — AI coding assistant for implementation, debugging, UI refinement and documentation support.
+**Maintainer**
 
-See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full credit list.
+- **Trisna Almuti** ([@Trisn0802](https://github.com/Trisn0802)) — product, infrastructure, CurseForge API integration and release testing.
+
+**Implementation support**
+
+- **DeepSeek** — AI coding assistant used for implementation, debugging, UI refinement and documentation support across ModWatch.
+
+**Open-source dependencies**
+
+See `server/package.json` for the full dependency list. ModWatch also vendors `pusher-js` (MIT) for the realtime client.
 
 ## Troubleshooting
 
