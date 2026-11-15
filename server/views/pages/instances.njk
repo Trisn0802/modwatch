@@ -9,7 +9,7 @@
     <p class="page-sub">{{ instances.length }} instance{% if instances.length != 1 %}s{% endif %}, each locked to one Minecraft version and loader. An update only counts when a release matches that scope.</p>
   </div>
   <div class="page-actions">
-    {% if isAdmin %}<a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>{% endif %}
+    <a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>
     <a class="btn primary" href="/instances/new">{{ icon('plus') }} New instance</a>
   </div>
 </div>
@@ -99,7 +99,7 @@
         <p class="empty-text">An instance is one modpack on one Minecraft version and loader. Import a .mrpack to get its mod list in one step, or add the details by hand.</p>
         <div class="empty-actions">
           <a class="btn primary" href="/instances/new">Create an instance</a>
-          {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
+          <a class="btn" href="/imports/new">Import .mrpack</a>
         </div>
       </div>
     </div>

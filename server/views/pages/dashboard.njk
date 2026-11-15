@@ -16,7 +16,7 @@
     </div>
   </div>
   <div class="page-actions">
-    {% if isAdmin %}<a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>{% endif %}
+    <a class="btn" href="/imports/new">{{ icon('upload') }} Import .mrpack</a>
     <a class="btn" href="/instances/new">{{ icon('plus') }} New instance</a>
     <form method="post" action="/check-all">
       {% include "partials/csrf.njk" %}
@@ -31,7 +31,7 @@
     <p class="setup-step">Step 1</p>
     <p class="setup-title">Import the pack you run</p>
     <p class="setup-copy">A .mrpack gives ModWatch every jar, its hash, and the exact Forge or Fabric build.</p>
-    {% if isAdmin %}<a class="setup-link" href="/imports/new">Upload a .mrpack {{ icon('arrow-right') }}</a>{% endif %}
+    <a class="setup-link" href="/imports/new">Upload a .mrpack {{ icon('arrow-right') }}</a>
   </div>
   <div class="setup-cell">
     <p class="setup-step">Step 2</p>
@@ -194,7 +194,7 @@
           <p class="empty-text">Create one by hand or import the .mrpack you actually play. The board fills in after the first check.</p>
           <div class="empty-actions">
             <a class="btn primary" href="/instances/new">Create an instance</a>
-            {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
+            <a class="btn" href="/imports/new">Import .mrpack</a>
           </div>
         </div>
       </div>
