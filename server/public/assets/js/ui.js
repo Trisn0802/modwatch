@@ -900,15 +900,15 @@
   const refreshCsrfToken = async (form) => {
     try {
       const response = await fetch("/api/csrf", { cache: "no-store", headers: { "X-Requested-With": "fetch" } });
-      if (!response.ok) return false;
+      if (!response.ok) return "";
       const data = await response.json();
       const token = data?.token;
-      if (!token) return false;
+      if (!token) return "";
       const input = form.querySelector('input[name="_csrf"]');
       if (input) input.value = token;
-      return true;
+      return token;
     } catch {
-      return false;
+      return "";
     }
   };
 
@@ -1086,11 +1086,13 @@
       }
 
       if (mode === "upload") {
+        let uploadToken = "";
         const sendUpload = (retried = false) => {
           if (retried) topStart();
           const xhr = new XMLHttpRequest();
           xhr.open("POST", action, true);
           xhr.setRequestHeader("X-Requested-With", "fetch");
+          if (uploadToken) xhr.setRequestHeader("X-CSRF-Token", uploadToken);
           xhr.upload.addEventListener("progress", (progressEvent) => {
             if (!progressEvent.lengthComputable) return;
             const percent = Math.round((progressEvent.loaded / progressEvent.total) * 55);
@@ -1115,7 +1117,9 @@
                 // A stale token is recoverable: read a fresh one from a new
                 // upload page and retry once without losing the chosen file.
                 if (!retried) {
-                  if (await refreshCsrfToken(form)) {
+                  const token = await refreshCsrfToken(form);
+                  if (token) {
+                    uploadToken = token;
                     if (message) message.textContent = "Session token refreshed. Retrying the upload…";
                     lastPercent = 0;
                     setMeter(0);
@@ -1143,7 +1147,7 @@
           xhr.send(new FormData(form));
         };
         if (message) message.textContent = "Checking the session token…";
-        await refreshCsrfToken(form);
+        uploadToken = await refreshCsrfToken(form);
         sendUpload();
         return;
       }
