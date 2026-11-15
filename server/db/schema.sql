@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   instance_id INTEGER REFERENCES instances(id) ON DELETE CASCADE,
   mod_id      INTEGER REFERENCES mods(id) ON DELETE CASCADE,
-  kind        TEXT NOT NULL CHECK (kind IN ('update','unknown','request','decision','error','system')),
+  kind        TEXT NOT NULL CHECK (kind IN ('update','unknown','request','decision','error','system','sync')),
   version_id  TEXT,
   title       TEXT NOT NULL,
   body        TEXT NOT NULL DEFAULT '',
@@ -238,6 +238,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_update_uq
   ON notifications (user_id, mod_id, version_id) WHERE kind = 'update';
 CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications (user_id, read_at);
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_kind_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_kind_check
+  CHECK (kind IN ('update','unknown','request','decision','error','system','sync'));
 
 CREATE TABLE IF NOT EXISTS check_runs (
   id          SERIAL PRIMARY KEY,
@@ -274,3 +277,78 @@ CREATE TABLE IF NOT EXISTS "session" (
   expire TIMESTAMP(6) NOT NULL
 );
 CREATE INDEX IF NOT EXISTS session_expire_idx ON "session" (expire);
+
+-- Server sync: connections, targets, remote file cache and future apply jobs.
+CREATE TABLE IF NOT EXISTS sync_connections (
+  id              SERIAL PRIMARY KEY,
+  name            TEXT NOT NULL UNIQUE,
+  driver          TEXT NOT NULL CHECK (driver IN ('amp','sftp','folder','pterodactyl')),
+  config          JSONB NOT NULL DEFAULT '{}'::jsonb,
+  secret_enc      TEXT,
+  last_test_at    TIMESTAMPTZ,
+  last_test_ok    BOOLEAN,
+  last_test_error TEXT,
+  created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS sync_targets (
+  id                    SERIAL PRIMARY KEY,
+  instance_id           INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+  connection_id         INTEGER NOT NULL REFERENCES sync_connections(id) ON DELETE RESTRICT,
+  name                  TEXT NOT NULL,
+  remote_ref            TEXT NOT NULL DEFAULT '',
+  mods_path             TEXT NOT NULL DEFAULT 'mods',
+  sides                 TEXT[] NOT NULL DEFAULT ARRAY['both','server'],
+  remove_policy         TEXT NOT NULL DEFAULT 'never' CHECK (remove_policy IN ('never','backup_then_remove')),
+  require_empty_server  BOOLEAN NOT NULL DEFAULT true,
+  use_amp_backup        BOOLEAN NOT NULL DEFAULT false,
+  start_timeout_seconds INTEGER NOT NULL DEFAULT 300,
+  keep_backups          INTEGER NOT NULL DEFAULT 5,
+  last_scan_at          TIMESTAMPTZ,
+  last_scan_summary     JSONB,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (instance_id, name)
+);
+CREATE INDEX IF NOT EXISTS sync_targets_instance_idx ON sync_targets (instance_id);
+
+CREATE TABLE IF NOT EXISTS sync_remote_files (
+  target_id  INTEGER NOT NULL REFERENCES sync_targets(id) ON DELETE CASCADE,
+  path       TEXT NOT NULL,
+  file_name  TEXT NOT NULL,
+  size       BIGINT NOT NULL DEFAULT 0,
+  sha1       TEXT,
+  mod_id     INTEGER REFERENCES mods(id) ON DELETE SET NULL,
+  scanned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (target_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS sync_jobs (
+  id          SERIAL PRIMARY KEY,
+  target_id   INTEGER NOT NULL REFERENCES sync_targets(id) ON DELETE CASCADE,
+  user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  mode        TEXT NOT NULL CHECK (mode IN ('dry_run','apply')),
+  status      TEXT NOT NULL DEFAULT 'queued'
+              CHECK (status IN ('queued','running','succeeded','failed','rolled_back','cancelled')),
+  plan        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  result      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  log         TEXT NOT NULL DEFAULT '',
+  started_at  TIMESTAMPTZ,
+  finished_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS sync_jobs_target_idx ON sync_jobs (target_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sync_job_items (
+  id            SERIAL PRIMARY KEY,
+  job_id        INTEGER NOT NULL REFERENCES sync_jobs(id) ON DELETE CASCADE,
+  mod_id        INTEGER REFERENCES mods(id) ON DELETE SET NULL,
+  action        TEXT NOT NULL CHECK (action IN ('add','replace','disable','enable','remove','keep','blocked')),
+  file_name     TEXT NOT NULL DEFAULT '',
+  old_file_name TEXT NOT NULL DEFAULT '',
+  sha1          TEXT,
+  size          BIGINT,
+  status        TEXT NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','done','failed','skipped','rolled_back')),
+  error         TEXT NOT NULL DEFAULT ''
+);

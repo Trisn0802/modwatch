@@ -4,6 +4,7 @@
   <a href="/settings" {% if section == 'general' %}aria-current="page"{% endif %}>{{ icon('settings') }}General</a>
   <a href="/settings/notifications" {% if section == 'notifications' %}aria-current="page"{% endif %}>{{ icon('bell') }}Notifications</a>
   <a href="/settings/sources" {% if section == 'sources' %}aria-current="page"{% endif %}>{{ icon('database') }}Sources</a>
+  <a href="/settings/sync" {% if section == 'sync' %}aria-current="page"{% endif %}>{{ icon('link') }}Sync</a>
   {% endif %}
   <a href="/settings/account" {% if section == 'account' %}aria-current="page"{% endif %}>{{ icon('user') }}Account</a>
 </nav>

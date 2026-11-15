@@ -47,6 +47,7 @@
   <div class="instance-actions">
     <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add project</a>
     <a class="btn" href="/instances/{{ instance.id }}/files">{{ icon('folder') }} Files{% if fileCount %} ({{ fileCount }}){% endif %}</a>
+    <a class="btn" href="/instances/{{ instance.id }}/servers">{{ icon('database') }} Servers</a>
     {% if isAdmin and stats.updates %}
     <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm-title="Update all mods?" data-confirm-label="Update all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
       {% include "partials/csrf.njk" %}

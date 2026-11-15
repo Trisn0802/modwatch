@@ -1,0 +1,68 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}/servers">{{ icon('arrow-left') }} Servers</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Read-only diff</p>
+    <h1 class="page-title">{{ target.name }}</h1>
+    <p class="page-sub">{{ instance.name }} compared with <code>{{ target.mods_path }}</code> on {{ target.connection_name }}{% if summary %} · scanned {{ summary.scanned_at | relative }}{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/instances/{{ instance.id }}/servers">{{ icon('arrow-left') }} Back to servers</a>
+    {% if isAdmin %}
+    <form method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}/scan"
+      data-progress-title="Scanning {{ target.name }}"
+      data-progress-message="Connecting over SFTP, listing the mods folder and hashing the jars."
+      data-progress-steps="Connect over SFTP|List the mods folder|Hash the jars|Build the diff|Save the scan"
+      data-progress-done-title="Scan complete"
+      data-progress-done-label="Open the diff">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('refresh') }} Scan again</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not summary %}
+<section class="panel"><div class="panel-body"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('database') }}</span><p class="empty-title">No scan yet</p><p class="empty-text">{% if isAdmin %}Run a scan to list the server's mods folder and compare it with this instance.{% else %}Ask an admin to run a scan.{% endif %}</p></div></div></div></section>
+{% else %}
+<div class="import-summary" style="margin-bottom:16px">
+  <div class="import-stat"><strong class="accent">{{ summary.counts.add + summary.counts.replace }}</strong>to add / replace</div>
+  <div class="import-stat"><strong>{{ summary.counts.keep }}</strong>same</div>
+  <div class="import-stat"><strong class="faint">{{ summary.counts.disable + summary.counts.enable }}</strong>disable / enable</div>
+  <div class="import-stat"><strong class="faint">{{ summary.counts.extra }}</strong>extra on server</div>
+  <div class="import-stat"><strong class="{% if summary.counts.blocked %}warn{% endif %}">{{ summary.counts.blocked }}</strong>blocked</div>
+  <div class="import-stat"><strong class="faint">{{ summary.desired }}</strong>tracked server mods</div>
+</div>
+
+{% if summary.warnings.length %}
+<div class="notice" style="margin-bottom:16px">{{ summary.warnings | join(' · ') }}</div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Diff</h2><p class="panel-sub">Nothing here is written to the server in this phase</p></div>
+    <span class="count-note">{{ summary.items.length }} row{% if summary.items.length != 1 %}s{% endif %}</span>
+  </div>
+  <div class="table-wrap scroll-list">
+    <table class="board">
+      <thead><tr><th>Project</th><th>ModWatch</th><th>Server file</th><th>Action</th><th class="hide-sm">Reason</th></tr></thead>
+      <tbody>
+        {% for item in summary.items %}
+        <tr>
+          <td><span class="cell-main">{{ item.name }}</span>{% if item.remoteSize %}<span class="cell-sub">{{ item.remoteSize | fileSize }}</span>{% endif %}</td>
+          <td class="faint">{{ item.version or '—' }}</td>
+          <td class="mono-sm">{{ item.oldFile or item.file or 'missing' }}</td>
+          <td><span class="pill {% if item.action == 'add' or item.action == 'enable' %}pos{% elif item.action == 'replace' or item.action == 'disable' %}warn{% elif item.action == 'blocked' %}neg{% else %}muted{% endif %}">{{ item.action }}</span></td>
+          <td class="hide-sm faint">{{ item.reason or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

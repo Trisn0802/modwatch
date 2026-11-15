@@ -1,0 +1,125 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Control</p>
+    <h1 class="page-title">Sync</h1>
+    <p class="page-sub">Connections to game panels and servers. The first driver is SFTP; files are read-only in this phase.</p>
+  </div>
+</div>
+
+<div class="settings-layout">
+  {% include "partials/settings-nav.njk" %}
+
+  <div class="stack settings-panel">
+    {% if not keyReady %}
+    <div class="error-box" role="alert">{{ icon('alert') }}<span>Set <code>SYNC_SECRET_KEY</code> in <code>.env</code> before saving credentials. Generate one with <code>node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"</code>.</span></div>
+    {% endif %}
+    {% if error %}<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>{% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">{% if editConnection %}Edit connection{% else %}New connection{% endif %}</h2>
+          <p class="panel-sub">SFTP host and credentials</p>
+        </div>
+        {% if editConnection %}<a class="card-link" href="/settings/sync">New connection</a>{% endif %}
+      </div>
+      <div class="panel-body">
+        <form class="form" method="post" action="{% if editConnection %}/settings/sync/{{ editConnection.id }}{% else %}/settings/sync{% endif %}">
+          {% include "partials/csrf.njk" %}
+          <div class="form-grid">
+            <div class="field">
+              <label for="sync-name">Name</label>
+              <input class="input" id="sync-name" name="name" value="{{ editConnection.name if editConnection else '' }}" placeholder="Gugu Gaga AMP" required>
+            </div>
+            <div class="field">
+              <label for="sync-host">Host</label>
+              <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.10.8" required>
+            </div>
+            <div class="field">
+              <label for="sync-port">Port</label>
+              <input class="input" id="sync-port" name="port" type="number" min="1" max="65535" value="{{ editConnection.config.port if editConnection else 22 }}" required>
+            </div>
+            <div class="field">
+              <label for="sync-user">Username</label>
+              <input class="input" id="sync-user" name="username" value="{{ editConnection.config.username if editConnection else '' }}" required>
+            </div>
+            <div class="field full">
+              <label for="sync-base">Base path <span class="faint">optional</span></label>
+              <input class="input" id="sync-base" name="base_path" value="{{ editConnection.config.basePath if editConnection else '' }}" placeholder="Leave empty if the SFTP root is the instance folder">
+            </div>
+            <div class="field">
+              <label for="sync-password">Password {% if editConnection %}<span class="faint">leave blank to keep</span>{% endif %}</label>
+              <input class="input" id="sync-password" name="password" type="password" autocomplete="new-password">
+            </div>
+            <div class="field">
+              <label for="sync-passphrase">Key passphrase {% if editConnection %}<span class="faint">optional</span>{% endif %}</label>
+              <input class="input" id="sync-passphrase" name="passphrase" type="password" autocomplete="new-password">
+            </div>
+            <div class="field full">
+              <label for="sync-key">Private key <span class="faint">optional; use instead of a password</span></label>
+              <textarea id="sync-key" name="private_key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+            </div>
+            <div class="field full">
+              <label for="sync-fingerprint">Pinned host key <span class="faint">SHA256, filled by Test connection</span></label>
+              <input class="input" id="sync-fingerprint" name="host_fingerprint" value="{{ editConnection.config.hostFingerprint if editConnection else '' }}" placeholder="Leave empty for trust-on-first-use">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit" {% if not keyReady %}disabled{% endif %}>{{ icon('check') }} {% if editConnection %}Save connection{% else %}Add connection{% endif %}</button>
+            {% if editConnection %}<a class="btn ghost" href="/settings/sync">Cancel</a>{% endif %}
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2 class="panel-title">Connections</h2><p class="panel-sub">Secrets are encrypted and never shown again</p></div>
+        <span class="count-note">{{ connections.length }}</span>
+      </div>
+      {% if connections.length %}
+      <div class="table-wrap">
+        <table class="board">
+          <thead><tr><th>Name</th><th>Host</th><th class="hide-sm">User</th><th class="hide-sm">Pinned key</th><th>Last test</th><th aria-label="Actions"></th></tr></thead>
+          <tbody>
+            {% for connection in connections %}
+            <tr>
+              <td><span class="cell-main">{{ connection.name }}</span><span class="cell-sub">{{ connection.driver }}</span></td>
+              <td class="mono-sm">{{ connection.config.host }}:{{ connection.config.port or 22 }}</td>
+              <td class="hide-sm faint">{{ connection.config.username or '—' }}</td>
+              <td class="hide-sm faint mono-sm">{{ (connection.config.hostFingerprint or 'not pinned') | truncate(22) }}</td>
+              <td>
+                {% if connection.last_test_at %}
+                <span class="pill {% if connection.last_test_ok %}pos{% else %}neg{% endif %}"><span class="dot"></span>{% if connection.last_test_ok %}OK{% else %}Failed{% endif %}</span>
+                {% else %}<span class="faint">Never</span>{% endif %}
+              </td>
+              <td class="n">
+                <span class="row" style="gap:2px;justify-content:flex-end">
+                  <form method="post" action="/settings/sync/{{ connection.id }}/test">
+                    {% include "partials/csrf.njk" %}
+                    <input type="hidden" name="mods_path" value="mods">
+                    <button class="icon-btn" type="submit" title="Test connection" aria-label="Test {{ connection.name }}">{{ icon('refresh') }}</button>
+                  </form>
+                  <a class="icon-btn" href="/settings/sync?edit={{ connection.id }}" aria-label="Edit {{ connection.name }}" title="Edit">{{ icon('pencil') }}</a>
+                  <form method="post" action="/settings/sync/{{ connection.id }}/delete" data-confirm-title="Delete connection?" data-confirm-label="Delete" data-confirm="Delete {{ connection.name }}? Targets using it must be removed first.">
+                    {% include "partials/csrf.njk" %}
+                    <button class="icon-btn danger" type="submit" aria-label="Delete {{ connection.name }}" title="Delete">{{ icon('trash') }}</button>
+                  </form>
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="panel-body"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('link') }}</span><p class="empty-title">No connections</p><p class="empty-text">Add the SFTP endpoint from AMP. Each Minecraft instance can have its own host, port and user.</p></div></div></div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

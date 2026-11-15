@@ -30,6 +30,7 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD || "",
   checkIntervalHours: Math.max(1, numberEnv(process.env.CHECK_INTERVAL_HOURS, 6)),
   maxUploadMb: Math.max(1, numberEnv(process.env.MAX_UPLOAD_MB, 100)),
+  syncSecretKey: String(process.env.SYNC_SECRET_KEY || "").trim(),
   curseforgeApiKey: process.env.CURSEFORGE_API_KEY || "",
   githubToken: process.env.GITHUB_TOKEN || "",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",

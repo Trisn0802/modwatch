@@ -1,0 +1,140 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Server sync</p>
+    <h1 class="page-title">Servers</h1>
+    <p class="page-sub">Read-only drift report between this instance and the real server's <code>mods/</code> folder. Nothing is written in this phase.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} Back to projects</a>
+  </div>
+</div>
+
+{% if not isAdmin %}
+<div class="notice" style="margin-bottom:16px">Only an admin can add targets or run scans. You can open the latest diff below.</div>
+{% endif %}
+{% if isAdmin and not keyReady %}
+<div class="error-box" role="alert" style="margin-bottom:16px">{{ icon('alert') }}<span>Set <code>SYNC_SECRET_KEY</code> in <code>.env</code> before saving or testing a connection.</span></div>
+{% endif %}
+
+{% if isAdmin %}
+<section class="panel">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Add a target</h2><p class="panel-sub">One server for this instance</p></div>
+    {% if connections.length %}<span class="count-note">{{ connections.length }} connection{% if connections.length != 1 %}s{% endif %}</span>{% endif %}
+  </div>
+  {% if connections.length %}
+  <div class="panel-body">
+    <form class="form" method="post" action="/instances/{{ instance.id }}/servers">
+      {% include "partials/csrf.njk" %}
+      <div class="form-grid">
+        <div class="field">
+          <label for="target-name">Target name</label>
+          <input class="input" id="target-name" name="name" placeholder="Gugu Gaga AMP" required>
+        </div>
+        <div class="field">
+          <label for="target-connection">Connection</label>
+          <select class="select" id="target-connection" name="connection_id" required>
+            {% for connection in connections %}<option value="{{ connection.id }}">{{ connection.name }} · {{ connection.config.host }}:{{ connection.config.port or 22 }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="target-path">Mods path</label>
+          <input class="input" id="target-path" name="mods_path" value="mods">
+        </div>
+        <div class="field">
+          <label>Server sides</label>
+          <div class="row" style="gap:12px;flex-wrap:wrap;padding-top:8px">
+            <label class="check"><input type="checkbox" name="side_server" value="1" checked><span>Server</span></label>
+            <label class="check"><input type="checkbox" name="side_both" value="1" checked><span>Both</span></label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="target-remove">Remove policy</label>
+          <select class="select" id="target-remove" name="remove_policy">
+            <option value="never">Never remove</option>
+            <option value="backup_then_remove">Backup then remove</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="target-timeout">Start timeout (seconds)</label>
+          <input class="input" id="target-timeout" name="start_timeout_seconds" type="number" value="300" min="30">
+        </div>
+      </div>
+      <div class="form-actions"><button class="btn primary" type="submit">{{ icon('plus') }} Add target</button></div>
+    </form>
+  </div>
+  {% else %}
+  <div class="panel-body"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('link') }}</span><p class="empty-title">Add a connection first</p><p class="empty-text">Connections live in Settings → Sync. Each AMP Minecraft instance can use its own SFTP port.</p><div class="empty-actions"><a class="btn primary" href="/settings/sync">{{ icon('link') }} Open Sync settings</a></div></div></div></div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% for target in targets %}
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div>
+      <h2 class="panel-title">{{ target.name }}</h2>
+      <p class="panel-sub">{{ target.connection_name }} · {{ target.driver }} · {{ target.mods_path }}</p>
+    </div>
+    <span class="count-note">{% if target.last_scan_at %}Scanned {{ target.last_scan_at | relative }}{% else %}Never scanned{% endif %}</span>
+  </div>
+  <div class="panel-body">
+    <div class="scope compact" style="margin-bottom:12px">
+      <span class="scope-cell"><span class="scope-label">Sides</span><strong>{{ target.sides | join(', ') }}</strong></span>
+      <span class="scope-cell"><span class="scope-label">Remove</span><strong>{{ target.remove_policy | replace('_', ' ') }}</strong></span>
+      <span class="scope-cell"><span class="scope-label">Empty server</span><strong>{% if target.require_empty_server %}Required{% else %}Not required{% endif %}</strong></span>
+    </div>
+    {% if target.last_scan_summary %}
+    <div class="import-summary" style="margin-bottom:12px">
+      <div class="import-stat"><strong class="accent">{{ target.last_scan_summary.counts.add + target.last_scan_summary.counts.replace }}</strong>to write</div>
+      <div class="import-stat"><strong>{{ target.last_scan_summary.counts.keep }}</strong>same</div>
+      <div class="import-stat"><strong class="faint">{{ target.last_scan_summary.counts.extra }}</strong>extra on server</div>
+      <div class="import-stat"><strong class="{% if target.last_scan_summary.counts.blocked %}warn{% endif %}">{{ target.last_scan_summary.counts.blocked }}</strong>blocked</div>
+    </div>
+    {% endif %}
+    <div class="btn-row">
+      <a class="btn" href="/instances/{{ instance.id }}/servers/{{ target.id }}">{{ icon('search') }} View diff</a>
+      {% if isAdmin %}
+      <form method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}/scan"
+        data-progress-title="Scanning {{ target.name }}"
+        data-progress-message="Connecting over SFTP, listing the mods folder and hashing the jars."
+        data-progress-steps="Connect over SFTP|List the mods folder|Hash the jars|Build the diff|Save the scan"
+        data-progress-done-title="Scan complete"
+        data-progress-done-label="Open the diff">
+        {% include "partials/csrf.njk" %}
+        <button class="btn primary" type="submit">{{ icon('refresh') }} Scan now</button>
+      </form>
+      <details class="pop">
+        <summary class="btn sm">{{ icon('pencil') }} Edit target</summary>
+        <div class="pop-panel" style="padding:14px;width:360px">
+          <form class="form" method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}">
+            {% include "partials/csrf.njk" %}
+            <div class="field"><label for="name-{{ target.id }}">Name</label><input class="input" id="name-{{ target.id }}" name="name" value="{{ target.name }}" required></div>
+            <div class="field"><label for="path-{{ target.id }}">Mods path</label><input class="input" id="path-{{ target.id }}" name="mods_path" value="{{ target.mods_path }}"></div>
+            <div class="field"><label>Server sides</label><div class="row" style="gap:12px"><label class="check"><input type="checkbox" name="side_server" value="1" {% if target.sides | includes('server') %}checked{% endif %}><span>Server</span></label><label class="check"><input type="checkbox" name="side_both" value="1" {% if target.sides | includes('both') %}checked{% endif %}><span>Both</span></label></div></div>
+            <div class="field"><label for="remove-{{ target.id }}">Remove policy</label><select class="select" id="remove-{{ target.id }}" name="remove_policy"><option value="never" {% if target.remove_policy == 'never' %}selected{% endif %}>Never remove</option><option value="backup_then_remove" {% if target.remove_policy == 'backup_then_remove' %}selected{% endif %}>Backup then remove</option></select></div>
+            <div class="field"><label class="check"><input type="checkbox" name="require_empty_server" value="1" {% if target.require_empty_server %}checked{% endif %}><span>Require empty server before apply</span></label></div>
+            <button class="btn primary" type="submit">Save target</button>
+          </form>
+        </div>
+      </details>
+      <form method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}/delete" data-confirm-title="Remove target?" data-confirm-label="Remove" data-confirm="Remove {{ target.name }} from this instance? The server files are not touched.">
+        {% include "partials/csrf.njk" %}
+        <button class="btn sm danger" type="submit">{{ icon('trash') }} Remove</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% else %}
+{% if isAdmin %}
+<div class="panel-body section-gap"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('database') }}</span><p class="empty-title">No server targets yet</p><p class="empty-text">Add an SFTP connection, then bind this instance to the AMP server.</p></div></div></div>
+{% endif %}
+{% endfor %}
+{% endblock %}
