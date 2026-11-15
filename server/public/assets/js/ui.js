@@ -913,6 +913,11 @@
     form.addEventListener("submit", async (event) => {
       if (event.defaultPrevented) return;
       event.preventDefault();
+      // A submit button can point somewhere else with formaction (the cancel
+      // button on the import preview does). Always honour that override.
+      const submitter = event.submitter || null;
+      const progressSource = submitter || form;
+      const action = submitter?.formAction || form.action;
       if (!progressModal) {
         if (mode === "upload" || mode === "nav") {
           // A native submit keeps the old page visible while the server works.
@@ -962,11 +967,12 @@
         list.scrollTop = list.scrollHeight;
       };
       const finish = (result, text, nextUrl, label) => {
-        busy = false;
-        setProgressBusy(false);
+        // A successful result keeps the dialog locked until the user presses
+        // the action button. Only an error frees Escape and the backdrop.
+        busy = result === "ok";
+        setProgressBusy(result === "ok");
         stopTimer();
         closeSource();
-        progressModal.setAttribute("aria-busy", "false");
         if (list) {
           for (const item of list.children) {
             item.classList.remove("is-active");
@@ -977,7 +983,7 @@
           body?.classList.add("is-done");
           if (spinner) spinner.style.display = "none";
           if (check) check.hidden = false;
-          if (title) title.textContent = form.dataset.progressDoneTitle || "Complete";
+          if (title) title.textContent = progressSource.dataset.progressDoneTitle || form.dataset.progressDoneTitle || "Complete";
           if (message) message.textContent = text || "The request was processed.";
           if (kicker) kicker.textContent = "Complete";
           setMeter(100);
@@ -1004,15 +1010,15 @@
       if (cont) cont.hidden = true;
       if (errorBox) { errorBox.hidden = true; errorBox.textContent = ""; }
       if (meter) { meter.hidden = true; meterFill && (meterFill.style.width = "0%"); }
-      if (title) title.textContent = form.dataset.progressTitle || "Working…";
-      if (message) message.textContent = form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
-      if (kicker) kicker.textContent = form.dataset.progressKicker || "Working";
+      if (title) title.textContent = progressSource.dataset.progressTitle || form.dataset.progressTitle || "Working…";
+      if (message) message.textContent = progressSource.dataset.progressMessage || form.dataset.progressMessage || "Keep this tab open while ModWatch finishes.";
+      if (kicker) kicker.textContent = progressSource.dataset.progressKicker || form.dataset.progressKicker || "Working";
       progressModal.setAttribute("aria-busy", "true");
 
       stopTimer();
       if (list) {
         list.replaceChildren();
-        const steps = String(form.dataset.progressSteps || "").split("|").filter(Boolean);
+        const steps = String(progressSource.dataset.progressSteps || form.dataset.progressSteps || "").split("|").filter(Boolean);
         steps.forEach((step, index) => {
           const item = document.createElement("li");
           item.textContent = step;
@@ -1051,7 +1057,7 @@
           if (data.message) logLine(data.message);
           if (data.percent != null) setMeter(data.percent);
           if (data.stage === "done") {
-            if (title && !form.dataset.progressDoneTitle) title.textContent = "Complete";
+            if (title && !progressSource.dataset.progressDoneTitle && !form.dataset.progressDoneTitle) title.textContent = "Complete";
             if (kicker) kicker.textContent = "Complete";
           }
           if (data.stage === "error") {
@@ -1066,7 +1072,7 @@
 
       if (mode === "upload") {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", form.action, true);
+        xhr.open("POST", action, true);
         xhr.setRequestHeader("X-Requested-With", "fetch");
         xhr.upload.addEventListener("progress", (progressEvent) => {
           if (!progressEvent.lengthComputable) return;
@@ -1090,11 +1096,7 @@
             const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
             successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
           } catch {}
-          finish("ok", successText || "The preview is ready.", finalUrl, form.dataset.progressDoneLabel || "Open the preview");
-          if (!navigated) {
-            navigated = true;
-            window.setTimeout(() => { location.href = finalUrl; }, 650);
-          }
+          finish("ok", successText || "The preview is ready.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Open the preview");
         });
         xhr.addEventListener("error", () => {
           topFinish();
@@ -1104,12 +1106,12 @@
         return;
       }
 
-      let requestUrl = form.action;
+      let requestUrl = action;
       // These forms are plain urlencoded writes. FormData would switch the
       // request to multipart, which the server does not parse for them.
       let requestInit = { method: "POST", body: new URLSearchParams(new FormData(form)), redirect: "follow", headers: { "X-Requested-With": "fetch" } };
       if (mode === "nav") {
-        const url = new URL(form.action, location.href);
+        const url = new URL(action, location.href);
         url.search = "";
         for (const [key, value] of new FormData(form)) {
           if (value !== "") url.searchParams.append(key, value);
@@ -1133,7 +1135,7 @@
           return finish("error", detail, finalUrl, "Reload the page");
         }
         if (errorText) return finish("error", errorText, finalUrl, "Reload the page");
-        finish("ok", successText, finalUrl, form.dataset.progressDoneLabel || "Continue");
+        finish("ok", successText, finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Continue");
         if (mode === "nav" && !navigated) {
           navigated = true;
           window.setTimeout(() => { location.href = finalUrl; }, 550);

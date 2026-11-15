@@ -184,7 +184,12 @@
 
           <p class="hint">Config and extra files are stored for signed-in members. Public downloads include them only when an admin enables that per instance.</p>
           <button class="btn primary" type="submit">{{ icon('download') }} Import pack</button>
-          <button class="btn ghost" type="submit" formaction="/imports/{{ token }}/cancel" formnovalidate>Cancel import</button>
+          <button class="btn ghost" type="submit" formaction="/imports/{{ token }}/cancel" formnovalidate
+            data-progress-title="Cancelling the import"
+            data-progress-message="Discarding the preview. Nothing will be written."
+            data-progress-steps="Discard the preview|Return to instances"
+            data-progress-done-title="Import cancelled"
+            data-progress-done-label="Back to instances">Cancel import</button>
         </form>
       </div>
     </section>

@@ -1375,6 +1375,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .version-file { display: block; margin-top: 4px; font-size: 10.5px; color: var(--faint); word-break: break-all; }
 
 /* ---------- imports ---------- */
+.import-page { padding-top: 16px; }
 .dropzone {
   position: relative;
   display: grid; place-items: center; text-align: center;
@@ -1663,11 +1664,17 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 }
 .confirm-modal .dialog-foot .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--control)); }
 .confirm-modal .dialog-foot .btn.danger:hover { background: var(--pill-negative-bg); border-color: var(--danger); }
-.progress-modal { width: min(430px, calc(100vw - 28px)); }
+.progress-modal {
+  width: min(460px, calc(100vw - 28px));
+  max-height: min(88svh, 820px);
+  padding: 0;
+  overflow: hidden;
+}
+.progress-modal[open] { display: flex; flex-direction: column; }
 .progress-modal::backdrop { pointer-events: auto; cursor: wait; }
 .progress-modal.is-busy { user-select: none; }
 body.dialog-open { overflow: hidden; }
-.progress-body { padding: 30px 26px 26px; text-align: center; }
+.progress-body { flex: 1; min-height: 0; overflow-y: auto; padding: 38px 30px 30px; text-align: center; }
 .progress-spinner {
   display: block; width: 30px; height: 30px; margin: 0 auto 18px;
   border: 2px solid var(--border);
@@ -1766,6 +1773,7 @@ body.dialog-open { overflow: hidden; }
 .progress-message { max-width: 34ch; margin: 8px auto 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .progress-steps {
   display: grid; gap: 7px; margin: 20px 0 0; padding: 14px;
+  max-height: min(250px, 34vh); overflow-y: auto;
   border: 1px solid var(--rule); border-radius: 9px;
   background: var(--raised); text-align: left; list-style: none;
 }
