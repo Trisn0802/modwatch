@@ -278,6 +278,10 @@ app.use((req, res, next) => {
 });
 
 app.use(requireAuth);
+app.get("/api/csrf", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ token: req.session.csrf || "" });
+});
 app.use(eventsRouter);
 app.use(progressRouter);
 

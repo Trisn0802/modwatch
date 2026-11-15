@@ -897,6 +897,21 @@
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   };
 
+  const refreshCsrfToken = async (form) => {
+    try {
+      const response = await fetch("/api/csrf", { cache: "no-store", headers: { "X-Requested-With": "fetch" } });
+      if (!response.ok) return false;
+      const data = await response.json();
+      const token = data?.token;
+      if (!token) return false;
+      const input = form.querySelector('input[name="_csrf"]');
+      if (input) input.value = token;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const progressOpFor = (form) => {
     let input = form.querySelector('input[name="progress_op"]');
     if (!input) {
@@ -1100,20 +1115,13 @@
                 // A stale token is recoverable: read a fresh one from a new
                 // upload page and retry once without losing the chosen file.
                 if (!retried) {
-                  try {
-                    const page = await fetch("/imports/new", { headers: { "X-Requested-With": "fetch" }, cache: "no-store" });
-                    const html = await page.text();
-                    const fresh = new DOMParser().parseFromString(html, "text/html");
-                    const token = fresh.querySelector('#import-upload-form input[name="_csrf"]')?.value;
-                    if (token && new URL(page.url, location.href).pathname === "/imports/new") {
-                      form.querySelector('input[name="_csrf"]').value = token;
-                      if (message) message.textContent = "Session token refreshed. Retrying the upload…";
-                      lastPercent = 0;
-                      setMeter(0);
-                      sendUpload(true);
-                      return;
-                    }
-                  } catch {}
+                  if (await refreshCsrfToken(form)) {
+                    if (message) message.textContent = "Session token refreshed. Retrying the upload…";
+                    lastPercent = 0;
+                    setMeter(0);
+                    sendUpload(true);
+                    return;
+                  }
                   return finish("error", "Your session expired. Sign in again, then upload the pack.", "/login", "Sign in");
                 }
                 detail = "Your session or form token expired. Reload the import page, then upload the pack again.";
@@ -1134,6 +1142,8 @@
           });
           xhr.send(new FormData(form));
         };
+        if (message) message.textContent = "Checking the session token…";
+        await refreshCsrfToken(form);
         sendUpload();
         return;
       }

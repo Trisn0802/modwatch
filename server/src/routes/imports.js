@@ -49,6 +49,16 @@ importsRouter.post("/imports/upload", async (req, res, next) => {
   try {
     await receive(req, res);
     if (!csrfValid(req)) {
+      console.warn("[upload-csrf]", {
+        sessionId: req.sessionID,
+        user: req.session.user?.email || null,
+        sessionToken: req.session.csrf ? String(req.session.csrf).slice(0, 8) : null,
+        bodyToken: req.body?._csrf ? String(req.body._csrf).slice(0, 8) : null,
+        bodyKeys: Object.keys(req.body || {}),
+        hasCookie: Boolean(req.headers.cookie),
+        contentType: req.get("content-type") || "",
+        ip: req.ip,
+      });
       if (req.file) await fs.promises.rm(req.file.path, { force: true });
       return res.status(403).render("pages/403.njk", {
         page: "",
