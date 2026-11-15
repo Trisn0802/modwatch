@@ -18,19 +18,23 @@ export function parseRepo(value) {
   return null;
 }
 
+function globMatches(name, pattern) {
+  try {
+    if (new RegExp(pattern, "i").test(name)) return true;
+  } catch {}
+  const glob = `^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`;
+  try {
+    return new RegExp(glob, "i").test(name);
+  } catch {
+    return false;
+  }
+}
+
 function pickAsset(release, pattern) {
   const assets = release.assets || [];
   const jars = assets.filter((a) => /\.jar$/i.test(a.name));
   if (!jars.length) return null;
-  if (pattern) {
-    try {
-      const re = new RegExp(pattern, "i");
-      return jars.find((a) => re.test(a.name)) || null;
-    } catch {
-      const needle = pattern.toLowerCase();
-      return jars.find((a) => a.name.toLowerCase().includes(needle)) || null;
-    }
-  }
+  if (pattern) return jars.find((a) => globMatches(a.name, pattern)) || null;
   return jars[0];
 }
 

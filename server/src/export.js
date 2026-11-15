@@ -6,6 +6,7 @@ import yazl from "yazl";
 import { query, withTransaction } from "./db.js";
 import { getVersion, listVersions as modrinthVersions } from "./sources/modrinth.js";
 import { listVersions as curseforgeVersions } from "./sources/curseforge.js";
+import { listVersions as githubVersions } from "./sources/github.js";
 import { jarAbsolute, saveJar, writeExport } from "./uploads.js";
 
 const MAX_JAR = 120 * 1024 * 1024;
@@ -117,6 +118,23 @@ async function matchStoredFile(mod) {
       return { ...match, version_id: match.version_id, file_name: match.file_name || jarFileName(mod) };
     }
   }
+  if (mod.source === "github" && mod.project_id) {
+    const versions = await githubVersions(mod.project_id, {
+      channels: ["release", "beta", "alpha"],
+      assetPattern: mod.github_asset_pattern || "",
+    });
+    const match = versions.find((v) => mod.installed_version_id && v.version_id === mod.installed_version_id)
+      || versions.find((v) => fileName && String(v.file_name).toLowerCase() === fileName);
+    if (match?.asset_url) {
+      await query(
+        `UPDATE mods SET installed_version_id = COALESCE(installed_version_id, $2),
+            download_url = $3, file_name = CASE WHEN file_name = '' THEN $4 ELSE file_name END
+          WHERE id = $1`,
+        [mod.id, match.version_id, match.asset_url, match.file_name]
+      );
+      return { ...match, download_url: match.asset_url, version_id: match.version_id, file_name: match.file_name || jarFileName(mod) };
+    }
+  }
   return null;
 }
 
@@ -125,9 +143,19 @@ export async function ensureStoredJar(mod, { force = false } = {}) {
   const sameVersion = !mod.stored_version_id || mod.stored_version_id === mod.installed_version_id;
   if (existing && sameVersion && !force) return mod.stored_path;
 
-  const file = mod.source === "modrinth" && mod.installed_version_id
+  let file = mod.source === "modrinth" && mod.installed_version_id
     ? await resolveModrinthFile(mod)
     : await matchStoredFile(mod);
+  if (!file?.download_url && mod.download_url) {
+    file = {
+      download_url: mod.download_url,
+      file_name: mod.file_name || jarFileName(mod),
+      version_id: mod.installed_version_id || mod.stored_version_id || null,
+      file_size: mod.file_size,
+      sha1: mod.file_sha1,
+      sha512: mod.file_sha512,
+    };
+  }
   if (!file?.download_url) return existing ? mod.stored_path : null;
   const buffer = await download(file.download_url);
   const storedName = mod.disabled ? disabledName(file.file_name || jarFileName(mod)) : (file.file_name || jarFileName(mod));

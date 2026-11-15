@@ -18,7 +18,7 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 - **Version controls.** Snooze one release, freeze the installed version, disable a file (exported as `.jar.disabled`), or ignore it entirely.
 - **Download and update.** Update one mod or every waiting mod: ModWatch downloads the latest allowed jar to the uploads volume, moves the installed baseline, then checks again to confirm the new version is really current. Download and update controls are green; a source failure is marked with a red badge.
 - **Monthly activity.** The dashboard plots updates found and downloaded mods for the last 12 months as an animated two-line chart, with the 12-month totals beside it.
-- **Export and share.** Admins generate a `.mrpack` from the tracked versions. A public `/s/<token>` page shows the scope and top updates, serves a 1200×630 OG image with the pack art and real mod icons, and lets anyone download the pack without an account.
+- **Export and share.** Admins generate a `.mrpack` from the tracked versions. Anyone can download all tracked jars, one source at a time, or a checked selection as a ZIP grouped into `modrinth/`, `curseforge/`, `github/` and `manual/` folders, with a manifest of missing files. A public `/s/<token>` page shows the scope and top updates, serves a 1200×630 OG image with the pack art and real mod icons, and lets anyone download the pack without an account.
 - **Themes.** OLED, Dark, Light or follow the system, chosen from a compact popover and applied before first paint.
 
 ## Quick start
@@ -233,6 +233,7 @@ The app sets a strict Content Security Policy. All JavaScript is served from `/a
     ├── src
     │   ├── app.js
     │   ├── checker.js
+    │   ├── mod-zip.js
     │   ├── scheduler.js
     │   ├── realtime.js
     │   ├── bus.js

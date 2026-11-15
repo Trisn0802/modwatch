@@ -63,6 +63,45 @@
         <form method="post" action="/instances/{{ instance.id }}/export">{% include "partials/csrf.njk" %}<button type="submit" class="download">{{ icon('download') }} Export .mrpack</button></form>
         {% endif %}
         <a class="download" href="/instances/{{ instance.id }}/export/latest">{{ icon('download') }} Download latest export</a>
+        <div class="menu-sep"></div>
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <button type="submit" class="download" title="One zip with modrinth/, curseforge/, github/ and manual/ folders">{{ icon('download') }} Download all jars (.zip)</button>
+        </form>
+        {% if sourceCounts.modrinth %}
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="source" value="modrinth">
+          <button type="submit" class="download">{{ icon('download') }} Modrinth jars ({{ sourceCounts.modrinth }})</button>
+        </form>
+        {% endif %}
+        {% if sourceCounts.curseforge %}
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="source" value="curseforge">
+          <button type="submit" class="download">{{ icon('download') }} CurseForge jars ({{ sourceCounts.curseforge }})</button>
+        </form>
+        {% endif %}
+        {% if sourceCounts.github %}
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="source" value="github">
+          <button type="submit" class="download">{{ icon('download') }} GitHub jars ({{ sourceCounts.github }})</button>
+        </form>
+        {% endif %}
+        {% if sourceCounts.manual %}
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="source" value="manual">
+          <button type="submit" class="download">{{ icon('download') }} Manual jars ({{ sourceCounts.manual }})</button>
+        </form>
+        {% endif %}
+        <div class="menu-sep"></div>
         {% if instance.share_token %}
         <a href="/s/{{ instance.share_token }}" target="_blank" rel="noopener">{{ icon('link') }} Open share page</a>
         {% if isAdmin %}<form method="post" action="/instances/{{ instance.id }}/share/revoke">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('close') }} Revoke share link</button></form>{% endif %}
@@ -210,10 +249,17 @@
     </div>
     <div class="toolbar-right">
       <span class="count-note">{{ total | number }} mod{% if total != 1 %}s{% endif %}{% if q %} matching “{{ q }}”{% endif %}</span>
+      {% if mods.length %}
+      <label class="check zip-check" title="Select the mods on this page"><input type="checkbox" data-select-all> Select page</label>
+      <button class="btn sm download" type="submit" form="zip-form" data-zip-submit disabled title="Download the selected jars as a zip, grouped by source">{{ icon('download') }} <span data-zip-label>Download selected</span></button>
+      {% endif %}
     </div>
   </form>
 
   <div id="mod-results" aria-live="polite">
+  <form id="zip-form" class="zip-form" method="post" action="/instances/{{ instance.id }}/download-zip">
+    {% include "partials/csrf.njk" %}
+  </form>
   {% if mods.length %}
   <div class="table-wrap">
     <table class="board mods-board">
@@ -236,6 +282,7 @@
         <tr class="{% if mod.disabled %}is-disabled{% endif %}">
           <td>
             <div class="mod-cell">
+              <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="zip-form" aria-label="Select {{ mod.name }} for the jar download">
               {% set art = mod | modIcon %}
               {% if art %}
               <img class="mod-icon" src="{{ art }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ mod.name | initials }}">

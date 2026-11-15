@@ -915,6 +915,30 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshScheduler(); });
   }
 
+  // --- select tracked mods for a zipped jar download -----------------------
+  const zipForm = $("#zip-form");
+  if (zipForm) {
+    const boxes = Array.from(document.querySelectorAll(".mod-select"));
+    const selectAll = $("[data-select-all]");
+    const zipSubmit = $("[data-zip-submit]");
+    const zipLabel = $("[data-zip-label]");
+    const syncZip = () => {
+      const selected = boxes.filter((box) => box.checked).length;
+      if (zipSubmit) zipSubmit.disabled = selected === 0;
+      if (zipLabel) zipLabel.textContent = selected ? `Download selected (${selected})` : "Download selected";
+      if (selectAll) {
+        selectAll.checked = boxes.length > 0 && selected === boxes.length;
+        selectAll.indeterminate = selected > 0 && selected < boxes.length;
+      }
+    };
+    selectAll?.addEventListener("change", () => {
+      boxes.forEach((box) => { box.checked = selectAll.checked; });
+      syncZip();
+    });
+    boxes.forEach((box) => box.addEventListener("change", syncZip));
+    syncZip();
+  }
+
   // --- "/" focuses the topbar search ----------------------------------------
   document.addEventListener("keydown", (event) => {
     if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;

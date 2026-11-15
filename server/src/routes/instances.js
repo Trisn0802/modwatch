@@ -12,6 +12,7 @@ import { resolveProjectUrl } from "../sources/index.js";
 import { instanceUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
 import { buildExport, latestExport, getExportByToken, removeInstanceFiles, ensureStoredJar } from "../export.js";
 import { updateAllInInstance } from "../updater.js";
+import { listModsForZip, streamModZip } from "../mod-zip.js";
 
 export const instancesRouter = express.Router();
 
@@ -148,7 +149,7 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
     }
 
     const { rows: sourceRows } = await query(
-      "SELECT source, count(*)::int AS n FROM mods WHERE instance_id = $1 GROUP BY source",
+      "SELECT source, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY source",
       [instance.id]
     );
     const sourceCounts = Object.fromEntries(sourceRows.map((r) => [r.source, r.n]));
@@ -319,6 +320,31 @@ instancesRouter.post("/instances/:id/export", async (req, res, next) => {
     if (err.code === "unsupported_loader") {
       flash(req, "error", err.message);
       return res.redirect(`/instances/${intParam(req.params.id)}`);
+    }
+    next(err);
+  }
+});
+
+instancesRouter.post("/instances/:id/download-zip", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const ids = [].concat(req.body.mod_ids || [])
+      .map((value) => Number.parseInt(value, 10))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    const all = String(req.body.all || "") === "1";
+    const source = String(req.body.source || "").trim();
+    const mods = await listModsForZip(instance, { modIds: ids, all, source });
+    if (!mods.length) {
+      flash(req, "error", "Select at least one mod to download.");
+      return res.redirect(`/instances/${instance.id}`);
+    }
+    await streamModZip(instance, mods, res);
+  } catch (err) {
+    if (res.headersSent) {
+      console.error("mod zip:", err.message);
+      res.destroy();
+      return;
     }
     next(err);
   }
