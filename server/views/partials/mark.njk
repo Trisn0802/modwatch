@@ -1,3 +1,3 @@
-{% macro mark(size) %}
-<img class="state-logo" src="/assets/img/logo.svg" alt="" width="{{ size or 28 }}" height="{{ size or 28 }}">
+{% macro mark(size, version) %}
+<img class="state-logo" src="/assets/img/logo.svg?v={{ version }}" alt="" width="{{ size or 28 }}" height="{{ size or 28 }}">
 {% endmacro %}

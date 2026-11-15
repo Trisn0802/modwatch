@@ -1152,7 +1152,7 @@
               const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
               successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
             } catch {}
-            finish("ok", successText || "The preview is ready.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Open the preview");
+            finish("ok", successText || "The import is done.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Preview");
           });
           xhr.addEventListener("error", () => {
             topFinish();
@@ -1204,7 +1204,7 @@
           return finish("error", detail, finalUrl, "Reload the page");
         }
         if (errorText) return finish("error", errorText, finalUrl, "Reload the page");
-        finish("ok", successText, finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Continue");
+        finish("ok", successText || "The import is done.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Continue");
         if (mode === "nav" && !navigated) {
           navigated = true;
           window.setTimeout(() => { location.href = finalUrl; }, 550);

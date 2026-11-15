@@ -46,14 +46,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const schema = fs.readFileSync(path.join(root, "db", "schema.sql"), "utf8");
 
-const assetVersion = (() => {
+function computeAssetVersion() {
   const stamp = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (/\.(css|js)$/i.test(entry.name)) {
-        stamp.push(`${path.relative(root, full)}:${crypto.createHash("sha1").update(fs.readFileSync(full)).digest("hex")}`);
+        try {
+          stamp.push(`${path.relative(root, full)}:${crypto.createHash("sha1").update(fs.readFileSync(full)).digest("hex")}`);
+        } catch {}
       }
     }
   };
@@ -63,7 +65,17 @@ const assetVersion = (() => {
     return "0";
   }
   return crypto.createHash("sha1").update(stamp.sort().join("|")).digest("hex").slice(0, 10);
-})();
+}
+
+// Editing a stylesheet or script on a running dev server must produce a new
+// query string immediately; production keeps the boot-time version.
+let assetCache = { at: 0, value: computeAssetVersion() };
+function currentAssetVersion() {
+  if (config.nodeEnv === "production") return assetCache.value;
+  const now = Date.now();
+  if (now - assetCache.at > 750) assetCache = { at: now, value: computeAssetVersion() };
+  return assetCache.value;
+}
 
 await waitForDb();
 const schemaClient = await pool.connect();
@@ -227,7 +239,7 @@ app.use(async (req, res, next) => {
     res.locals.baseUrl = config.appUrl || `${req.protocol}://${req.get("host")}`;
     const first = req.path.split("/")[1] || "";
     res.locals.area = ["instances", "mods", "imports"].includes(first) ? "instances" : (first || "dashboard");
-    res.locals.assetVersion = assetVersion;
+    res.locals.assetVersion = currentAssetVersion();
     res.locals.appVersion = config.appVersion;
     res.locals.scheduler = schedulerState();
     res.locals.notifHref = notificationHref;
@@ -321,7 +333,7 @@ app.use((err, req, res, next) => {
   res.locals.nav = res.locals.nav || { updates: 0, unknown: 0, requests: 0, unread: 0 };
   res.locals.pendingRequests = res.locals.pendingRequests || 0;
   res.locals.flash = res.locals.flash || null;
-  res.locals.assetVersion = res.locals.assetVersion || assetVersion;
+  res.locals.assetVersion = res.locals.assetVersion || currentAssetVersion();
   res.locals.path = res.locals.path || req.path;
   res.locals.baseUrl = res.locals.baseUrl || config.appUrl || `${req.protocol}://${req.get("host")}`;
   res.locals.notifHref = res.locals.notifHref || notificationHref;

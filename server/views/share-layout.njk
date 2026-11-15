@@ -8,11 +8,11 @@
   <title>{% block title %}{{ title or 'Shared modpack' }}{% endblock %} · ModWatch</title>
   <meta name="description" content="{{ ogDescription or 'A shared Minecraft modpack from ModWatch.' }}">
   <meta name="theme-color" content="#000000">
-  <link rel="icon" href="/assets/img/favicon.ico" sizes="any">
-  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
-  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
-  <link rel="manifest" href="/assets/site.webmanifest">
+  <link rel="icon" href="/assets/img/favicon.ico?v={{ assetVersion }}" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg?v={{ assetVersion }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png?v={{ assetVersion }}">
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png?v={{ assetVersion }}">
+  <link rel="manifest" href="/assets/site.webmanifest?v={{ assetVersion }}">
   <meta property="og:type" content="{{ ogType or 'website' }}">
   <meta property="og:site_name" content="ModWatch">
   <meta property="og:title" content="{{ ogTitle or title }}">
@@ -32,7 +32,7 @@
 <div class="mw-progress-bar" id="mw-progress-bar" aria-hidden="true"><span></span></div>
 <header class="public-topbar">
   <a class="brand" href="/" aria-label="ModWatch overview">
-    <img class="brand-mark" src="/assets/img/logo.svg" alt="" width="28" height="28">
+    <img class="brand-mark" src="/assets/img/logo.svg?v={{ assetVersion }}" alt="" width="28" height="28">
     <span class="brand-name">ModWatch</span>
   </a>
   <div class="public-topbar-actions">

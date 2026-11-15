@@ -8,12 +8,12 @@
   <title>{% block title %}{{ title or 'Sign in' }}{% endblock %} · ModWatch</title>
   <meta name="description" content="ModWatch tracks Minecraft mods across modpacks and reports updates for the exact Minecraft version and loader you run.">
   <meta name="theme-color" content="#000000">
-  <link rel="icon" href="/assets/img/favicon.ico" sizes="any">
-  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg">
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png">
-  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
-  <link rel="manifest" href="/assets/site.webmanifest">
+  <link rel="icon" href="/assets/img/favicon.ico?v={{ assetVersion }}" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/img/favicon.svg?v={{ assetVersion }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png?v={{ assetVersion }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png?v={{ assetVersion }}">
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png?v={{ assetVersion }}">
+  <link rel="manifest" href="/assets/site.webmanifest?v={{ assetVersion }}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="ModWatch">
   <meta property="og:title" content="Sign in · ModWatch">
@@ -30,7 +30,7 @@
 <div class="auth">
   <section class="auth-brand" aria-label="About ModWatch">
     <a class="brand auth-wordmark" href="/login" aria-label="ModWatch">
-      <img class="brand-mark" src="/assets/img/logo.svg" alt="" width="28" height="28">
+      <img class="brand-mark" src="/assets/img/logo.svg?v={{ assetVersion }}" alt="" width="28" height="28">
       <span class="brand-name">ModWatch</span>
     </a>
     <div class="auth-copy">
@@ -72,7 +72,7 @@
   </section>
   <section class="auth-panel">
     <a class="brand auth-mobile-brand" href="/login" aria-label="ModWatch">
-      <img class="brand-mark" src="/assets/img/logo.svg" alt="" width="28" height="28">
+      <img class="brand-mark" src="/assets/img/logo.svg?v={{ assetVersion }}" alt="" width="28" height="28">
       <span class="brand-name">ModWatch</span>
     </a>
     <div class="auth-theme" id="auth-theme"></div>

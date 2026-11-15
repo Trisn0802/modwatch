@@ -5,7 +5,7 @@
 {% block content %}
 <div class="state-page">
   <div class="state-inner">
-    <div class="state-mark">{{ mark(44) }}</div>
+    <div class="state-mark">{{ mark(44, assetVersion) }}</div>
     <p class="state-code">403 · {{ (title or 'Forbidden') | upper }}</p>
     <h1 class="state-title">{{ title or 'Admins only' }}</h1>
     <p class="state-text">{{ message or 'This page is only available to the instance owner.' }}</p>

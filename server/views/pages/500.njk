@@ -5,7 +5,7 @@
 {% block content %}
 <div class="state-page">
   <div class="state-inner">
-    <div class="state-mark">{{ mark(44) }}</div>
+    <div class="state-mark">{{ mark(44, assetVersion) }}</div>
     <p class="state-code">500 · REQUEST FAILED</p>
     <h1 class="state-title">{{ title or 'Something went wrong' }}</h1>
     <p class="state-text">{{ message or 'The request could not be completed. The server log has the details.' }}</p>
