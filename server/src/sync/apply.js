@@ -8,8 +8,7 @@ import { jarAbsolute } from "../uploads.js";
 import { logActivity } from "../activity.js";
 import { createNotifications, telegramSend } from "../notify.js";
 import { scanTarget, syncConnectionById, syncTargetById } from "./index.js";
-import * as amp from "./drivers/amp.js";
-import * as sftp from "./drivers/sftp.js";
+import { createRemote } from "./remote.js";
 
 const APPLY_ACTIONS = new Set(["add", "replace", "disable", "enable"]);
 const MAX_CHANGES = 50;
@@ -20,12 +19,12 @@ function localSha1(file) {
   return crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex");
 }
 
-async function waitForStatus(connection, predicate, timeoutMs, { onProgress, message } = {}) {
+async function waitForStatus(remote, predicate, timeoutMs, { onProgress, message } = {}) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const state = await amp.appStatus(connection);
+    const state = await remote.power.status();
     if (predicate(state)) return state;
-    onProgress?.({ stage: "wait", message: `${message} (${state.players || 0} players)`, percent: 55 });
+    onProgress?.({ stage: "wait", message, percent: 55 });
     await sleep(3000);
   }
   throw new Error(`${message || "The server"} did not reach the expected state in time.`);
@@ -52,29 +51,29 @@ function crashReason(text) {
   return "the server log reports a startup failure";
 }
 
-async function crashNames(client, connection) {
-  const entries = await sftp.listDir(client, connection, "crash-reports").catch(() => []);
+async function crashNames(remote) {
+  const entries = await remote.files.listDir("crash-reports").catch(() => []);
   return new Set(entries.filter((entry) => entry.type !== "d").map((entry) => entry.name));
 }
 
-async function crashSince(client, connection, before) {
-  const entries = await sftp.listDir(client, connection, "crash-reports").catch(() => []);
+async function crashSince(remote, before) {
+  const entries = await remote.files.listDir("crash-reports").catch(() => []);
   const fresh = entries
     .filter((entry) => entry.type !== "d" && !before.has(entry.name))
     .sort((a, b) => String(b.modifiedAt || "").localeCompare(String(a.modifiedAt || "")));
   if (!fresh.length) return "";
-  const buffer = await sftp.readRemote(client, connection, `crash-reports/${fresh[0].name}`).catch(() => null);
+  const buffer = await remote.files.read(`crash-reports/${fresh[0].name}`).catch(() => null);
   const text = buffer ? buffer.toString("utf8") : "";
   const description = text.match(/Description:\s*(.+)/)?.[1]?.trim();
   return description ? `${description} (${fresh[0].name})` : fresh[0].name;
 }
 
-async function waitForGame(connection, client, timeoutMs, { onProgress } = {}) {
+async function waitForGame(remote, timeoutMs, { onProgress } = {}) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const state = await amp.appStatus(connection);
-    if (state.gameListening || state.state === 20) return state;
-    const buffer = await sftp.readRemote(client, connection, "logs/latest.log").catch(() => null);
+    const state = await remote.power.status();
+    if (remote.power.isStarted(state)) return state;
+    const buffer = await remote.files.read("logs/latest.log").catch(() => null);
     if (buffer) {
       const reason = crashReason(buffer.toString("utf8"));
       if (reason) throw new Error(`The server failed to start: ${reason}`);
@@ -82,17 +81,19 @@ async function waitForGame(connection, client, timeoutMs, { onProgress } = {}) {
     onProgress?.({ stage: "wait", message: "Waiting for the server to start", percent: 62 });
     await sleep(3000);
   }
-  throw new Error(`The server did not start listening within ${Math.round(timeoutMs / 1000)} seconds.`);
+  throw new Error(`The server did not start within ${Math.round(timeoutMs / 1000)} seconds.`);
 }
 
-async function waitReady(client, connection, timeoutMs, { onProgress } = {}) {
+async function waitReady(remote, timeoutMs, { onProgress } = {}) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const buffer = await sftp.readRemote(client, connection, "logs/latest.log").catch(() => null);
+    const buffer = await remote.files.read("logs/latest.log").catch(() => null);
     if (buffer) {
       const text = buffer.toString("utf8");
       const boot = text.lastIndexOf("Starting minecraft server version");
       if (boot !== -1 && text.indexOf("Done (", boot) !== -1) return true;
+      const reason = crashReason(text);
+      if (reason) throw new Error(`The server failed to start: ${reason}`);
     }
     onProgress?.({ stage: "ready", message: "Waiting for the world to finish loading", percent: 70 });
     await sleep(4000);
@@ -110,14 +111,17 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
   const release = await tryAdvisoryLock(907000 + targetId);
   if (!release) throw new Error("A sync job is already running for this target.");
   let job = null;
+  let remote = null;
+  let serverName = "The server";
   const logLines = [];
   try {
     const target = await syncTargetById(targetId);
     if (!target) throw new Error("Sync target not found.");
     const connection = await syncConnectionById(target.connection_id);
     if (!connection) throw new Error("Sync connection not found.");
-    if (!amp.ampConfigured(connection)) {
-      throw new Error("AMP power is not configured on this connection. Add the AMP URL, user, password and instance name.");
+    remote = await createRemote(connection, target);
+    if (!remote.power.configured) {
+      throw new Error("Server power is not configured on this connection.");
     }
     report({ stage: "scan", message: "Rescanning the server before apply", percent: 5 });
     const scan = await scanTarget(target.id, { onProgress: (event) => report({ ...event, percent: Math.min(25, event.percent || 20) }) });
@@ -125,9 +129,13 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
     if (!items.length) throw new Error("There are no add, replace, enable or disable items to apply.");
     if (items.length > MAX_CHANGES) throw new Error(`The plan has ${items.length} changes; the safety limit is ${MAX_CHANGES}.`);
 
-    let state = await amp.appStatus(connection);
-    if (target.require_empty_server && Number(state.players) > 0) {
-      throw new Error(`${state.name} has ${state.players} player(s) online. Wait for an empty server or turn off “Require empty server”.`);
+    let state = await remote.power.status();
+    serverName = remote.kind === "pterodactyl" ? target.name : (state.name || target.name);
+    if (target.require_empty_server && !remote.power.isStopped(state)) {
+      const online = await remote.players();
+      if (online > 0) {
+        throw new Error(`${serverName} has ${online} player(s) online. Wait for an empty server or turn off “Require empty server”.`);
+      }
     }
 
     const { rows } = await query(
@@ -164,26 +172,29 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
     }
 
     const startTimeoutMs = Math.max(60, Number(target.start_timeout_seconds) || 300) * 1000;
-    const { client } = await sftp.connect(connection);
+    const stopTimeoutMs = remote.stopTimeoutMs || 180_000;
+    const modsPath = target.mods_path || "mods";
+    const backupDir = path.posix.join(path.posix.dirname(modsPath), "mods_backup", String(job.id));
     let stopped = false;
     const applied = [];
     try {
-      const backupDir = path.posix.join(path.posix.dirname(target.mods_path || "mods"), "mods_backup", String(job.id));
-      await sftp.mkdirRemote(client, connection, backupDir);
+      await remote.files.mkdir(backupDir);
+      await remote.files.mkdir(modsPath);
+
       report({ stage: "backup", message: "Backing up the jars that will change", percent: 35 });
       for (const item of items) {
         if (!item.oldFile) continue;
-        const oldPath = path.posix.join(target.mods_path || "mods", item.oldFile);
-        if (await sftp.existsRemote(client, connection, oldPath)) {
+        const oldPath = path.posix.join(modsPath, item.oldFile);
+        if (await remote.files.exists(oldPath)) {
           const backupPath = path.posix.join(backupDir, item.oldFile);
-          await sftp.copyRemote(client, connection, oldPath, backupPath);
+          await remote.files.copy(oldPath, backupPath);
           await appendJobLog(job.id, logLines, `Backed up ${item.oldFile}`);
         }
       }
 
-      report({ stage: "stop", message: `Stopping ${state.name}`, percent: 45 });
-      await amp.appStop(connection);
-      await waitForStatus(connection, (next) => Number(next.state) === 0 && !next.gameListening, 180_000, {
+      report({ stage: "stop", message: `Stopping ${serverName}`, percent: 45 });
+      await remote.power.stop();
+      await waitForStatus(remote, (next) => remote.power.isStopped(next), stopTimeoutMs, {
         onProgress: (event) => report({ ...event, percent: 48 }),
         message: "Waiting for the server to stop",
       });
@@ -192,46 +203,45 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       await appendJobLog(job.id, logLines, "Server stopped.");
 
       for (const item of items) {
-        const filePath = path.posix.join(target.mods_path || "mods", item.file);
-        const oldPath = item.oldFile ? path.posix.join(target.mods_path || "mods", item.oldFile) : "";
+        const filePath = path.posix.join(modsPath, item.file);
+        const oldPath = item.oldFile ? path.posix.join(modsPath, item.oldFile) : "";
         if (item.action === "add" || item.action === "replace") {
           const file = prepared.get(item.file || item.oldFile);
           if (!file) throw new Error(`${item.name}: the prepared local file is missing.`);
-          const tmpName = `${item.file}.modwatch-tmp`;
-          const tmpPath = path.posix.join(target.mods_path || "mods", tmpName);
-          await sftp.writeRemote(client, connection, tmpPath, file.local);
-          const remote = await sftp.hashRemote(client, connection, tmpPath);
-          if (remote.sha1 !== file.sha1) throw new Error(`${item.name}: uploaded file hash did not match.`);
-          if (oldPath && await sftp.existsRemote(client, connection, oldPath)) {
-            await sftp.removeRemote(client, connection, oldPath);
+          const tmpPath = path.posix.join(modsPath, `${item.file}.modwatch-tmp`);
+          await remote.files.write(tmpPath, file.local);
+          const uploaded = await remote.files.hash(tmpPath);
+          if (uploaded.sha1 !== file.sha1) throw new Error(`${item.name}: uploaded file hash did not match.`);
+          if (oldPath && await remote.files.exists(oldPath)) {
+            await remote.files.remove(oldPath);
           }
-          await sftp.renameRemote(client, connection, tmpPath, filePath);
+          await remote.files.rename(tmpPath, filePath);
           await query("UPDATE sync_job_items SET status = 'done', sha1 = $2 WHERE job_id = $1 AND file_name = $3", [job.id, file.sha1, item.file]);
           applied.push(item);
           await appendJobLog(job.id, logLines, `${item.action} ${item.file}`);
         } else if (item.action === "disable" || item.action === "enable") {
-          if (!oldPath || !(await sftp.existsRemote(client, connection, oldPath))) {
+          if (!oldPath || !(await remote.files.exists(oldPath))) {
             throw new Error(`${item.name}: the file to ${item.action} is missing on the server.`);
           }
-          await sftp.renameRemote(client, connection, oldPath, filePath);
+          await remote.files.rename(oldPath, filePath);
           await query("UPDATE sync_job_items SET status = 'done' WHERE job_id = $1 AND file_name = $2", [job.id, item.file]);
           applied.push(item);
           await appendJobLog(job.id, logLines, `${item.action} ${item.oldFile} -> ${item.file}`);
         }
       }
 
-      const crashBefore = await crashNames(client, connection);
-      report({ stage: "start", message: `Starting ${state.name}`, percent: 60 });
-      await amp.appStart(connection);
-      await waitForGame(connection, client, startTimeoutMs, { onProgress: report });
-      await waitReady(client, connection, startTimeoutMs, { onProgress: report });
+      const crashBefore = await crashNames(remote);
+      report({ stage: "start", message: `Starting ${serverName}`, percent: 60 });
+      await remote.power.start();
+      await waitForGame(remote, startTimeoutMs, { onProgress: report });
+      await waitReady(remote, startTimeoutMs, { onProgress: report });
 
       report({ stage: "verify", message: "Checking that the server stays up", percent: 92 });
       await sleep(6000);
-      const crash = await crashSince(client, connection, crashBefore);
+      const crash = await crashSince(remote, crashBefore);
       if (crash) throw new Error(`The server crashed after it reported ready: ${crash}`);
-      const after = await amp.appStatus(connection);
-      if (!after.gameListening) throw new Error("The server stopped listening after it reported ready.");
+      const after = await remote.power.status();
+      if (!remote.power.isStarted(after)) throw new Error("The server stopped after it reported ready.");
       await appendJobLog(job.id, logLines, "Server reached ready and stayed up.");
 
       await query(
@@ -244,11 +254,11 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       await createNotifications({
         kind: "sync",
         instanceId: target.instance_id,
-        title: `Server sync: ${state.name}`,
+        title: `Server sync: ${serverName}`,
         body: `${applied.length} change(s) applied and the server reached ready.`,
         userIds: admins.map((row) => row.id),
       });
-      await telegramSend(`ModWatch · ${state.name}\n${applied.length} file(s) synced; server is ready.`);
+      await telegramSend(`ModWatch · ${serverName}\n${applied.length} file(s) synced; server is ready.`);
       await logActivity({
         userId, action: "sync_applied", subjectType: "instance", subjectId: target.instance_id,
         meta: { target: target.name, changes: applied.length },
@@ -259,35 +269,34 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       if (stopped) {
         report({ stage: "rollback", message: "Rolling back the server files", percent: 80 });
         try {
-          const current = await amp.appStatus(connection);
-          if (current.running) {
-            await amp.appStop(connection);
-            await waitForStatus(connection, (next) => Number(next.state) === 0 && !next.gameListening, 180_000, { message: "Waiting to roll back" });
+          const current = await remote.power.status();
+          if (!remote.power.isStopped(current)) {
+            await remote.power.stop();
+            await waitForStatus(remote, (next) => remote.power.isStopped(next), stopTimeoutMs, { message: "Waiting to roll back" });
             await sleep(2500);
           }
-          const backupDir = path.posix.join(path.posix.dirname(target.mods_path || "mods"), "mods_backup", String(job.id));
           for (const item of [...applied].reverse()) {
-            const filePath = path.posix.join(target.mods_path || "mods", item.file);
-            const oldPath = item.oldFile ? path.posix.join(target.mods_path || "mods", item.oldFile) : "";
+            const filePath = path.posix.join(modsPath, item.file);
+            const oldPath = item.oldFile ? path.posix.join(modsPath, item.oldFile) : "";
             const backupPath = item.oldFile ? path.posix.join(backupDir, item.oldFile) : "";
             if (item.action === "add") {
-              await sftp.removeRemote(client, connection, filePath);
+              await remote.files.remove(filePath);
             } else if (item.action === "replace") {
-              await sftp.removeRemote(client, connection, filePath);
-              if (backupPath && await sftp.existsRemote(client, connection, backupPath)) {
-                await sftp.copyRemote(client, connection, backupPath, oldPath);
+              await remote.files.remove(filePath);
+              if (backupPath && await remote.files.exists(backupPath)) {
+                await remote.files.copy(backupPath, oldPath);
               }
             } else if (item.action === "disable" || item.action === "enable") {
-              await sftp.renameRemote(client, connection, filePath, oldPath);
+              await remote.files.rename(filePath, oldPath);
             }
           }
           await query(
             "UPDATE sync_job_items SET status = 'rolled_back' WHERE job_id = $1 AND status <> 'rolled_back'",
             [job.id]
           );
-          await amp.appStart(connection);
-          await waitForGame(connection, client, startTimeoutMs);
-          const restartedReady = await waitReady(client, connection, Math.min(startTimeoutMs, 180_000), {}).then(() => true).catch(() => false);
+          await remote.power.start();
+          await waitForGame(remote, startTimeoutMs);
+          const restartedReady = await waitReady(remote, Math.min(startTimeoutMs, 180_000), {}).then(() => true).catch(() => false);
           await appendJobLog(
             job.id,
             logLines,
@@ -302,10 +311,10 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
           await createNotifications({
             kind: "sync",
             instanceId: target.instance_id,
-            title: `Sync rolled back: ${state.name}`,
+            title: `Sync rolled back: ${serverName}`,
             body: `${err.message}. The previous jars were restored and the server was restarted.`,
           });
-          await telegramSend(`ModWatch · ${state.name}\nRolled back: ${err.message}`);
+          await telegramSend(`ModWatch · ${serverName}\nRolled back: ${err.message}`);
           await logActivity({
             userId, action: "sync_rolled_back", subjectType: "instance", subjectId: target.instance_id,
             meta: { target: target.name, error: err.message },
@@ -319,7 +328,7 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
           );
           await createNotifications({
             kind: "sync", instanceId: target.instance_id,
-            title: `Rollback failed: ${state.name}`,
+            title: `Rollback failed: ${serverName}`,
             body: `${err.message}. Rollback also failed: ${rollbackErr.message}`,
           });
           return { job, ok: false, rolledBack: false, error: `${err.message}; rollback failed: ${rollbackErr.message}` };
@@ -331,7 +340,7 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       );
       await createNotifications({
         kind: "sync", instanceId: target.instance_id,
-        title: `Sync failed: ${state.name}`,
+        title: `Sync failed: ${serverName}`,
         body: err.message,
       });
       await logActivity({
@@ -339,10 +348,9 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
         meta: { target: target.name, error: err.message },
       });
       return { job, ok: false, rolledBack: false, error: err.message };
-    } finally {
-      await sftp.close(client);
     }
   } finally {
+    if (remote) await remote.close().catch(() => {});
     await release();
   }
 }

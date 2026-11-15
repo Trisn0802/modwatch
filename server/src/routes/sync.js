@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret, syncKeyReady } from "../sync/crypto.js";
 import { scanTarget, syncConnectionById, syncConnectionList, syncTargetById, syncTargetsForInstance, testSyncConnection } from "../sync/index.js";
 import { applyTarget } from "../sync/apply.js";
 import { ampConfigured } from "../sync/drivers/amp.js";
+import { pterodactylConfigured } from "../sync/drivers/pterodactyl.js";
 import { normalizeFingerprint } from "../sync/drivers/sftp.js";
 import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
 
@@ -27,6 +28,7 @@ function connectionFields(body) {
     ampUrl: String(body.amp_url || "").trim(),
     ampUsername: String(body.amp_username || "").trim(),
     ampInstance: String(body.amp_instance || "").trim(),
+    panelUrl: String(body.panel_url || "").trim(),
   };
 }
 
@@ -62,25 +64,33 @@ syncRouter.post("/settings/sync", requireAdmin, async (req, res, next) => {
       });
     }
     const name = String(req.body.name || "").trim();
-    const driver = "sftp";
+    const driver = req.body.driver === "pterodactyl" ? "pterodactyl" : "sftp";
     const config = connectionFields(req.body);
     const password = String(req.body.password || "");
     const privateKey = String(req.body.private_key || "");
     const passphrase = String(req.body.passphrase || "");
     const ampPassword = String(req.body.amp_password || "");
-    if (!name || !config.host || !config.username || (!password && !privateKey)) {
+    const apiKey = String(req.body.api_key || "").trim();
+    const invalid = driver === "pterodactyl"
+      ? !name || !config.panelUrl || !apiKey
+      : !name || !config.host || !config.username || (!password && !privateKey);
+    if (invalid) {
       return res.status(400).render("pages/settings-sync.njk", {
         page: "settings", section: "sync", title: "Sync", connections: await syncConnectionList(),
         editConnection: null, keyReady: true,
-        error: "Name, host, username and a password or private key are required.",
+        error: driver === "pterodactyl"
+          ? "Name, panel URL and a client API key are required."
+          : "Name, host, username and a password or private key are required.",
       });
     }
     const { rows } = await query(
       `INSERT INTO sync_connections (name, driver, config, secret_enc, created_by)
        VALUES ($1,$2,$3::jsonb,$4,$5) RETURNING id`,
-      [name, driver, JSON.stringify(config), encryptSecret({ password, privateKey, passphrase, ampPassword }), req.session.user.id]
+      [name, driver, JSON.stringify(config), encryptSecret({ password, privateKey, passphrase, ampPassword, apiKey }), req.session.user.id]
     );
-    flash(req, "ok", `${name} saved. Test it to pin the host key.`);
+    flash(req, "ok", driver === "pterodactyl"
+      ? `${name} saved. Test it to list the panel servers.`
+      : `${name} saved. Test it to pin the host key.`);
     res.redirect(`/settings/sync?edit=${rows[0].id}`);
   } catch (err) {
     if (err.code === "23505") {
@@ -99,12 +109,14 @@ syncRouter.post("/settings/sync/:id", requireAdmin, async (req, res, next) => {
     if (!existing) return next();
     const config = connectionFields(req.body);
     if (existing.config?.host !== config.host && !config.hostFingerprint) config.hostFingerprint = "";
+    const driver = req.body.driver === "pterodactyl" ? "pterodactyl" : "sftp";
     const password = String(req.body.password || "");
     const privateKey = String(req.body.private_key || "");
     const passphrase = String(req.body.passphrase || "");
     const ampPassword = String(req.body.amp_password || "");
+    const apiKey = String(req.body.api_key || "").trim();
     let secretEnc = existing.secret_enc;
-    if (password || privateKey || passphrase || ampPassword) {
+    if (password || privateKey || passphrase || ampPassword || apiKey) {
       let prior = {};
       try { prior = existing.secret_enc ? decryptSecret(existing.secret_enc) : {}; } catch {}
       secretEnc = encryptSecret({
@@ -112,11 +124,12 @@ syncRouter.post("/settings/sync/:id", requireAdmin, async (req, res, next) => {
         privateKey: privateKey || prior.privateKey || "",
         passphrase: passphrase || prior.passphrase || "",
         ampPassword: ampPassword || prior.ampPassword || "",
+        apiKey: apiKey || prior.apiKey || "",
       });
     }
     await query(
-      "UPDATE sync_connections SET name = $2, config = $3::jsonb, secret_enc = $4 WHERE id = $1",
-      [id, String(req.body.name || existing.name).trim(), JSON.stringify(config), secretEnc]
+      "UPDATE sync_connections SET name = $2, driver = $3, config = $4::jsonb, secret_enc = $5 WHERE id = $1",
+      [id, String(req.body.name || existing.name).trim(), driver, JSON.stringify(config), secretEnc]
     );
     flash(req, "ok", "Connection updated.");
     res.redirect("/settings/sync");
@@ -128,9 +141,17 @@ syncRouter.post("/settings/sync/:id", requireAdmin, async (req, res, next) => {
 syncRouter.post("/settings/sync/:id/test", requireAdmin, async (req, res, next) => {
   const id = intParam(req.params.id);
   try {
-    const result = await testSyncConnection(id, String(req.body.mods_path || "mods").trim() || "mods");
-    const suffix = result.fingerprint ? ` Host key SHA256 ${result.fingerprint} pinned.` : "";
-    flash(req, "ok", `Connection works; ${result.files} jar${result.files === 1 ? "" : "s"} visible.${suffix}`);
+    const result = await testSyncConnection(
+      id,
+      String(req.body.mods_path || "mods").trim() || "mods",
+      String(req.body.server_uuid || "").trim()
+    );
+    if (result.kind === "pterodactyl") {
+      flash(req, "ok", `Panel works; ${result.files} server${result.files === 1 ? "" : "s"} visible for this API key.`);
+    } else {
+      const suffix = result.fingerprint ? ` Host key SHA256 ${result.fingerprint} pinned.` : "";
+      flash(req, "ok", `Connection works; ${result.files} jar${result.files === 1 ? "" : "s"} visible.${suffix}`);
+    }
   } catch (err) {
     await query(
       "UPDATE sync_connections SET last_test_at = now(), last_test_ok = false, last_test_error = $2 WHERE id = $1",
@@ -195,10 +216,10 @@ syncRouter.post("/instances/:id/servers", requireAdmin, async (req, res, next) =
     }
     await query(
       `INSERT INTO sync_targets
-         (instance_id, connection_id, name, mods_path, sides, remove_policy, require_empty_server, start_timeout_seconds, keep_backups)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         (instance_id, connection_id, name, remote_ref, mods_path, sides, remove_policy, require_empty_server, start_timeout_seconds, keep_backups)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        instance.id, connectionId, name, modsPath, sides, removePolicy,
+        instance.id, connectionId, name, String(req.body.remote_ref || "").trim(), modsPath, sides, removePolicy,
         req.body.require_empty_server !== "0", intParam(req.body.start_timeout_seconds) || 300,
         intParam(req.body.keep_backups) || 5,
       ]
@@ -225,10 +246,11 @@ syncRouter.post("/instances/:id/servers/:targetId", requireAdmin, async (req, re
     if (req.body.side_server === "1") sides.push("server");
     if (!sides.length) sides.push("both", "server");
     await query(
-      `UPDATE sync_targets SET name = $2, mods_path = $3, sides = $4, remove_policy = $5,
-          require_empty_server = $6, start_timeout_seconds = $7, keep_backups = $8 WHERE id = $1`,
+      `UPDATE sync_targets SET name = $2, remote_ref = $3, mods_path = $4, sides = $5, remove_policy = $6,
+          require_empty_server = $7, start_timeout_seconds = $8, keep_backups = $9 WHERE id = $1`,
       [
-        target.id, String(req.body.name || target.name).trim(), String(req.body.mods_path || target.mods_path).trim(),
+        target.id, String(req.body.name || target.name).trim(), String(req.body.remote_ref || "").trim(),
+        String(req.body.mods_path || target.mods_path).trim(),
         sides, req.body.remove_policy === "backup_then_remove" ? "backup_then_remove" : "never",
         req.body.require_empty_server !== "0", intParam(req.body.start_timeout_seconds) || target.start_timeout_seconds,
         intParam(req.body.keep_backups) || target.keep_backups,
@@ -248,7 +270,7 @@ syncRouter.post("/instances/:id/servers/:targetId/scan", requireAdmin, async (re
   if (!target || target.instance_id !== instance.id) return next();
   const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
   try {
-    publishProgress(op, { stage: "start", message: "Starting the SFTP scan", percent: 5 });
+    publishProgress(op, { stage: "start", message: "Starting the server scan", percent: 5 });
     const result = await scanTarget(target.id, {
       onProgress: (event) => publishProgress(op, event),
     });
@@ -270,13 +292,16 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
     if (!target || target.instance_id !== instance.id) return next();
     const summary = target.last_scan_summary || null;
     const connection = await syncConnectionById(target.connection_id);
+    const powerReady = connection.driver === "pterodactyl"
+      ? pterodactylConfigured(connection) && Boolean(target.remote_ref)
+      : ampConfigured(connection);
     res.render("pages/instance-sync-diff.njk", {
       page: "instances",
       title: `${instance.name} · ${target.name}`,
       instance,
       target,
       summary,
-      powerReady: ampConfigured(connection),
+      powerReady,
       isAdmin: req.session.user.role === "admin",
     });
   } catch (err) {

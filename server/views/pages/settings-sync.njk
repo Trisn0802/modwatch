@@ -6,7 +6,7 @@
   <div class="page-head-main">
     <p class="eyebrow">Control</p>
     <h1 class="page-title">Sync</h1>
-    <p class="page-sub">Connections to game panels and servers. The first driver is SFTP; files are read-only in this phase.</p>
+    <p class="page-sub">Connections to game panels and servers: SFTP / AMP, or a Pterodactyl panel API.</p>
   </div>
 </div>
 
@@ -36,16 +36,28 @@
               <input class="input" id="sync-name" name="name" value="{{ editConnection.name if editConnection else '' }}" placeholder="Gugu Gaga AMP" required>
             </div>
             <div class="field">
+              <label for="sync-driver">Driver</label>
+              <select class="select" id="sync-driver" name="driver">
+                <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>SFTP / AMP</option>
+                <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl panel</option>
+              </select>
+            </div>
+            <div class="field full">
+              <p class="hint" style="margin-top:0">Pterodactyl uses the panel API for power, files and logs, so no SFTP port is needed. SFTP / AMP keeps the host key pin and the AMP power options.</p>
+            </div>
+          </div>
+          <div class="form-grid" data-driver-panel="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}style="display:none"{% endif %}>
+            <div class="field">
               <label for="sync-host">Host</label>
-              <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.10.8" required>
+              <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.10.8">
             </div>
             <div class="field">
               <label for="sync-port">Port</label>
-              <input class="input" id="sync-port" name="port" type="number" min="1" max="65535" value="{{ editConnection.config.port if editConnection else 22 }}" required>
+              <input class="input" id="sync-port" name="port" type="number" min="1" max="65535" value="{{ editConnection.config.port if editConnection else 22 }}">
             </div>
             <div class="field">
               <label for="sync-user">Username</label>
-              <input class="input" id="sync-user" name="username" value="{{ editConnection.config.username if editConnection else '' }}" required>
+              <input class="input" id="sync-user" name="username" value="{{ editConnection.config.username if editConnection else '' }}">
             </div>
             <div class="field full">
               <label for="sync-base">Base path <span class="faint">optional</span></label>
@@ -90,11 +102,35 @@
               <input class="input" id="sync-amp-instance" name="amp_instance" value="{{ editConnection.config.ampInstance if editConnection else '' }}" placeholder="GuguGaga01">
             </div>
           </div>
+          <div class="form-grid" data-driver-panel="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}style="display:none"{% endif %}>
+            <div class="field full">
+              <label for="sync-panel-url">Panel URL</label>
+              <input class="input" id="sync-panel-url" name="panel_url" value="{{ editConnection.config.panelUrl if editConnection else '' }}" placeholder="https://panel.example.com">
+            </div>
+            <div class="field full">
+              <label for="sync-api-key">Client API key {% if editConnection %}<span class="faint">leave blank to keep</span>{% endif %}</label>
+              <input class="input" id="sync-api-key" name="api_key" type="password" autocomplete="new-password" placeholder="ptlc_…">
+              <p class="hint" style="margin-top:6px">Create it in the panel under Account → API Credentials. Use an account that can access the server with control and file permissions.</p>
+            </div>
+          </div>
           <div class="form-actions">
             <button class="btn primary" type="submit" {% if not keyReady %}disabled{% endif %}>{{ icon('check') }} {% if editConnection %}Save connection{% else %}Add connection{% endif %}</button>
             {% if editConnection %}<a class="btn ghost" href="/settings/sync">Cancel</a>{% endif %}
           </div>
         </form>
+        <script>
+          (() => {
+            const select = document.getElementById('sync-driver');
+            if (!select) return;
+            const apply = () => {
+              for (const panel of document.querySelectorAll('[data-driver-panel]')) {
+                panel.style.display = panel.dataset.driverPanel === select.value ? '' : 'none';
+              }
+            };
+            select.addEventListener('change', apply);
+            apply();
+          })();
+        </script>
       </div>
     </section>
 
@@ -111,9 +147,15 @@
             {% for connection in connections %}
             <tr>
               <td><span class="cell-main">{{ connection.name }}</span><span class="cell-sub">{{ connection.driver }}</span></td>
+              {% if connection.driver == 'pterodactyl' %}
+              <td class="mono-sm">{{ connection.config.panelUrl }}</td>
+              <td class="hide-sm faint">client API</td>
+              <td class="hide-sm faint mono-sm">panel API</td>
+              {% else %}
               <td class="mono-sm">{{ connection.config.host }}:{{ connection.config.port or 22 }}</td>
               <td class="hide-sm faint">{{ connection.config.username or '—' }}</td>
               <td class="hide-sm faint mono-sm">{{ (connection.config.hostFingerprint or 'not pinned') | truncate(22) }}</td>
+              {% endif %}
               <td>
                 {% if connection.last_test_at %}
                 <span class="pill {% if connection.last_test_ok %}pos{% else %}neg{% endif %}"><span class="dot"></span>{% if connection.last_test_ok %}OK{% else %}Failed{% endif %}</span>

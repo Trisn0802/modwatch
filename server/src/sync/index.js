@@ -6,6 +6,8 @@ import { jarAbsolute } from "../uploads.js";
 import { decryptSecret } from "./crypto.js";
 import { lookupByHash } from "../sources/modrinth.js";
 import { buildPlan } from "./plan.js";
+import { createRemote } from "./remote.js";
+import * as pterodactyl from "./drivers/pterodactyl.js";
 import * as sftp from "./drivers/sftp.js";
 
 function connectionWithSecret(row) {
@@ -104,14 +106,17 @@ export async function scanTarget(targetId, { onProgress } = {}) {
   if (!target) throw new Error("Sync target not found.");
   const connection = await syncConnectionById(target.connection_id);
   if (!connection) throw new Error("Sync connection not found.");
-  if (connection.driver !== "sftp") throw new Error(`The ${connection.driver} driver is not available in this build.`);
   const desired = await desiredMods(target.instance_id, target.sides);
-  report({ stage: "connect", message: `Connecting to ${connection.config?.host || "the server"} over SFTP`, percent: 10 });
-  const { client, fingerprint } = await sftp.connect(connection);
+  const where = connection.driver === "pterodactyl" ? "the panel API" : `${connection.config?.host || "the server"} over SFTP`;
+  report({ stage: "connect", message: `Connecting to ${where}`, percent: 10 });
+  const remote = await createRemote(connection, target);
+  const fingerprint = remote.fingerprint || "";
   let observed = [];
   try {
     report({ stage: "list", message: `Listing ${target.mods_path || "mods"}`, percent: 20 });
-    const files = await sftp.listFiles(client, connection, target.mods_path || "mods");
+    const files = (await remote.files.listDir(target.mods_path || "mods").catch(() => [])).filter(
+      (file) => file.type !== "d" && /\.jar(?:\.disabled)?$/i.test(file.name)
+    );
     const { rows: cached } = await query(
       "SELECT path, file_name, size, sha1 FROM sync_remote_files WHERE target_id = $1",
       [target.id]
@@ -129,14 +134,14 @@ export async function scanTarget(targetId, { onProgress } = {}) {
           message: `Hashing ${file.name} (${index + 1}/${files.length})`,
           percent: 25 + Math.round(((index + 1) / Math.max(1, files.length)) * 55),
         });
-        const hashed = await sftp.hashFile(client, file.path);
+        const hashed = await remote.files.hash(file.path);
         sha1 = hashed.sha1;
         file.size = hashed.size;
       }
       observed.push({ ...file, sha1 });
     }
   } finally {
-    await sftp.close(client);
+    await remote.close();
   }
   report({ stage: "plan", message: "Building the diff", percent: 90 });
   const projectByHash = await mapProjects(observed);
@@ -173,9 +178,17 @@ export async function scanTarget(targetId, { onProgress } = {}) {
   return { target, connection, desired, observed, plan, summary, fingerprint };
 }
 
-export async function testSyncConnection(id, dir = "mods") {
+export async function testSyncConnection(id, dir = "mods", serverId = "") {
   const connection = await syncConnectionById(id);
   if (!connection) throw new Error("Connection not found.");
+  if (connection.driver === "pterodactyl") {
+    const result = await pterodactyl.test(connection, serverId);
+    await query(
+      "UPDATE sync_connections SET last_test_at = now(), last_test_ok = true, last_test_error = NULL WHERE id = $1",
+      [id]
+    );
+    return result;
+  }
   if (connection.driver !== "sftp") throw new Error(`The ${connection.driver} driver is not available in this build.`);
   const result = await sftp.testConnection(connection, dir);
   await query(

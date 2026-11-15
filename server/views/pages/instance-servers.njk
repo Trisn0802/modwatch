@@ -40,8 +40,12 @@
         <div class="field">
           <label for="target-connection">Connection</label>
           <select class="select" id="target-connection" name="connection_id" required>
-            {% for connection in connections %}<option value="{{ connection.id }}">{{ connection.name }} · {{ connection.config.host }}:{{ connection.config.port or 22 }}</option>{% endfor %}
+            {% for connection in connections %}<option value="{{ connection.id }}">{{ connection.name }} · {% if connection.driver == 'pterodactyl' %}{{ connection.config.panelUrl }}{% else %}{{ connection.config.host }}:{{ connection.config.port or 22 }}{% endif %}</option>{% endfor %}
           </select>
+        </div>
+        <div class="field">
+          <label for="target-ref">Pterodactyl server UUID <span class="faint">panel connections only</span></label>
+          <input class="input" id="target-ref" name="remote_ref" placeholder="61573024-f8df-4d02-a886-8ce5cb30c3af">
         </div>
         <div class="field">
           <label for="target-path">Mods path</label>
@@ -116,6 +120,7 @@
           <form class="form" method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}">
             {% include "partials/csrf.njk" %}
             <div class="field"><label for="name-{{ target.id }}">Name</label><input class="input" id="name-{{ target.id }}" name="name" value="{{ target.name }}" required></div>
+            <div class="field"><label for="ref-{{ target.id }}">Pterodactyl server UUID</label><input class="input" id="ref-{{ target.id }}" name="remote_ref" value="{{ target.remote_ref }}"></div>
             <div class="field"><label for="path-{{ target.id }}">Mods path</label><input class="input" id="path-{{ target.id }}" name="mods_path" value="{{ target.mods_path }}"></div>
             <div class="field"><label>Server sides</label><div class="row" style="gap:12px"><label class="check"><input type="checkbox" name="side_server" value="1" {% if target.sides | includes('server') %}checked{% endif %}><span>Server</span></label><label class="check"><input type="checkbox" name="side_both" value="1" {% if target.sides | includes('both') %}checked{% endif %}><span>Both</span></label></div></div>
             <div class="field"><label for="remove-{{ target.id }}">Remove policy</label><select class="select" id="remove-{{ target.id }}" name="remove_policy"><option value="never" {% if target.remove_policy == 'never' %}selected{% endif %}>Never remove</option><option value="backup_then_remove" {% if target.remove_policy == 'backup_then_remove' %}selected{% endif %}>Backup then remove</option></select></div>
