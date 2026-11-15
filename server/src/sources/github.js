@@ -72,12 +72,13 @@ export async function listVersions(projectId, { channels = ["release"], assetPat
     .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
 }
 
-export async function searchProject(query, { limit = 8 } = {}) {
+export async function searchProject(query, { limit = 8, kind = "mod" } = {}) {
   const data = await requestJson(`${API}/search/repositories?q=${encodeURIComponent(query + " minecraft mod")}&per_page=${limit}`, {
     headers: headers(),
   }).catch(() => null);
   return (data?.items || []).map((repo) => ({
     source: "github",
+    kind,
     project_id: repo.full_name,
     name: repo.name,
     description: repo.description || "",
@@ -85,6 +86,9 @@ export async function searchProject(query, { limit = 8 } = {}) {
     downloads: repo.stargazers_count,
     project_url: repo.html_url,
     author: repo.owner?.login || "",
+    creator_name: repo.owner?.login || "",
+    creator_url: repo.owner?.html_url || "",
+    creator_avatar_url: repo.owner?.avatar_url || null,
   }));
 }
 
@@ -95,10 +99,29 @@ export async function resolveUrl(url) {
   if (!data) return null;
   return {
     source: "github",
+    kind: "mod",
     project_id: data.full_name,
     name: data.name,
     description: data.description || "",
     icon_url: data.owner?.avatar_url || null,
     project_url: data.html_url,
+    creator_name: data.owner?.login || "",
+    creator_url: data.owner?.html_url || "",
+    creator_avatar_url: data.owner?.avatar_url || null,
+  };
+}
+
+export async function projectMeta(projectId, kind = "mod") {
+  const repo = parseRepo(projectId);
+  if (!repo) return null;
+  const data = await requestJson(`${API}/repos/${repo}`, { headers: headers() }).catch(() => null);
+  if (!data) return null;
+  return {
+    kind,
+    name: data.name || "",
+    icon_url: data.owner?.avatar_url || null,
+    creator_name: data.owner?.login || "",
+    creator_url: data.owner?.html_url || "",
+    creator_avatar_url: data.owner?.avatar_url || null,
   };
 }

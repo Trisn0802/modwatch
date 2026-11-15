@@ -1,7 +1,7 @@
 import express from "express";
 import { query } from "../db.js";
 import { instanceById } from "../queries.js";
-import { searchProjects, resolveProjectUrl, listSourceVersions } from "../sources/index.js";
+import { searchProjects, resolveProjectUrl, listSourceVersions, projectMeta } from "../sources/index.js";
 import { checkOne } from "../checker.js";
 import { logActivity } from "../activity.js";
 import { flash } from "../middleware.js";
@@ -10,6 +10,7 @@ import { insertMod, cacheInstalledVersion, markUpdated, VALID_SOURCES } from "..
 import { ensureStoredJar, refreshStoredJar, setStoredDisabled } from "../export.js";
 import { updateModToLatest } from "../updater.js";
 import { CHANNEL, LOADER, SIDE, SOURCE, STATUS } from "../labels.js";
+import { KIND_ORDER, kindLabel, normalizeKind } from "../kinds.js";
 
 export const modsRouter = express.Router();
 
@@ -34,11 +35,12 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
     const sourceFilter = ["modrinth", "curseforge", "github"].includes(req.query.source)
       ? req.query.source
       : "all";
+    const kind = normalizeKind(req.query.kind);
     let results = [];
     let searchError = null;
     if (q) {
       try {
-        results = await searchProjects(q, instance);
+        results = await searchProjects(q, instance, { kind });
         if (sourceFilter !== "all") results = results.filter((item) => item.source === sourceFilter);
       } catch (err) {
         searchError = err.message;
@@ -47,6 +49,9 @@ modsRouter.get("/instances/:id/mods/new", async (req, res, next) => {
     const payload = {
       instance,
       q,
+      kind,
+      kindOptions: KIND_ORDER,
+      kindLabel: kindLabel(kind),
       sourceFilter,
       results,
       searchError,
@@ -87,9 +92,13 @@ modsRouter.get("/instances/:id/mods/resolve", async (req, res, next) => {
     const params = new URLSearchParams({
       source: resolved.source,
       project_id: resolved.project_id,
+      kind: normalizeKind(req.query.kind || resolved.kind),
       name: resolved.name || "",
       project_url: resolved.project_url || url,
       icon_url: resolved.icon_url || "",
+      creator_name: resolved.creator_name || "",
+      creator_url: resolved.creator_url || "",
+      creator_avatar_url: resolved.creator_avatar_url || "",
     });
     res.redirect(`/instances/${instance.id}/mods/choose?${params}`);
   } catch (err) {
@@ -105,25 +114,31 @@ modsRouter.get("/instances/:id/mods/choose", async (req, res, next) => {
     const projectId = String(req.query.project_id || "");
     const name = String(req.query.name || "");
     const projectUrl = String(req.query.project_url || "");
+    const kind = normalizeKind(req.query.kind);
     if (!projectId) return res.redirect(`/instances/${instance.id}/mods/new`);
 
     let versions = [];
     let error = null;
     try {
-      versions = await listSourceVersions(source, projectId, instance, "alpha", req.query.asset_pattern || "");
+      versions = await listSourceVersions(source, projectId, instance, "alpha", req.query.asset_pattern || "", kind);
     } catch (err) {
       error = err.message;
     }
     const manual = req.query.manual === "1" || source === "manual";
     res.render("pages/mod-choose.njk", {
       page: "instances",
-      title: `Add ${name || "a mod"}`,
+      title: `Add ${name || "a project"}`,
       instance,
       source,
       projectId,
+      kind,
+      kindLabel: kindLabel(kind),
       name,
       projectUrl,
       iconUrl: req.query.icon_url || null,
+      creatorName: req.query.creator_name || "",
+      creatorUrl: req.query.creator_url || "",
+      creatorAvatarUrl: req.query.creator_avatar_url || "",
       versions,
       error,
       manual,
@@ -155,9 +170,13 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
         const params = new URLSearchParams({
           source: resolved.source,
           project_id: resolved.project_id,
+          kind: normalizeKind(req.body.kind || resolved.kind),
           name: resolved.name || "",
           project_url: resolved.project_url || suppliedUrl,
           icon_url: resolved.icon_url || "",
+          creator_name: resolved.creator_name || "",
+          creator_url: resolved.creator_url || "",
+          creator_avatar_url: resolved.creator_avatar_url || "",
         });
         return res.redirect(`/instances/${instance.id}/mods/choose?${params}`);
       }
@@ -166,9 +185,11 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
         return res.redirect(`/instances/${instance.id}/mods/new?manual=1`);
       }
     }
+    const kind = normalizeKind(req.body.kind);
     const payload = {
       name: String(req.body.name || "").trim(),
       source,
+      kind,
       project_id: String(req.body.project_id || "").trim() || null,
       project_url: String(req.body.project_url || "").trim(),
       installed_version: String(req.body.installed_version || "").trim() || "unknown version",
@@ -185,6 +206,9 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
       side: ["both", "client", "server"].includes(req.body.side) ? req.body.side : "both",
       github_asset_pattern: String(req.body.github_asset_pattern || "").trim(),
       published_at: req.body.published_at || null,
+      creator_name: String(req.body.creator_name || "").trim(),
+      creator_url: String(req.body.creator_url || "").trim(),
+      creator_avatar_url: String(req.body.creator_avatar_url || "").trim() || null,
       channel: req.body.channel || "release",
       mc_versions: String(req.body.mc_versions || "").split(",").filter(Boolean),
       loaders: String(req.body.loaders || "").split(",").filter(Boolean),
@@ -192,14 +216,23 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
       download_page_url: req.body.download_page_url || "",
     };
     if (!payload.name) {
-      flash(req, "error", "A mod name is required.");
-      return res.redirect(`/instances/${instance.id}/mods/new`);
+      flash(req, "error", "A project name is required.");
+      return res.redirect(`/instances/${instance.id}/mods/new?kind=${kind}`);
     }
     if (payload.source !== "manual" && payload.project_id) {
       const existing = await trackedProject(instance.id, payload);
       if (existing) {
         flash(req, "ok", `${existing.name} is already tracked in this instance from ${SOURCE[existing.source]?.label || existing.source}.`);
         return res.redirect(`/mods/${existing.id}`);
+      }
+      if (!payload.creator_name) {
+        const meta = await projectMeta(payload.source, payload.project_id, kind);
+        if (meta) {
+          payload.creator_name = meta.creator_name || "";
+          payload.creator_url = meta.creator_url || "";
+          payload.creator_avatar_url = meta.creator_avatar_url || null;
+          payload.icon_url = payload.icon_url || meta.icon_url || null;
+        }
       }
     }
 
@@ -314,7 +347,7 @@ modsRouter.post("/mods/:id/updated", async (req, res, next) => {
       try {
         const instance = await instanceById(mod.instance_id);
         const versions = await listSourceVersions(
-          mod.source, mod.project_id, instance, mod.channel_policy, mod.github_asset_pattern
+          mod.source, mod.project_id, instance, mod.channel_policy, mod.github_asset_pattern, mod.kind
         );
         const picked = versions.find((version) => version.version_id === mod.latest_version_id);
         if (picked) {

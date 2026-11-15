@@ -5,6 +5,7 @@ import { getVersion } from "./sources/modrinth.js";
 import { listSourceVersions } from "./sources/index.js";
 import { saveJar, jarAbsolute } from "./uploads.js";
 import { logActivity } from "./activity.js";
+import { kindExtension } from "./kinds.js";
 
 const MAX_JAR = 120 * 1024 * 1024;
 
@@ -16,9 +17,9 @@ async function fetchJar(url) {
   });
   if (!response.ok) throw new Error(`Download failed with ${response.status}`);
   const length = Number(response.headers.get("content-length") || 0);
-  if (length > MAX_JAR) throw new Error("The jar is larger than 120 MB");
+  if (length > MAX_JAR) throw new Error("The file is larger than 120 MB");
   const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_JAR) throw new Error("The jar is larger than 120 MB");
+  if (buffer.length > MAX_JAR) throw new Error("The file is larger than 120 MB");
   return buffer;
 }
 
@@ -32,7 +33,8 @@ async function latestFile(mod, instance) {
     mod.project_id,
     instance,
     mod.channel_policy,
-    mod.github_asset_pattern || ""
+    mod.github_asset_pattern || "",
+    mod.kind
   );
   const version = mod.latest_version_id
     ? versions.find((item) => item.version_id === mod.latest_version_id)
@@ -64,11 +66,13 @@ export async function updateModToLatest(modId, { userId = null, verify = false }
     throw new Error("No download URL is available for this version.");
   }
   if (file.file_size && Number(file.file_size) > MAX_JAR) {
-    throw new Error("The jar is larger than 120 MB");
+    throw new Error("The file is larger than 120 MB");
   }
   const buffer = await fetchJar(file.download_url);
-  const baseName = file.file_name || `${mod.name}-${file.version}.jar`;
-  const fileName = /\.jar$/i.test(baseName) ? baseName : `${baseName}.jar`;
+  const extension = kindExtension(mod.kind);
+  const rawName = file.file_name || `${mod.name}-${file.version}${extension}`;
+  const baseName = rawName.replace(/\.(?:jar|zip)(?:\.disabled)?$/i, "");
+  const fileName = `${baseName}${extension}`;
   const storedName = mod.disabled ? (fileName.endsWith(".disabled") ? fileName : `${fileName}.disabled`) : fileName;
   const stored = await saveJar(mod.instance_id, storedName, buffer);
 

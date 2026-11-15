@@ -9,6 +9,7 @@ import { logActivity } from "../activity.js";
 import { flash, csrfValid } from "../middleware.js";
 import { SOURCE, STATUS } from "../labels.js";
 import { resolveProjectUrl } from "../sources/index.js";
+import { KIND_ORDER, isKind, kindPlural } from "../kinds.js";
 import { instanceUpload, receiveUpload, uploadPath, removeUpload, uploadMessage } from "../uploads.js";
 import { buildExport, latestExport, getExportByToken, removeInstanceFiles, ensureStoredJar } from "../export.js";
 import { updateAllInInstance } from "../updater.js";
@@ -21,6 +22,30 @@ const LOADERS = ["forge", "fabric", "neoforge", "quilt", "plugin"];
 function intParam(value, fallback = 1) {
   const n = Number.parseInt(value, 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+// Filters arrive as repeated query params, and old links may still carry a
+// comma-joined value from the single-select days.
+function multiParam(value) {
+  const out = [];
+  for (const item of [].concat(value ?? [])) {
+    for (const part of String(item).split(",")) {
+      const next = part.trim();
+      if (next && !out.includes(next)) out.push(next);
+    }
+  }
+  return out;
+}
+
+function instanceHref(id, { status = "all", kinds = [], sources = [], q = "", page = 0, omitKind = "", omitSource = "" } = {}) {
+  const params = new URLSearchParams();
+  if (status && status !== "all") params.set("status", status);
+  for (const kind of kinds) if (kind !== omitKind) params.append("kind", kind);
+  for (const source of sources) if (source !== omitSource) params.append("source", source);
+  if (q) params.set("q", q);
+  if (page > 1) params.set("page", String(page));
+  const search = params.toString();
+  return `/instances/${id}${search ? `?${search}` : ""}`;
 }
 
 instancesRouter.get("/instances", async (req, res, next) => {
@@ -107,7 +132,8 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
     const status = ["all", "updates", "unknown", "manual", "errors", "ignored"].includes(req.query.status)
       ? req.query.status
       : "all";
-    const source = SOURCE[req.query.source] ? req.query.source : "";
+    const kinds = multiParam(req.query.kind).filter(isKind);
+    const sources = multiParam(req.query.source).filter((value) => SOURCE[value]);
     const q = String(req.query.q || "").trim();
     const page = intParam(req.query.page);
     const pageSize = 40;
@@ -124,13 +150,17 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       if (status === "errors") where.push("m.status = 'source_error'");
       if (status === "ignored") where.push("m.status = 'ignored'");
       if (status === "all") where.push("m.status <> 'ignored'");
-      if (source) {
-        params.push(source);
-        where.push(`m.source = $${params.length}`);
+      if (kinds.length) {
+        params.push(kinds);
+        where.push(`m.kind = ANY($${params.length}::text[])`);
+      }
+      if (sources.length) {
+        params.push(sources);
+        where.push(`m.source = ANY($${params.length}::text[])`);
       }
       if (q) {
         params.push(`%${q}%`);
-        where.push(`(m.name ILIKE $${params.length} OR m.file_name ILIKE $${params.length} OR m.installed_version ILIKE $${params.length})`);
+        where.push(`(m.name ILIKE $${params.length} OR m.file_name ILIKE $${params.length} OR m.installed_version ILIKE $${params.length} OR m.creator_name ILIKE $${params.length})`);
       }
       const clause = where.join(" AND ");
       const countRes = await query(`SELECT count(*)::int AS n FROM mods m WHERE ${clause}`, params);
@@ -148,11 +178,44 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       req.query.page = safePage;
     }
 
-    const { rows: sourceRows } = await query(
-      "SELECT source, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY source",
-      [instance.id]
-    );
+    const [{ rows: sourceRows }, { rows: kindRows }] = await Promise.all([
+      query(
+        "SELECT source, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY source",
+        [instance.id]
+      ),
+      query(
+        "SELECT kind, count(*)::int AS n FROM mods WHERE instance_id = $1 AND status <> 'ignored' GROUP BY kind",
+        [instance.id]
+      ),
+    ]);
     const sourceCounts = Object.fromEntries(sourceRows.map((r) => [r.source, r.n]));
+    const kindCounts = Object.fromEntries(kindRows.map((r) => [r.kind, r.n]));
+
+    const selectedSources = sources.map((source) => SOURCE[source]?.label || source);
+    const chips = [
+      ...kinds.map((kind) => ({
+        label: kindPlural(kind),
+        count: kindCounts[kind] || 0,
+        href: instanceHref(instance.id, { status, kinds, sources, q, omitKind: kind }),
+      })),
+      ...sources.map((source) => ({
+        label: SOURCE[source]?.label || source,
+        count: sourceCounts[source] || 0,
+        href: instanceHref(instance.id, { status, kinds, sources, q, omitSource: source }),
+      })),
+    ];
+
+    const statusTabs = [
+      { key: "all", label: "All", count: Math.max(0, stats.mod_count - stats.ignored) },
+      { key: "updates", label: "Updates", count: stats.updates, accent: true },
+      { key: "unknown", label: "Unknown", count: stats.unknown },
+      { key: "manual", label: "Manual", count: stats.manual },
+      { key: "errors", label: "Errors", count: stats.errors },
+      { key: "ignored", label: "Ignored", count: stats.ignored },
+    ].map((tab) => ({
+      ...tab,
+      href: instanceHref(instance.id, { status: tab.key, kinds, sources, q }),
+    }));
 
     res.render("pages/instance.njk", {
       page: "instances",
@@ -165,9 +228,23 @@ instancesRouter.get("/instances/:id", async (req, res, next) => {
       pages,
       currentPage: intParam(req.query.page),
       status,
-      source,
+      statusTabs,
+      selectedKinds: kinds,
+      selectedSources: sources,
+      selectedSourcesLabel: selectedSources.join(", "),
+      chips,
+      filterCount: kinds.length + sources.length,
+      filterResetHref: instanceHref(instance.id, { status, q }),
+      kindOptions: KIND_ORDER.map((kind) => ({ value: kind, label: kindPlural(kind), count: kindCounts[kind] || 0 })),
+      sourceOptions: ["modrinth", "curseforge", "github", "manual"].map((source) => ({
+        value: source,
+        label: SOURCE[source].label,
+        count: sourceCounts[source] || 0,
+      })),
+      pagerBase: instanceHref(instance.id, { status, kinds, sources, q }),
       q,
       sourceCounts,
+      kindCounts,
     });
   } catch (err) {
     next(err);
@@ -222,10 +299,13 @@ instancesRouter.post("/instances/:id", async (req, res, next) => {
       await removeUpload(instance.image_path);
       imagePath = null;
     }
+    const telegramUpdates = req.session.user.role === "admin"
+      ? req.body.telegram_updates === "1"
+      : instance.telegram_updates;
     await query(
       `UPDATE instances SET name = $1, mc_version = $2, loader = $3, loader_version = $4,
-         pack_version = $5, notes = $6, image_path = $7 WHERE id = $8`,
-      [name, mcVersion, loader, loaderVersion, packVersion, notes, imagePath, instance.id]
+         pack_version = $5, notes = $6, image_path = $7, telegram_updates = $8 WHERE id = $9`,
+      [name, mcVersion, loader, loaderVersion, packVersion, notes, imagePath, telegramUpdates, instance.id]
     );
     await logActivity({
       userId: req.session.user.id, action: "instance_updated",
@@ -233,6 +313,29 @@ instancesRouter.post("/instances/:id", async (req, res, next) => {
     });
     flash(req, "ok", "Instance settings saved.");
     res.redirect(`/instances/${instance.id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.post("/instances/:id/telegram", async (req, res, next) => {
+  try {
+    if (req.session.user.role !== "admin") {
+      flash(req, "error", "Only an admin can change Telegram updates.");
+      return res.redirect(`/instances/${intParam(req.params.id)}`);
+    }
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const enabled = instance.telegram_updates === false;
+    await query("UPDATE instances SET telegram_updates = $2 WHERE id = $1", [instance.id, enabled]);
+    await logActivity({
+      userId: req.session.user.id, action: "instance_updated", subjectType: "instance",
+      subjectId: instance.id, meta: { name: instance.name, telegram: enabled },
+    });
+    flash(req, "ok", enabled
+      ? `Telegram updates are on for ${instance.name}.`
+      : `Telegram updates are off for ${instance.name}. In-app notifications still arrive.`);
+    res.redirect(req.get("referer") || `/instances/${instance.id}`);
   } catch (err) {
     next(err);
   }
@@ -334,7 +437,8 @@ instancesRouter.post("/instances/:id/download-zip", async (req, res, next) => {
       .filter((value) => Number.isInteger(value) && value > 0);
     const all = String(req.body.all || "") === "1";
     const source = String(req.body.source || "").trim();
-    const mods = await listModsForZip(instance, { modIds: ids, all, source });
+    const kinds = multiParam(req.body.kind).filter(isKind);
+    const mods = await listModsForZip(instance, { modIds: ids, all, source, kinds });
     if (!mods.length) {
       flash(req, "error", "Select at least one mod to download.");
       return res.redirect(`/instances/${instance.id}`);

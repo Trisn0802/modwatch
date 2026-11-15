@@ -6,9 +6,9 @@
 
 <div class="page-head">
   <div class="page-head-main">
-    <p class="eyebrow">Add a mod</p>
-    <h1 class="page-title">Find the project</h1>
-    <p class="page-sub">Modrinth results are filtered to {{ instance.mc_version }} {{ instance.loader | loaderLabel }}. GitHub is searched broadly; pick the matching version before adding. CurseForge URLs resolve without a key.</p>
+    <p class="eyebrow">Add a project</p>
+    <h1 class="page-title">Find the {{ kindLabel | lower }}</h1>
+    <p class="page-sub">{% if kind == 'mod' %}Modrinth results are filtered to {{ instance.mc_version }} {{ instance.loader | loaderLabel }}.{% else %}Results are filtered to Minecraft {{ instance.mc_version }}; the loader does not apply to a {{ kindLabel | lower }}.{% endif %} GitHub is searched broadly; pick the matching version before adding. CurseForge URLs resolve without a key.</p>
     <div style="margin-top:12px">
       <div class="scope compact">
         <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ instance.mc_version }}</strong></span>
@@ -18,15 +18,22 @@
   </div>
 </div>
 
+<nav class="tabs kind-tabs" aria-label="Project kind">
+  {% for value in kindOptions %}
+  <a class="tab" href="/instances/{{ instance.id }}/mods/new?kind={{ value }}{% if sourceFilter != 'all' %}&source={{ sourceFilter }}{% endif %}{% if q %}&q={{ q | urlencode }}{% endif %}" {% if kind == value %}aria-current="page"{% endif %}>{{ value | kindPlural }}</a>
+  {% endfor %}
+</nav>
+
 <div class="layout-main">
   <section class="panel">
     <form class="toolbar" method="get" action="/instances/{{ instance.id }}/mods/new" data-realtime-search="#mod-add-results">
       <input type="hidden" name="source" value="{{ sourceFilter }}">
+      <input type="hidden" name="kind" value="{{ kind }}">
       <div class="toolbar-left" style="flex:1">
         <label class="search-field" style="flex:1">
           {{ icon('search') }}
-          <span class="sr-only">Search mod projects</span>
-          <input type="search" name="q" value="{{ q }}" placeholder="JEI, Create, Sophisticated Backpacks…" autocomplete="off" autofocus>
+          <span class="sr-only">Search projects</span>
+          <input type="search" name="q" value="{{ q }}" placeholder="{% if kind == 'mod' %}JEI, Create, Sophisticated Backpacks…{% elif kind == 'shader' %}Complementary, BSL, Rethinking Voxels…{% elif kind == 'resourcepack' %}Fresh Animations, Stay True…{% else %}Terralith, Incendium…{% endif %}" autocomplete="off" autofocus>
         </label>
         <button class="btn" type="submit">Search</button>
         {% if q %}<a class="link-btn" href="/instances/{{ instance.id }}/mods/new">Clear</a>{% endif %}
@@ -34,10 +41,10 @@
     </form>
 
     <nav class="tabs source-tabs" aria-label="Search source">
-      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=all{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'all' %}aria-current="page"{% endif %}>All</a>
-      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=modrinth{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'modrinth' %}aria-current="page"{% endif %}>Modrinth</a>
-      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=curseforge{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'curseforge' %}aria-current="page"{% endif %}>CurseForge{% if not env.curseforgeReady %} <span class="count">URL</span>{% endif %}</a>
-      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=github{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'github' %}aria-current="page"{% endif %}>GitHub</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=all&kind={{ kind }}{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'all' %}aria-current="page"{% endif %}>All</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=modrinth&kind={{ kind }}{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'modrinth' %}aria-current="page"{% endif %}>Modrinth</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=curseforge&kind={{ kind }}{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'curseforge' %}aria-current="page"{% endif %}>CurseForge{% if not env.curseforgeReady %} <span class="count">URL</span>{% endif %}</a>
+      <a class="tab" href="/instances/{{ instance.id }}/mods/new?source=github&kind={{ kind }}{% if q %}&q={{ q | urlencode }}{% endif %}" {% if sourceFilter == 'github' %}aria-current="page"{% endif %}>GitHub</a>
     </nav>
 
     <div class="search-live" data-search-live hidden>
@@ -58,6 +65,7 @@
       </div>
       <div class="panel-body">
         <form class="form" method="get" action="/instances/{{ instance.id }}/mods/resolve">
+          <input type="hidden" name="kind" value="{{ kind }}">
           <label class="sr-only" for="add-url">Project URL</label>
           <input class="input" id="add-url" name="url" type="url" placeholder="https://www.curseforge.com/minecraft/mc-mods/…" required>
           <p class="hint">ModWatch resolves the project, then opens the version list for this instance.</p>
@@ -73,15 +81,21 @@
           <h2 class="panel-title">Manual entry</h2>
           <p class="panel-sub">No project page? Track the jar anyway</p>
         </div>
-        <a class="link-btn" href="/instances/{{ instance.id }}/mods/new">Back to search</a>
+        <a class="link-btn" href="/instances/{{ instance.id }}/mods/new?kind={{ kind }}">Back to search</a>
       </div>
       <div class="panel-body">
         <form class="form" method="post" action="/instances/{{ instance.id }}/mods">
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="source" value="manual">
           <div class="field">
-            <label for="manual-name">Mod name</label>
+            <label for="manual-name">Project name</label>
             <input id="manual-name" name="name" type="text" placeholder="Private server patch" required>
+          </div>
+          <div class="field">
+            <label for="manual-kind">Kind</label>
+            <select id="manual-kind" name="kind">
+              {% for value in kindOptions %}<option value="{{ value }}" {% if kind == value %}selected{% endif %}>{{ value | kindPlural }}</option>{% endfor %}
+            </select>
           </div>
           <div class="field">
             <label for="manual-version">Installed version</label>
@@ -110,7 +124,7 @@
               </select>
             </div>
           </div>
-          <button class="btn primary" type="submit">{{ icon('plus') }} Add manual mod</button>
+          <button class="btn primary" type="submit">{{ icon('plus') }} Add manual project</button>
         </form>
       </div>
     </section>
@@ -123,8 +137,8 @@
         </div>
       </div>
       <div class="panel-body">
-        <p class="faint" style="font-size:11.5px;line-height:1.6">Private jars and one-off patches have no project page. A manual entry keeps the file, its hash and its version on the board with no automatic update check.</p>
-        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1">{{ icon('plus') }} Add manually</a>
+        <p class="faint" style="font-size:11.5px;line-height:1.6">Private jars, resource packs and one-off patches have no project page. A manual entry keeps the file, its hash and its version on the board with no automatic update check.</p>
+        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1&kind={{ kind }}">{{ icon('plus') }} Add manually</a>
       </div>
     </section>
     {% endif %}

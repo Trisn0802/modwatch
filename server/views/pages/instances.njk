@@ -35,7 +35,7 @@
         <tr>
           <th>Instance</th>
           <th>Scope</th>
-          <th class="n">Mods</th>
+          <th class="n">Projects</th>
           <th class="n">Updates</th>
           <th class="n">Unknown</th>
           <th class="hide-sm">Last check</th>
@@ -70,6 +70,12 @@
           <td class="faint nowrap hide-sm">{{ item.last_checked_at | relative }}</td>
           <td class="n">
             <span class="row" style="gap:2px;justify-content:flex-end">
+              {% if isAdmin %}
+              <form method="post" action="/instances/{{ item.id }}/telegram">
+                {% include "partials/csrf.njk" %}
+                <button class="icon-btn telegram-toggle {% if item.telegram_updates %}is-on{% else %}is-off{% endif %}" type="submit" aria-pressed="{{ 'true' if item.telegram_updates else 'false' }}" aria-label="Turn Telegram updates {% if item.telegram_updates %}off{% else %}on{% endif %} for {{ item.name }}" title="Telegram updates {% if item.telegram_updates %}on{% else %}off{% endif %}">{{ icon('bell') }}</button>
+              </form>
+              {% endif %}
               <a class="icon-btn" href="/instances/{{ item.id }}/edit" aria-label="Edit {{ item.name }}">{{ icon('pencil') }}</a>
               <a class="icon-btn" href="/instances/{{ item.id }}" aria-label="Open {{ item.name }}">{{ icon('chevron-right') }}</a>
             </span>

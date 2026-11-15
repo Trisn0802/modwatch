@@ -6,9 +6,9 @@
   <div class="page-head-main">
     <p class="eyebrow"><span class="dot live"></span> Watch floor</p>
     <h1 class="page-title">Overview</h1>
-    <p class="page-sub">Which mods are behind, for this exact Minecraft version and loader. Nothing else counts as an update.</p>
+    <p class="page-sub">Which projects are behind, for this exact Minecraft version and loader. Nothing else counts as an update.</p>
     <div class="instance-meta" style="margin-top:8px">
-      <span>{{ stats.mods | number }} tracked mods</span>
+      <span>{{ stats.mods | number }} tracked projects</span>
       <span class="sep"></span>
       <span>Last check {% if lastChecked %}{{ lastChecked | relative }}{% else %}never{% endif %}</span>
       <span class="sep"></span>
@@ -53,7 +53,7 @@
     <p class="kpi-foot">Each with its own version lock</p>
   </div>
   <div class="kpi">
-    <p class="kpi-label">Tracked mods</p>
+    <p class="kpi-label">Tracked projects</p>
     <p class="kpi-value">{{ stats.mods | number }}</p>
     <p class="kpi-foot">Across every instance</p>
   </div>
@@ -146,7 +146,7 @@
           <tr>
             <th>Instance</th>
             <th class="hide-sm">Scope</th>
-            <th class="n">Mods</th>
+            <th class="n">Projects</th>
             <th class="n">Updates</th>
             <th class="n hide-sm">Unknown</th>
             <th>Last check</th>

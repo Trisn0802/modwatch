@@ -2,6 +2,7 @@ import express from "express";
 import { query } from "../db.js";
 import { initials, modIcon } from "../helpers.js";
 import { STATUS, LOADER } from "../labels.js";
+import { KIND_ORDER, isKind, kindLabel } from "../kinds.js";
 
 export const searchRouter = express.Router();
 
@@ -12,11 +13,11 @@ searchRouter.get("/api/search", async (req, res, next) => {
     const like = `%${q}%`;
     const [modResult, instanceResult] = await Promise.all([
       query(
-        `SELECT m.id, m.name, m.status, m.installed_version, m.latest_version,
+        `SELECT m.id, m.name, m.kind, m.creator_name, m.status, m.installed_version, m.latest_version,
                 m.source, m.project_id, m.icon_url, i.name AS instance_name,
                 count(*) OVER()::int AS total
            FROM mods m JOIN instances i ON i.id = m.instance_id
-          WHERE m.name ILIKE $1 OR m.file_name ILIKE $1 OR i.name ILIKE $1
+          WHERE m.name ILIKE $1 OR m.file_name ILIKE $1 OR m.creator_name ILIKE $1 OR i.name ILIKE $1
           ORDER BY (m.status = 'update_available') DESC, m.name
           LIMIT 6`,
         [like]
@@ -37,6 +38,9 @@ searchRouter.get("/api/search", async (req, res, next) => {
       mods: modResult.rows.map((row) => ({
         id: row.id,
         name: row.name,
+        kind: row.kind,
+        kindLabel: kindLabel(row.kind),
+        creator: row.creator_name || "",
         instance: row.instance_name,
         version: row.status === "update_available"
           ? `${row.installed_version || "?"} → ${row.latest_version || "?"}`
@@ -64,6 +68,7 @@ searchRouter.get("/api/search", async (req, res, next) => {
 searchRouter.get("/search", async (req, res, next) => {
   try {
     const q = String(req.query.q || "").trim();
+    const kind = isKind(req.query.kind) ? req.query.kind : "";
     let mods = [];
     let instances = [];
     if (q) {
@@ -71,9 +76,10 @@ searchRouter.get("/search", async (req, res, next) => {
       ({ rows: mods } = await query(
         `SELECT m.*, i.name AS instance_name FROM mods m
            JOIN instances i ON i.id = m.instance_id
-          WHERE m.name ILIKE $1 OR m.file_name ILIKE $1 OR i.name ILIKE $1
-          ORDER BY m.name LIMIT 40`,
-        [like]
+          WHERE (m.name ILIKE $1 OR m.file_name ILIKE $1 OR m.creator_name ILIKE $1 OR i.name ILIKE $1)
+            ${kind ? "AND m.kind = $2" : ""}
+          ORDER BY (m.status = 'update_available') DESC, m.name LIMIT 40`,
+        kind ? [like, kind] : [like]
       ));
       ({ rows: instances } = await query(
         "SELECT * FROM instances WHERE name ILIKE $1 OR mc_version ILIKE $1 ORDER BY name LIMIT 10",
@@ -84,6 +90,8 @@ searchRouter.get("/search", async (req, res, next) => {
       page: "search",
       title: q ? `Search: ${q}` : "Search",
       q,
+      kind,
+      kindOptions: KIND_ORDER.map((value) => ({ value, label: kindLabel(value) })),
       mods,
       instances,
     });

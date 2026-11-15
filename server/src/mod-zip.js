@@ -3,14 +3,9 @@ import yazl from "yazl";
 import { query } from "./db.js";
 import { ensureStoredJar, jarFileName } from "./export.js";
 import { jarAbsolute } from "./uploads.js";
+import { KIND_ORDER, kindFolder, kindLabel, kindPlural } from "./kinds.js";
 
-const FOLDERS = {
-  modrinth: "modrinth",
-  curseforge: "curseforge",
-  github: "github",
-  manual: "manual",
-};
-const SOURCES = new Set(Object.keys(FOLDERS));
+const SOURCES = new Set(["modrinth", "curseforge", "github", "hangar", "spigot", "manual"]);
 const CONCURRENCY = 3;
 
 function slug(value) {
@@ -34,14 +29,13 @@ function uniqueName(used, folder, name, id) {
   return candidate;
 }
 
-export async function listModsForZip(instance, { modIds = [], all = false, source = "" } = {}) {
+export async function listModsForZip(instance, { modIds = [], all = false, source = "", kinds = [] } = {}) {
   const params = [instance.id];
-  let where = "instance_id = $1";
+  let where = "instance_id = $1 AND status <> 'ignored'";
   if (modIds.length) {
     params.push(modIds);
     where += " AND id = ANY($2::int[])";
   } else if (all) {
-    where += " AND status <> 'ignored'";
     if (source && SOURCES.has(source)) {
       params.push(source);
       where += ` AND source = $${params.length}`;
@@ -49,11 +43,16 @@ export async function listModsForZip(instance, { modIds = [], all = false, sourc
   } else {
     return [];
   }
+  const selected = kinds.filter((kind) => KIND_ORDER.includes(kind));
+  if (selected.length) {
+    params.push(selected);
+    where += ` AND kind = ANY($${params.length}::text[])`;
+  }
   const { rows } = await query(
-    `SELECT id, name, source, status, disabled, installed_version, installed_version_id,
+    `SELECT id, name, kind, source, status, disabled, installed_version, installed_version_id,
             stored_path, stored_version_id, file_name, download_url, file_sha1, file_sha512,
             file_size, project_id, channel_policy, github_asset_pattern
-       FROM mods WHERE ${where} ORDER BY source, name`,
+       FROM mods WHERE ${where} ORDER BY kind, source, name`,
     params
   );
   return rows;
@@ -85,8 +84,8 @@ export async function streamModZip(instance, mods, res) {
       try {
         const stored = await ensureStoredJar(mod);
         const absolute = jarAbsolute(stored);
-        if (!absolute) throw new Error("No jar is stored or downloadable.");
-        const folder = FOLDERS[mod.source] || "other";
+        if (!absolute) throw new Error("No file is stored or downloadable.");
+        const folder = kindFolder(mod.kind);
         let name = jarFileName(mod);
         if (mod.disabled && !/\.disabled$/i.test(name)) name += ".disabled";
         name = uniqueName(used, folder, name, mod.id);
@@ -94,6 +93,7 @@ export async function streamModZip(instance, mods, res) {
         folderCounts[folder] = (folderCounts[folder] || 0) + 1;
         included.push({
           folder,
+          kind: mod.kind,
           file: name,
           name: mod.name,
           version: mod.installed_version || "",
@@ -129,12 +129,12 @@ export async function streamModZip(instance, mods, res) {
     `Pack: ${instance.pack_name || instance.name}${instance.pack_version ? ` ${instance.pack_version}` : ""}`,
     `Minecraft ${instance.mc_version} · ${instance.loader}${instance.loader_version ? ` ${instance.loader_version}` : ""}`,
     "",
-    "Jars are grouped by their tracked source:",
-    ...Object.entries(folderCounts).sort().map(([folder, count]) => `  ${folder}/ — ${count} jar${count === 1 ? "" : "s"}`),
+    "Files are grouped by the kind of project they belong to:",
+    ...Object.entries(folderCounts).sort().map(([folder, count]) => `  ${folder}/ — ${count} file${count === 1 ? "" : "s"}`),
     "",
-    "Disabled mods are saved with a .disabled suffix.",
+    "Disabled projects are saved with a .disabled suffix.",
     "Unresolved/unknown files are not included.",
-    warnings.length ? `${warnings.length} mod(s) could not be downloaded; see modwatch-download.json.` : "",
+    warnings.length ? `${warnings.length} project(s) could not be downloaded; see modwatch-download.json.` : "",
     "",
   ].filter(Boolean).join("\n");
   zip.addBuffer(Buffer.from(JSON.stringify(summary, null, 2)), "modwatch-download.json");

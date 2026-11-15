@@ -43,7 +43,7 @@
     </div>
   </div>
   <div class="instance-actions">
-    <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add mod</a>
+    <a class="btn" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add project</a>
     {% if isAdmin and stats.updates %}
     <form method="post" action="/instances/{{ instance.id }}/update-all" data-confirm-title="Update all mods?" data-confirm-label="Update all" data-confirm="Download the latest jars for {{ stats.updates }} mod{% if stats.updates != 1 %}s{% endif %} to this server, move the installed baseline and verify the result?">
       {% include "partials/csrf.njk" %}
@@ -67,14 +67,14 @@
         <form method="post" action="/instances/{{ instance.id }}/download-zip">
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
-          <button type="submit" class="download" title="One zip with modrinth/, curseforge/, github/ and manual/ folders">{{ icon('download') }} Download all jars (.zip)</button>
+          <button type="submit" class="download" title="One zip with mods/, resourcepacks/, shaderpacks/ and datapacks/ folders">{{ icon('download') }} Download all files (.zip)</button>
         </form>
         {% if sourceCounts.modrinth %}
         <form method="post" action="/instances/{{ instance.id }}/download-zip">
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="modrinth">
-          <button type="submit" class="download">{{ icon('download') }} Modrinth jars ({{ sourceCounts.modrinth }})</button>
+          <button type="submit" class="download">{{ icon('download') }} Modrinth files ({{ sourceCounts.modrinth }})</button>
         </form>
         {% endif %}
         {% if sourceCounts.curseforge %}
@@ -82,7 +82,7 @@
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="curseforge">
-          <button type="submit" class="download">{{ icon('download') }} CurseForge jars ({{ sourceCounts.curseforge }})</button>
+          <button type="submit" class="download">{{ icon('download') }} CurseForge files ({{ sourceCounts.curseforge }})</button>
         </form>
         {% endif %}
         {% if sourceCounts.github %}
@@ -90,7 +90,7 @@
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="github">
-          <button type="submit" class="download">{{ icon('download') }} GitHub jars ({{ sourceCounts.github }})</button>
+          <button type="submit" class="download">{{ icon('download') }} GitHub files ({{ sourceCounts.github }})</button>
         </form>
         {% endif %}
         {% if sourceCounts.manual %}
@@ -98,9 +98,19 @@
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="manual">
-          <button type="submit" class="download">{{ icon('download') }} Manual jars ({{ sourceCounts.manual }})</button>
+          <button type="submit" class="download">{{ icon('download') }} Manual files ({{ sourceCounts.manual }})</button>
         </form>
         {% endif %}
+        {% for option in kindOptions %}
+        {% if option.count %}
+        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+          {% include "partials/csrf.njk" %}
+          <input type="hidden" name="all" value="1">
+          <input type="hidden" name="kind" value="{{ option.value }}">
+          <button type="submit" class="download">{{ icon('download') }} {{ option.label }} ({{ option.count }})</button>
+        </form>
+        {% endif %}
+        {% endfor %}
         <div class="menu-sep"></div>
         {% if instance.share_token %}
         <a href="/s/{{ instance.share_token }}" target="_blank" rel="noopener">{{ icon('link') }} Open share page</a>
@@ -128,14 +138,14 @@
 
 <section class="kpis" aria-label="Instance totals">
   <a class="kpi" href="/instances/{{ instance.id }}">
-    <p class="kpi-label">Tracked mods</p>
+    <p class="kpi-label">Tracked projects</p>
     <p class="kpi-value">{{ stats.mod_count | number }}</p>
     <p class="kpi-foot">In this instance</p>
   </a>
   <a class="kpi" href="/instances/{{ instance.id }}?status=updates">
     <p class="kpi-label">Updates waiting</p>
     <p class="kpi-value {% if stats.updates %}accent{% endif %}">{{ stats.updates | number }}</p>
-    <p class="kpi-foot">Inside each mod's channel</p>
+    <p class="kpi-foot">Inside each project's channel</p>
   </a>
   <div class="kpi">
     <p class="kpi-label">Up to date</p>
@@ -155,13 +165,10 @@
 </section>
 
 <section class="panel section-gap">
-  <nav class="tabs" aria-label="Mod filters">
-    <a class="tab" href="/instances/{{ instance.id }}" {% if status == 'all' %}aria-current="page"{% endif %} style="padding-left: 20px;">All <span class="count">{{ stats.mod_count - stats.ignored }}</span></a>
-    <a class="tab" href="/instances/{{ instance.id }}?status=updates" {% if status == 'updates' %}aria-current="page"{% endif %}>Updates {% if stats.updates %}<span class="count accent">{{ stats.updates }}</span>{% endif %}</a>
-    <a class="tab" href="/instances/{{ instance.id }}?status=unknown" {% if status == 'unknown' %}aria-current="page"{% endif %}>Unknown {% if stats.unknown %}<span class="count">{{ stats.unknown }}</span>{% endif %}</a>
-    <a class="tab" href="/instances/{{ instance.id }}?status=manual" {% if status == 'manual' %}aria-current="page"{% endif %}>Manual {% if stats.manual %}<span class="count">{{ stats.manual }}</span>{% endif %}</a>
-    <a class="tab" href="/instances/{{ instance.id }}?status=errors" {% if status == 'errors' %}aria-current="page"{% endif %}>Errors {% if stats.errors %}<span class="count">{{ stats.errors }}</span>{% endif %}</a>
-    <a class="tab" href="/instances/{{ instance.id }}?status=ignored" {% if status == 'ignored' %}aria-current="page"{% endif %}>Ignored {% if stats.ignored %}<span class="count">{{ stats.ignored }}</span>{% endif %}</a>
+  <nav class="tabs" aria-label="Project filters">
+    {% for tab in statusTabs %}
+    <a class="tab" href="{{ tab.href }}" {% if status == tab.key %}aria-current="page"{% endif %} {% if loop.first %}style="padding-left: 20px;"{% endif %}>{{ tab.label }} {% if tab.count %}<span class="count{% if tab.accent %} accent{% endif %}">{{ tab.count }}</span>{% endif %}</a>
+    {% endfor %}
   </nav>
 
   {% if status == 'unknown' %}
@@ -229,32 +236,72 @@
   {% else %}
   <form class="toolbar" method="get" action="/instances/{{ instance.id }}" data-live-search="#mod-results">
     <input type="hidden" name="status" value="{{ status }}">
+    {% for value in selectedKinds %}<input type="hidden" name="kind" value="{{ value }}">{% endfor %}
+    {% for value in selectedSources %}<input type="hidden" name="source" value="{{ value }}">{% endfor %}
     <div class="toolbar-left">
       <label class="search-field">
         {{ icon('search') }}
-        <span class="sr-only">Search mods in this instance</span>
-        <input type="search" name="q" value="{{ q }}" placeholder="Search mods, files or versions" autocomplete="off">
+        <span class="sr-only">Search projects in this instance</span>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search projects, files, versions or creators" autocomplete="off">
       </label>
-      <label>
-        <span class="sr-only">Filter by source</span>
-        <select class="select" name="source" data-autosubmit>
-          <option value="">All sources</option>
-          <option value="modrinth" {% if source == 'modrinth' %}selected{% endif %}>Modrinth · {{ sourceCounts.modrinth or 0 }}</option>
-          <option value="curseforge" {% if source == 'curseforge' %}selected{% endif %}>CurseForge · {{ sourceCounts.curseforge or 0 }}</option>
-          <option value="github" {% if source == 'github' %}selected{% endif %}>GitHub · {{ sourceCounts.github or 0 }}</option>
-          <option value="manual" {% if source == 'manual' %}selected{% endif %}>Manual · {{ sourceCounts.manual or 0 }}</option>
-        </select>
-      </label>
-      {% if q or source %}<a class="link-btn" href="/instances/{{ instance.id }}?status={{ status }}">Clear</a>{% endif %}
+      <details class="pop filter-pop">
+        <summary class="btn sm{% if filterCount %} is-active{% endif %}">{{ icon('filter') }} Filters{% if filterCount %} <span class="filter-count">{{ filterCount }}</span>{% endif %}</summary>
+        <div class="pop-panel filter-panel">
+          {# The toolbar is already a form, so these controls belong to a sibling
+             form through the form attribute instead of nesting a second form. #}
+          <div class="filter-form">
+            <div class="filter-group">
+              <p class="filter-group-title">Kind</p>
+              {% for option in kindOptions %}
+              <label class="filter-option">
+                <input type="checkbox" form="instance-filter-form" name="kind" value="{{ option.value }}" {% if selectedKinds | includes(option.value) %}checked{% endif %}>
+                <span>{{ option.label }}</span>
+                <span class="count">{{ option.count }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="filter-group">
+              <p class="filter-group-title">Source</p>
+              {% for option in sourceOptions %}
+              <label class="filter-option">
+                <input type="checkbox" form="instance-filter-form" name="source" value="{{ option.value }}" {% if selectedSources | includes(option.value) %}checked{% endif %}>
+                <span>{{ option.label }}</span>
+                <span class="count">{{ option.count }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="filter-actions">
+              <a class="btn sm ghost" href="{{ filterResetHref }}">Clear</a>
+              <button class="btn sm primary" type="submit" form="instance-filter-form">Apply filters</button>
+            </div>
+          </div>
+        </div>
+      </details>
+      {% if q or filterCount %}<a class="link-btn" href="{{ filterResetHref }}">Clear</a>{% endif %}
     </div>
     <div class="toolbar-right">
-      <span class="count-note">{{ total | number }} mod{% if total != 1 %}s{% endif %}{% if q %} matching “{{ q }}”{% endif %}</span>
+      <span class="count-note">{{ total | number }} project{% if total != 1 %}s{% endif %}{% if q %} matching “{{ q }}”{% endif %}</span>
       {% if mods.length %}
-      <label class="check zip-check" title="Select the mods on this page"><input type="checkbox" data-select-all> Select page</label>
-      <button class="btn sm download" type="submit" form="zip-form" data-zip-submit disabled title="Download the selected jars as a zip, grouped by source">{{ icon('download') }} <span data-zip-label>Download selected</span></button>
+      <label class="check zip-check" title="Select the projects on this page"><input type="checkbox" data-select-all> Select page</label>
+      <button class="btn sm download" type="submit" form="zip-form" data-zip-submit disabled title="Download the selected files as a zip, grouped by kind">{{ icon('download') }} <span data-zip-label>Download selected</span></button>
       {% endif %}
     </div>
   </form>
+
+  <form id="instance-filter-form" method="get" action="/instances/{{ instance.id }}">
+    <input type="hidden" name="status" value="{{ status }}">
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+  </form>
+
+  {% if chips.length %}
+  <div class="filter-chips">
+    <span class="filter-chips-label">Active</span>
+    {% for chip in chips %}
+    <a class="chip" href="{{ chip.href }}">{{ chip.label }} <span class="chip-count">{{ chip.count }}</span> <span class="chip-x" aria-hidden="true">×</span></a>
+    {% endfor %}
+    <a class="chip chip-clear" href="{{ filterResetHref }}">Clear all</a>
+  </div>
+  {% endif %}
 
   <div id="mod-results" aria-live="polite">
   <form id="zip-form" class="zip-form" method="post" action="/instances/{{ instance.id }}/download-zip">
@@ -265,13 +312,13 @@
     <table class="board mods-board">
       <thead>
         <tr>
-          <th>Mod</th>
+          <th>Project</th>
           <th class="hide-sm">Source</th>
           <th>Version</th>
-          <th class="hide-sm">Channel</th>
-          <th class="hide-sm">Side</th>
+          {# <th class="hide-sm">Channel</th>
+          <th class="hide-sm">Side</th> #}
           <th>Status</th>
-          <th class="hide-sm">Checked</th>
+          {# <th class="hide-sm">Checked</th> #}
           <th aria-label="Actions"></th>
         </tr>
       </thead>
@@ -282,7 +329,7 @@
         <tr class="{% if mod.disabled %}is-disabled{% endif %}">
           <td>
             <div class="mod-cell">
-              <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="zip-form" aria-label="Select {{ mod.name }} for the jar download">
+              <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="zip-form" aria-label="Select {{ mod.name }} for the file download">
               {% set art = mod | modIcon %}
               {% if art %}
               <img class="mod-icon" src="{{ art }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ mod.name | initials }}">
@@ -292,6 +339,15 @@
               <span class="mod-copy">
                 <a class="mod-name" href="/mods/{{ mod.id }}">{{ mod.name }}</a>
                 <span class="mod-file">{{ mod.file_name or mod.project_id or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
+                <span class="mod-meta-line">
+                  <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+                  {% if mod.creator_name %}
+                  <span class="creator-line">
+                    {% if mod.creator_avatar_url %}<img class="author-avatar" src="{{ mod.creator_avatar_url }}" alt="" loading="lazy">{% endif %}
+                    {% if mod.creator_url %}<a href="{{ mod.creator_url }}" target="_blank" rel="noopener noreferrer">{{ mod.creator_name }}</a>{% else %}{{ mod.creator_name }}{% endif %}
+                  </span>
+                  {% endif %}
+                </span>
               </span>
             </div>
           </td>
@@ -312,17 +368,17 @@
             <span class="vshift same"><span class="to">{{ mod.installed_version or 'unknown version' }}</span></span>
             {% endif %}
           </td>
-          <td class="hide-sm nowrap">
+          {# <td class="hide-sm nowrap">
             <span class="faint" style="font-size:11px">{{ mod.channel_policy | channelLabel }}</span>
           </td>
-          <td class="hide-sm nowrap"><span class="faint" style="font-size:11px">{{ mod.side | sideLabel }}</span></td>
+          <td class="hide-sm nowrap"><span class="faint" style="font-size:11px">{{ mod.side | sideLabel }}</span></td> #}
           <td>
             <span class="row" style="gap:5px;flex-wrap:wrap">
               <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
               {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
             </span>
           </td>
-          <td class="hide-sm faint nowrap">{{ mod.last_checked_at | relative }}</td>
+          {# <td class="hide-sm faint nowrap">{{ mod.last_checked_at | relative }}</td> #}
           <td class="n">
             <span class="row" style="gap:2px;justify-content:flex-end">
               {% if isAdmin and mod.status == 'update_available' %}
@@ -343,7 +399,7 @@
       </tbody>
     </table>
   </div>
-  {{ pager(pages, currentPage, '/instances/' ~ instance.id ~ '?status=' ~ status ~ '&source=' ~ source ~ '&q=' ~ (q | urlencode)) }}
+  {{ pager(pages, currentPage, pagerBase) }}
 
   {% else %}
   <div class="panel-body">
@@ -351,26 +407,26 @@
       <div class="empty-inner">
         <span class="empty-icon">{{ icon('search' if q else 'instances') }}</span>
         {% if q %}
-        <p class="empty-title">No mod matches “{{ q }}”</p>
-        <p class="empty-text">Try part of the mod name or the jar file name. The source filter may also be hiding it.</p>
-        <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}?status={{ status }}">Clear the search</a></div>
+        <p class="empty-title">No project matches “{{ q }}”</p>
+        <p class="empty-text">Try part of the project name, its file name or its creator. The kind and source filters may also be hiding it.</p>
+        <div class="empty-actions"><a class="btn" href="{{ filterResetHref }}">Clear the search</a></div>
         {% elif status == 'updates' %}
         <p class="empty-title">Nothing is behind</p>
-        <p class="empty-text">Every tracked mod already runs the newest version allowed by its channel for {{ instance.mc_version }} {{ instance.loader | loaderLabel }}.</p>
+        <p class="empty-text">Every tracked project already runs the newest version allowed by its channel for {{ instance.mc_version }} {{ instance.loader | loaderLabel }}.</p>
         {% elif status == 'errors' %}
         <p class="empty-title">No source errors</p>
         <p class="empty-text">Every connector answered on the last run. If a source goes down, the affected mods will appear here with the message.</p>
         {% elif status == 'manual' %}
-        <p class="empty-title">No manual mods</p>
-        <p class="empty-text">Manual entries are jars you track without a project page. Resolve an unknown file as manual to start one.</p>
+        <p class="empty-title">No manual projects</p>
+        <p class="empty-text">Manual entries are files you track without a project page. Resolve an unknown file as manual to start one.</p>
         {% elif status == 'ignored' %}
         <p class="empty-title">Nothing ignored</p>
         <p class="empty-text">Files you choose to ignore are kept here with their hashes, out of the board's way.</p>
         {% else %}
-        <p class="empty-title">No mods in this instance</p>
-        <p class="empty-text">Import a .mrpack to bring in the whole pack at once, or add mods one at a time from Modrinth, CurseForge and GitHub.</p>
+        <p class="empty-title">No projects in this instance</p>
+        <p class="empty-text">Import a .mrpack to bring in the whole pack at once, or add mods, resource packs, data packs and shaders one at a time.</p>
         <div class="empty-actions">
-          <a class="btn primary" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add a mod</a>
+          <a class="btn primary" href="/instances/{{ instance.id }}/mods/new">{{ icon('plus') }} Add a project</a>
           {% if isAdmin %}<a class="btn" href="/imports/new">Import .mrpack</a>{% endif %}
         </div>
         {% endif %}

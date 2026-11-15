@@ -14,14 +14,14 @@
       {% endif %}
       <div>
         <h1 class="share-title">{{ instance.pack_name or instance.name }}</h1>
-        <p class="share-sub">{{ overview.stats.mods }} tracked mods · {{ instance.mc_version }} · {{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</p>
+        <p class="share-sub">{{ overview.stats.mods }} tracked projects · {{ instance.mc_version }} · {{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</p>
       </div>
     </div>
     <div class="share-actions">
       <a class="btn primary" href="/s/{{ instance.share_token }}/export">{{ icon('download') }} Download .mrpack</a>
       <button class="btn" type="button" data-copy="{{ shareUrl }}">{{ icon('link') }} Copy share link</button>
     </div>
-    <p class="share-note">The download is generated from the tracked versions. Import it in Modrinth App, Prism, ATLauncher or any launcher that accepts .mrpack.</p>
+    <p class="share-note">The .mrpack is generated from the tracked versions. Import it in Modrinth App, Prism, ATLauncher or any launcher that accepts .mrpack. The .zip keeps the raw files, grouped by kind.</p>
   </div>
   <aside class="share-summary">
     <div class="share-summary-row">
@@ -29,7 +29,7 @@
       <strong class="{% if overview.stats.updates %}accent{% endif %}">{{ overview.stats.updates }}</strong>
     </div>
     <div class="share-summary-row">
-      <span>Tracked mods</span>
+      <span>Tracked projects</span>
       <strong>{{ overview.stats.mods }}</strong>
     </div>
     <div class="share-summary-row">
@@ -47,71 +47,67 @@
   </aside>
 </section>
 
-{# <section class="panel share-panel" style="margin-bottom:24px">
+<section class="panel share-panel share-mods" data-facet-filter data-facet-target="#share-mod-table" data-facet-empty="#share-filter-empty" data-facet-noun="{% if view == 'updates' %}update{% else %}project{% endif %}">
   <div class="panel-head">
     <div>
-      <h2 class="panel-title">Updates in this pack</h2>
-      <p class="panel-sub">The newest allowed version for {{ instance.mc_version }} {{ instance.loader | loaderLabel }}</p>
+      <h2 class="panel-title">{% if view == 'updates' %}Update table{% else %}All projects{% endif %}</h2>
+      <p class="panel-sub">{% if view == 'updates' %}{{ overview.stats.updates }} project{% if overview.stats.updates != 1 %}s{% endif %} with a newer allowed version{% else %}Every tracked project in this pack, including disabled files{% endif %}</p>
     </div>
-    <span class="pill {% if overview.updates.length %}pos{% else %}muted{% endif %}"><span class="dot"></span>{% if overview.stats.updates %}{{ overview.stats.updates }} waiting{% else %}Up to date{% endif %}</span>
-  </div>
-  {% if overview.updates.length %}
-  <div class="share-updates">
-    {% for mod in overview.updates %}
-    <div class="share-update-row">
-      {% if mod.icon_url %}
-      <img class="mod-icon" src="{{ mod.icon_url }}" alt="" width="34" height="34" data-fallback="{{ mod.name | initials }}">
-      {% else %}
-      <span class="mod-icon fallback">{{ mod.name | initials }}</span>
-      {% endif %}
-      <div class="share-update-copy">
-        <strong>{{ mod.name }}</strong>
-        <span>{{ mod.installed_version }} → {{ mod.latest_version }}</span>
-      </div>
-      <span class="pill pos"><span class="dot"></span>Update</span>
-    </div>
-    {% endfor %}
-    {% if overview.stats.updates > overview.updates.length %}
-    <p class="share-more">+ {{ overview.stats.updates - overview.updates.length }} more update{% if overview.stats.updates - overview.updates.length != 1 %}s{% endif %} in the pack</p>
-    {% endif %}
-  </div>
-  {% else %}
-  <div class="panel-body">
-    <div class="empty-state">
-      <div class="empty-inner">
-        <span class="empty-icon">{{ icon('check') }}</span>
-        <p class="empty-title">Everything is up to date</p>
-        <p class="empty-text">No tracked mod has a newer version inside its channel for this exact Minecraft version and loader.</p>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</section> #}
-
-<section class="panel share-panel share-mods">
-  <div class="panel-head">
-    <div>
-      <h2 class="panel-title">{% if view == 'updates' %}Update table{% else %}All mods{% endif %}</h2>
-      <p class="panel-sub">{% if view == 'updates' %}{{ overview.stats.updates }} mod{% if overview.stats.updates != 1 %}s{% endif %} with a newer allowed version{% else %}Every tracked mod in this pack, including disabled files{% endif %}</p>
-    </div>
-    <nav class="share-tabs" aria-label="Mod table view">
-      <a href="/s/{{ instance.share_token }}?view=all" {% if view != 'updates' %}aria-current="page"{% endif %}>All mods</a>
+    <nav class="share-tabs" aria-label="Project table view">
+      <a href="/s/{{ instance.share_token }}?view=all" {% if view != 'updates' %}aria-current="page"{% endif %}>All projects</a>
       <a href="/s/{{ instance.share_token }}?view=updates" {% if view == 'updates' %}aria-current="page"{% endif %}>Updates</a>
     </nav>
   </div>
   <div class="share-mod-toolbar">
     <label class="search-field">
       {{ icon('search') }}
-      <span class="sr-only">Filter shared mods</span>
-      <input type="search" placeholder="Filter by mod, version or source" autocomplete="off" data-filter data-filter-target="#share-mod-table" data-filter-empty="#share-filter-empty">
+      <span class="sr-only">Filter shared projects</span>
+      <input type="search" placeholder="Filter by project, version, creator or source" autocomplete="off" data-facet-search>
     </label>
-    <span class="count-note">{% if view == 'updates' %}{{ overview.stats.updates }} update{% if overview.stats.updates != 1 %}s{% endif %}{% else %}{{ overview.stats.mods }} mods{% endif %}</span>
+    <details class="pop filter-pop">
+      <summary class="btn sm">{{ icon('filter') }} Filters{% if overview.stats.mods %} <span class="filter-count" data-facet-count-badge hidden></span>{% endif %}</summary>
+      <div class="pop-panel filter-panel">
+        <div class="filter-group">
+          <p class="filter-group-title">Kind</p>
+          {% for option in kindOptions %}
+          <label class="filter-option">
+            <input type="checkbox" data-facet-kind value="{{ option.value }}">
+            <span>{{ option.label }}</span>
+            <span class="count">{{ option.count }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="filter-group">
+          <p class="filter-group-title">Source</p>
+          {% for option in sourceOptions %}
+          <label class="filter-option">
+            <input type="checkbox" data-facet-source value="{{ option.value }}">
+            <span>{{ option.label }}</span>
+            <span class="count">{{ option.count }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="filter-actions">
+          <button class="btn sm ghost" type="button" data-facet-clear>Clear</button>
+        </div>
+      </div>
+    </details>
+    <span class="count-note" data-facet-count>{% if view == 'updates' %}{{ overview.stats.updates }} update{% if overview.stats.updates != 1 %}s{% endif %}{% else %}{{ overview.stats.mods }} projects{% endif %}</span>
+    <label class="check zip-check" title="Select the projects visible on this page"><input type="checkbox" data-share-select-all> Select page</label>
+    <button class="btn sm download" type="submit" form="share-zip-form" data-share-zip-submit disabled title="Download the selected files as a zip, grouped by kind">{{ icon('download') }} <span data-share-zip-label>Download selected</span></button>
+    <button class="btn sm download" type="submit" form="share-zip-form" name="all" value="1" title="Download every file in this pack as a zip, grouped by kind">{{ icon('download') }} Download all (.zip)</button>
   </div>
+  <div class="filter-chips" data-facet-chips hidden></div>
+
+  <form id="share-zip-form" class="zip-form" method="post" action="/s/{{ instance.share_token }}/download-zip">
+    {% include "partials/csrf.njk" %}
+  </form>
+
   <div class="table-wrap share-mod-wrap">
     <table class="board share-mod-table" id="share-mod-table">
       <thead>
         <tr>
-          <th>Mod</th>
+          <th>Project</th>
           <th>Version</th>
           <th class="hide-sm">Source</th>
           <th class="hide-sm">Side</th>
@@ -123,16 +119,29 @@
         {% if view != 'updates' or mod.status == 'update_available' %}
         {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
         {% set meta = shown | statusMeta %}
-        <tr data-row class="{% if mod.disabled %}is-disabled{% endif %}">
+        <tr data-row data-kind="{{ mod.kind }}" data-source="{{ mod.source }}" class="{% if mod.disabled %}is-disabled{% endif %}">
           <td>
             <div class="mod-cell">
+              <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="share-zip-form" aria-label="Select {{ mod.name }}">
               {% set art = mod | modIcon %}
               {% if art %}
               <img class="mod-icon" src="{{ art }}" alt="" width="30" height="30" loading="lazy" data-fallback="{{ mod.name | initials }}">
               {% else %}
               <span class="mod-icon fallback">{{ mod.name | initials }}</span>
               {% endif %}
-              <span class="mod-copy"><span class="mod-name">{{ mod.name }}</span></span>
+              <span class="mod-copy">
+                <span class="mod-name">{{ mod.name }}</span>
+                <span class="mod-file">{{ mod.file_name or mod.installed_version or 'No file recorded' }}</span>
+                <span class="mod-meta-line">
+                  <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
+                  {% if mod.creator_name %}
+                  <span class="creator-line">
+                    {% if mod.creator_avatar_url %}<img class="author-avatar" src="{{ mod.creator_avatar_url }}" alt="" loading="lazy">{% endif %}
+                    {% if mod.creator_url %}<a href="{{ mod.creator_url }}" target="_blank" rel="noopener noreferrer">{{ mod.creator_name }}</a>{% else %}{{ mod.creator_name }}{% endif %}
+                  </span>
+                  {% endif %}
+                </span>
+              </span>
             </div>
           </td>
           <td>
@@ -157,7 +166,7 @@
     </table>
   </div>
   <div class="panel-body" id="share-filter-empty" hidden>
-    <p class="faint" style="font-size:12px;text-align:center">No mod matches that filter.</p>
+    <p class="faint" style="font-size:12px;text-align:center">No project matches those filters.</p>
   </div>
 </section>
 

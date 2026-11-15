@@ -20,13 +20,21 @@
       <div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <h1 class="page-title">{{ mod.name }}</h1>
+          <span class="kind-badge kind-{{ mod.kind }}">{{ mod.kind | kindLabel }}</span>
           <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
           {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
         </div>
         <div class="instance-meta">
           <span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span>
           <span class="sep"></span>
-          <span>{{ mod.mc_version }} · {{ mod.loader | loaderLabel }}</span>
+          <span>{{ mod.mc_version }} · {% if mod.kind == 'mod' %}{{ mod.loader | loaderLabel }}{% else %}loader-independent{% endif %}</span>
+          {% if mod.creator_name %}
+          <span class="sep"></span>
+          <span class="creator-line">
+            {% if mod.creator_avatar_url %}<img class="author-avatar" src="{{ mod.creator_avatar_url }}" alt="" loading="lazy">{% endif %}
+            {% if mod.creator_url %}<a href="{{ mod.creator_url }}" target="_blank" rel="noopener noreferrer">{{ mod.creator_name }}</a>{% else %}{{ mod.creator_name }}{% endif %}
+          </span>
+          {% endif %}
           <span class="sep"></span>
           <span>{{ mod.file_name or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
         </div>
@@ -45,7 +53,7 @@
     </form>
     {% endif %}
     <details class="menu">
-      <summary aria-label="Mod actions">{{ icon('kebab') }}</summary>
+      <summary aria-label="Project actions">{{ icon('kebab') }}</summary>
       <div class="menu-panel">
         {% if mod.project_url %}<a href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ icon('external') }} Open project</a>{% endif %}
         {% if mod.status == 'update_available' and not mod.frozen_at %}
@@ -65,9 +73,9 @@
         <form method="post" action="/mods/{{ mod.id }}/disable">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('pause') }} Disable file</button></form>
         {% endif %}
         <div class="menu-sep"></div>
-        <form method="post" action="/mods/{{ mod.id }}/delete" data-confirm-title="Remove mod?" data-confirm-label="Remove" data-confirm="Remove {{ mod.name }} from {{ mod.instance_name }}?">
+        <form method="post" action="/mods/{{ mod.id }}/delete" data-confirm-title="Remove project?" data-confirm-label="Remove" data-confirm="Remove {{ mod.name }} from {{ mod.instance_name }}?">
           {% include "partials/csrf.njk" %}
-          <button type="submit" class="danger">{{ icon('trash') }} Remove mod</button>
+          <button type="submit" class="danger">{{ icon('trash') }} Remove project</button>
         </form>
       </div>
     </details>

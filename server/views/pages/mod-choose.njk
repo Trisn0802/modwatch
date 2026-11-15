@@ -14,7 +14,7 @@
       <span class="instance-mark">{{ name | initials }}</span>
       {% endif %}
       <div>
-        <p class="eyebrow" style="margin-bottom:4px">{{ src.label }}{% if manual %} · manual entry{% endif %}</p>
+        <p class="eyebrow" style="margin-bottom:4px">{{ src.label }} · {{ kindLabel }}{% if manual %} · manual entry{% endif %}</p>
         <h1 class="instance-title">{{ name or 'Choose a version' }}</h1>
         <p class="page-sub" style="margin-top:4px">Pick the build that is already installed. ModWatch stores it as the baseline, then checks forward from there.</p>
       </div>
@@ -45,6 +45,7 @@
       <form class="form" method="post" action="/instances/{{ instance.id }}/mods">
         {% include "partials/csrf.njk" %}
         <input type="hidden" name="source" value="manual">
+        <input type="hidden" name="kind" value="{{ kind }}">
         <input type="hidden" name="name" value="{{ name }}">
         {% if projectUrl %}<input type="hidden" name="project_url" value="{{ projectUrl }}">{% endif %}
         <div class="form-grid">
@@ -67,7 +68,7 @@
             </select>
           </div>
         </div>
-        <div class="form-actions"><button class="btn primary" type="submit">{{ icon('plus') }} Add manual mod</button></div>
+        <div class="form-actions"><button class="btn primary" type="submit">{{ icon('plus') }} Add manual project</button></div>
       </form>
     </div>
   </section>
@@ -79,7 +80,7 @@
     <div class="panel-head">
       <div>
         <h2 class="panel-title">Versions for this scope</h2>
-        <p class="panel-sub">Filtered to {{ instance.mc_version }} {{ instance.loader | loaderLabel }}{% if assetPattern %} · asset /{{ assetPattern }}/{% endif %}</p>
+        <p class="panel-sub">Filtered to {{ instance.mc_version }}{% if kind == 'mod' %} {{ instance.loader | loaderLabel }}{% else %} · loader-independent{% endif %}{% if assetPattern %} · asset /{{ assetPattern }}/{% endif %}</p>
       </div>
       {% if projectUrl %}<a class="card-link" href="{{ projectUrl }}" target="_blank" rel="noopener noreferrer">Project page {{ icon('external') }}</a>{% endif %}
     </div>
@@ -88,6 +89,10 @@
     <form method="post" action="/instances/{{ instance.id }}/mods" data-version-form>
       {% include "partials/csrf.njk" %}
       <input type="hidden" name="source" value="{{ source }}">
+      <input type="hidden" name="kind" value="{{ kind }}">
+      <input type="hidden" name="creator_name" value="{{ creatorName }}">
+      <input type="hidden" name="creator_url" value="{{ creatorUrl }}">
+      <input type="hidden" name="creator_avatar_url" value="{{ creatorAvatarUrl }}">
       <input type="hidden" name="project_id" value="{{ projectId }}">
       <input type="hidden" name="project_url" value="{{ projectUrl }}">
       <input type="hidden" name="name" value="{{ name }}">
@@ -149,8 +154,8 @@
         <div class="empty-inner">
           <span class="empty-icon">{{ icon('unknown') }}</span>
           <p class="empty-title">No version fits this scope</p>
-          <p class="empty-text">The project published nothing for {{ instance.mc_version }} {{ instance.loader | loaderLabel }} inside the allowed channels. Check the loader version, or add the installed jar as a manual entry.</p>
-          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}/mods/new?manual=1">Add manually</a></div>
+          <p class="empty-text">The project published nothing for {{ instance.mc_version }}{% if kind == 'mod' %} {{ instance.loader | loaderLabel }}{% endif %} inside the allowed channels. Check the loader version, or add the installed file as a manual entry.</p>
+          <div class="empty-actions"><a class="btn" href="/instances/{{ instance.id }}/mods/new?manual=1&kind={{ kind }}">Add manually</a></div>
         </div>
       </div>
     </div>
@@ -168,9 +173,10 @@
       <div class="panel-body">
         <div class="kv">
           <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value">{{ src.label }}</span></div>
+          <div class="kv-row"><span class="kv-label">Kind</span><span class="kv-value">{{ kindLabel }}</span></div>
           <div class="kv-row"><span class="kv-label">Project ID</span><span class="kv-value mono-sm" style="word-break:break-all">{{ projectId }}</span></div>
           <div class="kv-row"><span class="kv-label">Minecraft</span><span class="kv-value">{{ instance.mc_version }}</span></div>
-          <div class="kv-row"><span class="kv-label">Loader</span><span class="kv-value">{{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</span></div>
+          <div class="kv-row"><span class="kv-label">Loader</span><span class="kv-value">{% if kind == 'mod' %}{{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}{% else %}Not required{% endif %}</span></div>
         </div>
         {% if projectUrl %}<a class="btn" style="margin-top:14px;width:100%" href="{{ projectUrl }}" target="_blank" rel="noopener noreferrer">{{ icon('external') }} Open project page</a>{% endif %}
       </div>
@@ -185,7 +191,7 @@
         </div>
       </div>
       <div class="panel-body">
-        <p class="faint" style="font-size:11.5px;line-height:1.6">When a release carries several jars, a pattern such as <code>forge</code> or <code>1\.20\.1</code> picks the right one. Leave it empty to use the first jar.</p>
+        <p class="faint" style="font-size:11.5px;line-height:1.6">When a release carries several files, a pattern such as <code>forge</code> or <code>1\.20\.1</code> picks the right one. Leave it empty to use the first file.</p>
       </div>
     </section>
     {% endif %}
@@ -198,8 +204,8 @@
         </div>
       </div>
       <div class="panel-body">
-        <p class="faint" style="font-size:11.5px;line-height:1.6">If the exact jar is a private build, add it as a manual entry instead. It appears on the board without a source lookup.</p>
-        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1">Manual entry</a>
+        <p class="faint" style="font-size:11.5px;line-height:1.6">If the exact file is a private build, add it as a manual entry instead. It appears on the board without a source lookup.</p>
+        <a class="btn" style="margin-top:14px" href="/instances/{{ instance.id }}/mods/new?manual=1&kind={{ kind }}">Manual entry</a>
       </div>
     </section>
   </aside>

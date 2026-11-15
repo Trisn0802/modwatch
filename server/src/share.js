@@ -12,7 +12,7 @@ const cacheDir = path.join(process.cwd(), "uploads", "og");
 const iconCacheDir = path.join(cacheDir, "icons");
 const ICON_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const ICON_MAX_BYTES = 2 * 1024 * 1024;
-const OG_LAYOUT_VERSION = "2";
+const OG_LAYOUT_VERSION = "3";
 const ICON_HOSTS = new Set([
   "cdn.modrinth.com",
   "avatars.githubusercontent.com",
@@ -110,28 +110,35 @@ export async function shareOverview(instance) {
       [instance.id]
     ),
     query(
-      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
-              status, disabled, frozen_at, snoozed_version_id
+      `SELECT id, name, kind, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id, creator_name, creator_url, creator_avatar_url
          FROM mods WHERE instance_id = $1 AND status = 'update_available'
         ORDER BY name LIMIT 5`,
       [instance.id]
     ),
     query(
-      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
-              status, disabled, frozen_at, snoozed_version_id
+      `SELECT id, name, kind, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id, creator_name, creator_url, creator_avatar_url
          FROM mods WHERE instance_id = $1 AND status <> 'ignored'
         ORDER BY (status = 'update_available') DESC, name LIMIT 4`,
       [instance.id]
     ),
     query(
-      `SELECT id, name, installed_version, latest_version, icon_url, source, project_id, side,
-              status, disabled, frozen_at, snoozed_version_id, file_name
+      `SELECT id, name, kind, installed_version, latest_version, icon_url, source, project_id, side,
+              status, disabled, frozen_at, snoozed_version_id, file_name,
+              creator_name, creator_url, creator_avatar_url
          FROM mods WHERE instance_id = $1 AND status <> 'ignored'
-        ORDER BY name`,
+        ORDER BY kind, name`,
       [instance.id]
     ),
   ]);
-  return { stats: stats[0], updates, items, mods };
+  const kindCounts = {};
+  const sourceCounts = {};
+  for (const row of mods) {
+    kindCounts[row.kind] = (kindCounts[row.kind] || 0) + 1;
+    sourceCounts[row.source] = (sourceCounts[row.source] || 0) + 1;
+  }
+  return { stats: stats[0], updates, items, mods, kindCounts, sourceCounts };
 }
 
 export function shareSvg(instance, overview, icons = new Map()) {
@@ -168,7 +175,7 @@ export function shareSvg(instance, overview, icons = new Map()) {
           <rect x="1016" y="${y - 21}" width="96" height="30" rx="15" fill="${isUpdate ? "#1bd96a" : "#1c1d22"}"/>
           <text x="1064" y="${y - 1}" text-anchor="middle" font-size="13" font-weight="700" fill="${isUpdate ? "#05140b" : "#96a2b0"}">${isUpdate ? "Update" : "Latest"}</text>`;
       }).join("")
-    : `<text x="744" y="${panelTop + 152}" font-size="20" fill="#96a2b0">No tracked mods yet.</text>`;
+    : `<text x="744" y="${panelTop + 152}" font-size="20" fill="#96a2b0">No tracked projects yet.</text>`;
 
   const updateLabel = stats.updates === 1 ? "1 update" : `${stats.updates} updates`;
   const loaderName = LOADER_LABEL[instance.loader] || instance.loader;
@@ -212,7 +219,7 @@ export function shareSvg(instance, overview, icons = new Map()) {
       <rect x="232" y="414" width="148" height="42" rx="21" fill="#17171c" stroke="#25262b"/>
       <text x="306" y="441" text-anchor="middle" font-size="15" fill="#d7dee6">${esc(loaderName)} ${esc(clip(instance.loader_version, 8))}</text>
       <rect x="392" y="414" width="148" height="42" rx="21" fill="#17171c" stroke="#25262b"/>
-      <text x="466" y="441" text-anchor="middle" font-size="15" fill="#d7dee6">${stats.mods} mods</text>
+      <text x="466" y="441" text-anchor="middle" font-size="15" fill="#d7dee6">${stats.mods} projects</text>
     </g>
     <g clip-path="url(#panelClip)">
       <rect x="672" y="72" width="456" height="486" rx="20" fill="#101013" stroke="#25262b"/>
@@ -224,7 +231,7 @@ export function shareSvg(instance, overview, icons = new Map()) {
       <line x1="672" y1="176" x2="1128" y2="176" stroke="#25262b"/>
       ${rowsSvg}
       <line x1="672" y1="500" x2="1128" y2="500" stroke="#25262b"/>
-      <text x="704" y="532" font-family="DejaVu Sans, Inter, sans-serif" font-size="15" fill="#96a2b0">${stats.mods} tracked mods · ${stats.disabled} disabled · self-hosted</text>
+      <text x="704" y="532" font-family="DejaVu Sans, Inter, sans-serif" font-size="15" fill="#96a2b0">${stats.mods} tracked projects · ${stats.disabled} disabled · self-hosted</text>
     </g>
   </svg>`;
 }

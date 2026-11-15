@@ -1,5 +1,5 @@
 import { query, tryAdvisoryLock } from "./db.js";
-import { latestForMod } from "./sources/index.js";
+import { latestForMod, projectMeta } from "./sources/index.js";
 import { createNotifications, telegramSend } from "./notify.js";
 import { logActivity } from "./activity.js";
 import { isNewer } from "./helpers.js";
@@ -70,6 +70,19 @@ async function checkMod(mod, instance) {
   if (mod.status === "ignored") return { mod, result: "ignored" };
 
   try {
+    if (!mod.creator_name && mod.project_id && mod.source !== "manual") {
+      const meta = await projectMeta(mod.source, mod.project_id, mod.kind);
+      if (meta) {
+        await query(
+          `UPDATE mods SET creator_name = $2, creator_url = $3, creator_avatar_url = $4,
+             icon_url = COALESCE(icon_url, $5) WHERE id = $1`,
+          [mod.id, meta.creator_name || "", meta.creator_url || "", meta.creator_avatar_url || null, meta.icon_url || null]
+        );
+        mod.creator_name = meta.creator_name || "";
+        mod.creator_url = meta.creator_url || "";
+        mod.creator_avatar_url = meta.creator_avatar_url || null;
+      }
+    }
     const versions = await latestForMod(mod, instance);
     const latest = versions?.[0] || null;
     if (!latest) {
@@ -185,7 +198,7 @@ export async function checkInstance(instanceId, { trigger = "manual", userId = n
     });
 
     broadcastRefresh("instances", { reason: "check", instanceId }).catch(() => {});
-    if (updates.length) {
+    if (updates.length && instance.telegram_updates !== false) {
       const lines = updates.slice(0, 15).map(({ mod, latest }) =>
         `• ${mod.name} ${mod.installed_version} → ${latest?.version || ""}`
       );

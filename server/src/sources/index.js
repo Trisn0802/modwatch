@@ -11,16 +11,16 @@ export function channelsFor(policy) {
   return ["release"];
 }
 
-export async function searchProjects(query, instance, { includeCurseforge = true, includeGithub = true } = {}) {
+export async function searchProjects(query, instance, { includeCurseforge = true, includeGithub = true, kind = "mod" } = {}) {
   const results = await modrinth
-    .searchProject(query, { mcVersion: instance?.mc_version, loader: instance?.loader, limit: 8 })
+    .searchProject(query, { mcVersion: instance?.mc_version, loader: instance?.loader, limit: 8, kind })
     .catch((err) => {
       console.error("modrinth search:", err.message);
       return [];
     });
   if (includeCurseforge && config.curseforgeReady) {
     const cf = await curseforge
-      .searchProject(query, { mcVersion: instance?.mc_version, loader: instance?.loader, limit: 6 })
+      .searchProject(query, { mcVersion: instance?.mc_version, loader: instance?.loader, limit: 6, kind })
       .catch((err) => {
         console.error("curseforge search:", err.message);
         return [];
@@ -29,7 +29,7 @@ export async function searchProjects(query, instance, { includeCurseforge = true
   }
   if (includeGithub) {
     const gh = await github
-      .searchProject(query, { limit: 8 })
+      .searchProject(query, { limit: 8, kind })
       .catch((err) => {
         console.error("github search:", err.message);
         return [];
@@ -64,18 +64,25 @@ export async function resolveProjectUrl(url) {
   return null;
 }
 
-export async function listSourceVersions(source, projectId, instance, channelPolicy = "release", assetPattern = "") {
+export async function listSourceVersions(source, projectId, instance, channelPolicy = "release", assetPattern = "", kind = "mod") {
   const mod = SOURCE_MODULES[source];
   if (!mod) return [];
   return mod.listVersions(projectId, {
     mcVersion: instance?.mc_version,
-    loader: instance?.loader,
+    loader: instance?.loader === "plugin" && kind !== "mod" ? null : instance?.loader,
     channels: channelsFor(channelPolicy),
     assetPattern,
+    kind,
   });
 }
 
 export async function latestForMod(mod, instance) {
   if (mod.source === "manual") return [];
-  return listSourceVersions(mod.source, mod.project_id, instance, mod.channel_policy, mod.github_asset_pattern);
+  return listSourceVersions(mod.source, mod.project_id, instance, mod.channel_policy, mod.github_asset_pattern, mod.kind);
+}
+
+export async function projectMeta(source, projectId, kind = "mod") {
+  const mod = SOURCE_MODULES[source];
+  if (!mod?.projectMeta || !projectId) return null;
+  return mod.projectMeta(projectId, kind).catch(() => null);
 }

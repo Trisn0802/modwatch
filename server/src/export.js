@@ -8,6 +8,7 @@ import { getVersion, listVersions as modrinthVersions } from "./sources/modrinth
 import { listVersions as curseforgeVersions } from "./sources/curseforge.js";
 import { listVersions as githubVersions } from "./sources/github.js";
 import { jarAbsolute, saveJar, writeExport } from "./uploads.js";
+import { kindExtension, kindFolder } from "./kinds.js";
 
 const MAX_JAR = 120 * 1024 * 1024;
 
@@ -27,10 +28,11 @@ function envFor(side) {
 }
 
 export function jarFileName(mod) {
-  const base = String(mod.file_name || `${mod.name}-${mod.installed_version}.jar`)
-    .replace(/\.jar(?:\.disabled)?$/i, "")
+  const extension = kindExtension(mod.kind);
+  const base = String(mod.file_name || `${mod.name}-${mod.installed_version}${extension}`)
+    .replace(/\.(?:jar|zip)(?:\.disabled)?$/i, "")
     .replace(/[^a-zA-Z0-9._+-]/g, "_");
-  return `${base || "mod"}.jar`;
+  return `${base || "project"}${extension}`;
 }
 
 async function download(url, limit = MAX_JAR) {
@@ -86,6 +88,7 @@ async function matchStoredFile(mod) {
       mcVersion: instance.mc_version,
       loader: instance.loader,
       channels: ["release", "beta", "alpha"],
+      kind: mod.kind,
     });
     const match = versions.find((v) => mod.installed_version_id && v.version_id === mod.installed_version_id)
       || versions.find((v) => fileName && String(v.file_name).toLowerCase() === fileName);
@@ -104,6 +107,7 @@ async function matchStoredFile(mod) {
       mcVersion: instance.mc_version,
       loader: instance.loader,
       channels: ["release", "beta", "alpha"],
+      kind: mod.kind,
     });
     const match = versions.find((v) => mod.installed_version_id && v.version_id === mod.installed_version_id)
       || versions.find((v) => fileName && String(v.file_name).toLowerCase() === fileName);
@@ -219,14 +223,14 @@ export async function buildExport(instance, { userId = null } = {}) {
       });
       const absolute = jarAbsolute(stored);
       if (absolute) {
-        overrides.push({ name: disabledName(jarFileName(mod)), absolute });
+        overrides.push({ path: `${kindFolder(mod.kind)}/${disabledName(jarFileName(mod))}`, absolute });
       } else {
-        warnings.push(`${mod.name} is disabled but no jar is stored on the server.`);
+        warnings.push(`${mod.name} is disabled but no file is stored on the server.`);
       }
       continue;
     }
 
-    if (mod.source === "modrinth") {
+    if (mod.kind === "mod" && mod.source === "modrinth") {
       const file = await resolveModrinthFile(mod).catch((err) => {
         warnings.push(`${mod.name}: ${err.message}`);
         return null;
@@ -249,13 +253,13 @@ export async function buildExport(instance, { userId = null } = {}) {
       return null;
     });
     const absolute = jarAbsolute(stored);
-    if (absolute) overrides.push({ name: jarFileName(mod), absolute });
-    else warnings.push(`${mod.name}: no download URL and no stored jar.`);
+    if (absolute) overrides.push({ path: `${kindFolder(mod.kind)}/${jarFileName(mod)}`, absolute });
+    else warnings.push(`${mod.name}: no download URL and no stored file.`);
   }
 
   for (const item of unknown) {
     const absolute = jarAbsolute(item.stored_path);
-    if (absolute) overrides.push({ name: jarFileName({ file_name: item.file_name, name: item.file_name, installed_version: "" }), absolute });
+    if (absolute) overrides.push({ path: `mods/${jarFileName({ file_name: item.file_name, name: item.file_name, installed_version: "" })}`, absolute });
     else warnings.push(`${item.file_name}: unknown file has no stored jar.`);
   }
 
@@ -278,13 +282,14 @@ export async function buildExport(instance, { userId = null } = {}) {
   zip.addBuffer(Buffer.from(JSON.stringify(index, null, 2)), "modrinth.index.json");
   const added = new Set();
   for (const item of overrides) {
-    const name = path.basename(item.name);
-    if (added.has(name.toLowerCase())) {
-      warnings.push(`${name}: duplicate override file skipped.`);
+    const relative = String(item.path || "").replace(/^\/+/, "");
+    if (!relative || relative.includes("..")) continue;
+    if (added.has(relative.toLowerCase())) {
+      warnings.push(`${relative}: duplicate override file skipped.`);
       continue;
     }
-    added.add(name.toLowerCase());
-    zip.addFile(item.absolute, `overrides/mods/${name}`);
+    added.add(relative.toLowerCase());
+    zip.addFile(item.absolute, `overrides/${relative}`);
   }
   if (warnings.length) {
     zip.addBuffer(

@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS instances (
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS image_path TEXT;
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS share_token TEXT;
 ALTER TABLE instances ADD COLUMN IF NOT EXISTS share_created_at TIMESTAMPTZ;
+ALTER TABLE instances ADD COLUMN IF NOT EXISTS telegram_updates BOOLEAN NOT NULL DEFAULT true;
 CREATE UNIQUE INDEX IF NOT EXISTS instances_share_token_uq ON instances (share_token) WHERE share_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS imports (
@@ -89,12 +90,20 @@ ALTER TABLE mods ADD COLUMN IF NOT EXISTS stored_path TEXT;
 ALTER TABLE mods ADD COLUMN IF NOT EXISTS stored_version_id TEXT;
 ALTER TABLE mods ADD COLUMN IF NOT EXISTS disabled BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE mods ADD COLUMN IF NOT EXISTS frozen_at TIMESTAMPTZ;
+ALTER TABLE mods ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'mod';
+ALTER TABLE mods ADD COLUMN IF NOT EXISTS creator_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE mods ADD COLUMN IF NOT EXISTS creator_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE mods ADD COLUMN IF NOT EXISTS creator_avatar_url TEXT;
 ALTER TABLE mods DROP CONSTRAINT IF EXISTS mods_status_check;
 ALTER TABLE mods ADD CONSTRAINT mods_status_check
   CHECK (status IN ('up_to_date','update_available','unknown','manual','source_error','ignored','frozen'));
+ALTER TABLE mods DROP CONSTRAINT IF EXISTS mods_kind_check;
+ALTER TABLE mods ADD CONSTRAINT mods_kind_check
+  CHECK (kind IN ('mod','resourcepack','datapack','shader'));
 CREATE UNIQUE INDEX IF NOT EXISTS mods_source_project_uq
   ON mods (instance_id, source, project_id) WHERE project_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS mods_instance_status_idx ON mods (instance_id, status);
+CREATE INDEX IF NOT EXISTS mods_instance_kind_idx ON mods (instance_id, kind);
 CREATE INDEX IF NOT EXISTS mods_sha1_idx ON mods (file_sha1);
 
 CREATE TABLE IF NOT EXISTS mod_versions_cache (

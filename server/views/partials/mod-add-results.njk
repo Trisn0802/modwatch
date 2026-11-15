@@ -28,14 +28,15 @@
                 {% endif %}
                 <span class="mod-copy">
                   <span class="mod-name">{{ result.name }}</span>
+                  <span class="mod-author">{% if result.creator_avatar_url %}<img class="author-avatar" src="{{ result.creator_avatar_url }}" alt="">{% endif %}<span>{{ result.kind | kindLabel }}{% if result.author %} · {{ result.author }}{% endif %}</span></span>
                   <span class="mod-file">{{ result.description | truncate(110) }}</span>
                 </span>
               </div>
             </td>
-            <td class="hide-sm"><span class="source-label {{ result.source }}">{{ sourceIcon(result.source) }}{{ src.label }}{% if result.author %} · {{ result.author }}{% endif %}</span></td>
+            <td class="hide-sm"><span class="source-label {{ result.source }}">{{ sourceIcon(result.source) }}{{ src.label }}</span></td>
             <td class="n hide-sm faint">{{ result.downloads | number }}</td>
             <td class="n">
-              <a class="btn sm" href="/instances/{{ instance.id }}/mods/choose?source={{ result.source }}&project_id={{ result.project_id | urlencode }}&name={{ result.name | urlencode }}&project_url={{ result.project_url | urlencode }}&icon_url={{ (result.icon_url or '') | urlencode }}">Choose version</a>
+              <a class="btn sm" href="/instances/{{ instance.id }}/mods/choose?source={{ result.source }}&project_id={{ result.project_id | urlencode }}&kind={{ result.kind }}&name={{ result.name | urlencode }}&project_url={{ result.project_url | urlencode }}&icon_url={{ (result.icon_url or '') | urlencode }}&creator_name={{ result.creator_name | urlencode }}&creator_url={{ result.creator_url | urlencode }}&creator_avatar_url={{ (result.creator_avatar_url or '') | urlencode }}">Choose version</a>
             </td>
           </tr>
           {% endfor %}

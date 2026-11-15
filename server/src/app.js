@@ -24,6 +24,7 @@ import {
 import {
   STATUS, SOURCE, LOADER, CHANNEL, SIDE, REASON, ROLE, USER_STATUS, ACTIVITY_LABEL,
 } from "./labels.js";
+import { KINDS, KIND_ORDER, kindLabel, kindPlural, kindFolder } from "./kinds.js";
 
 import { authRouter } from "./routes/auth.js";
 import { dashboardRouter } from "./routes/dashboard.js";
@@ -159,6 +160,11 @@ env.addFilter("activityLabel", (value) => ACTIVITY_LABEL[value] || value);
 env.addFilter("includes", (list, value) => Array.isArray(list) && list.includes(value));
 env.addFilter("endsWith", (value, suffix) => String(value || "").toLowerCase().endsWith(String(suffix || "").toLowerCase()));
 env.addFilter("urlencode", (value) => encodeURIComponent(value ?? ""));
+env.addFilter("kindLabel", kindLabel);
+env.addFilter("kindPlural", kindPlural);
+env.addFilter("kindFolder", kindFolder);
+env.addGlobal("KIND_ORDER", KIND_ORDER);
+env.addGlobal("KIND_META", KINDS);
 
 app.use("/assets", express.static(path.join(root, "public", "assets"), {
   maxAge: config.nodeEnv === "production" ? "7d" : 0,

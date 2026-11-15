@@ -1,10 +1,21 @@
 import { config } from "../config.js";
 import { cached, requestJson } from "./http.js";
+import { kindFromCurseforgePath, normalizeKind } from "../kinds.js";
 
 const API = "https://api.curseforge.com/v1";
-const CFW = "https://api.cfwidget.com/minecraft/mc-mods";
+const CFW = "https://api.cfwidget.com/minecraft";
 const TTL = 10 * 60_000;
 const GAME = 432;
+
+const CF_PATH = {
+  mod: "mc-mods",
+  resourcepack: "texture-packs",
+  datapack: "data-packs",
+  shader: "shaders",
+};
+// CurseForge only exposes class ids for mods and resource packs in the
+// official search endpoint; the other kinds are reachable by project URL.
+const CLASS_ID = { mod: 6, resourcepack: 12 };
 
 const loaderId = { forge: 1, fabric: 4, quilt: 5, neoforge: 6 };
 const LOADER_NAME = {
@@ -24,55 +35,71 @@ function headers() {
   return { "x-api-key": config.curseforgeApiKey, accept: "application/json" };
 }
 
-function normalizeSearch(hit) {
+function normalizeSearch(hit, kind = "mod") {
+  const type = normalizeKind(kind);
+  const author = (hit.authors || [])[0] || {};
   return {
     source: "curseforge",
     project_id: String(hit.id),
+    kind: type,
     name: hit.name,
     description: hit.summary,
     icon_url: hit.logo?.thumbnailUrl || hit.logo?.url || null,
     downloads: hit.downloadCount,
-    project_url: hit.links?.websiteUrl || `https://www.curseforge.com/minecraft/mc-mods/${hit.slug}`,
-    author: (hit.authors || [])[0]?.name || "",
+    project_url: hit.links?.websiteUrl || `https://www.curseforge.com/minecraft/${CF_PATH[type]}/${hit.slug}`,
+    author: author.name || "",
+    creator_name: author.name || "",
+    creator_url: author.url || "",
+    creator_avatar_url: null,
   };
 }
 
-function normalizeWidget(project) {
+function normalizeWidget(project, kind = "mod") {
+  const type = normalizeKind(kind);
+  const member = (project.members || [])[0] || {};
   return {
     source: "curseforge",
     project_id: String(project.id),
+    kind: type,
     name: project.title,
     description: project.summary,
     icon_url: project.thumbnail || null,
     downloads: project.downloads?.total || null,
-    project_url: project.urls?.curseforge || project.urls?.project || `https://www.curseforge.com/minecraft/mc-mods/${project.id}`,
-    author: (project.members || [])[0]?.title || "",
+    project_url: project.urls?.curseforge || project.urls?.project || `https://www.curseforge.com/minecraft/${CF_PATH[type]}/${project.id}`,
+    author: member.title || "",
+    creator_name: member.title || "",
+    creator_url: member.url || "",
+    creator_avatar_url: null,
   };
 }
 
-async function widgetProject(projectIdOrSlug) {
-  return cached(`cfw:project:${projectIdOrSlug}`, TTL, () =>
-    requestJson(`${CFW}/${encodeURIComponent(projectIdOrSlug)}`, {
+async function widgetProject(projectIdOrSlug, kind = "mod") {
+  const type = normalizeKind(kind);
+  return cached(`cfw:project:${type}:${projectIdOrSlug}`, TTL, () =>
+    requestJson(`${CFW}/${CF_PATH[type]}/${encodeURIComponent(projectIdOrSlug)}`, {
       headers: { accept: "application/json", "user-agent": "ModWatch/1.0" },
     })
   );
 }
 
-export async function searchProject(query, { mcVersion, loader, limit = 10 } = {}) {
+export async function searchProject(query, { mcVersion, loader, limit = 10, kind = "mod" } = {}) {
   if (!config.curseforgeReady) return [];
+  const type = normalizeKind(kind);
+  const classId = CLASS_ID[type];
+  if (!classId) return [];
   const params = new URLSearchParams({
     gameId: String(GAME),
-    classId: "6",
+    classId: String(classId),
     searchFilter: query,
     sortField: "2",
     sortOrder: "desc",
     pageSize: String(limit),
   });
   if (mcVersion) params.set("gameVersion", mcVersion);
-  if (loaderId[loader]) params.set("modLoaderType", String(loaderId[loader]));
+  if (type === "mod" && loaderId[loader]) params.set("modLoaderType", String(loaderId[loader]));
   const url = `${API}/mods/search?${params}`;
   const data = await cached(`cf:search:${url}`, TTL, () => requestJson(url, { headers: headers() }));
-  return (data.data || []).map(normalizeSearch);
+  return (data.data || []).map((hit) => normalizeSearch(hit, type));
 }
 
 export async function lookupByHash() {
@@ -137,11 +164,12 @@ function normalizeWidgetFile(file, projectId) {
   };
 }
 
-export async function listVersions(projectId, { mcVersion, loader, channels = ["release"] } = {}) {
+export async function listVersions(projectId, { mcVersion, loader, channels = ["release"], kind = "mod" } = {}) {
+  const type = normalizeKind(kind);
   if (config.curseforgeReady) {
     const params = new URLSearchParams({ pageSize: "50" });
     if (mcVersion) params.set("gameVersion", mcVersion);
-    if (loaderId[loader]) params.set("modLoaderType", String(loaderId[loader]));
+    if (type === "mod" && loaderId[loader]) params.set("modLoaderType", String(loaderId[loader]));
     const url = `${API}/mods/${encodeURIComponent(projectId)}/files?${params}`;
     const data = await cached(`cf:files:${url}`, 5 * 60_000, () => requestJson(url, { headers: headers() }));
     return (data.data || [])
@@ -152,39 +180,54 @@ export async function listVersions(projectId, { mcVersion, loader, channels = ["
 
   // Public fallback used when no CurseForge API key is configured. It exposes
   // project metadata and file lists, but not direct download URLs.
-  const project = await widgetProject(projectId);
+  const project = await widgetProject(projectId, type);
   const files = Array.isArray(project?.files) ? project.files : [];
   return files
     .map((file) => normalizeWidgetFile(file, project.id))
     .filter((v) => !mcVersion || v.mc_versions.includes(mcVersion))
-    .filter((v) => !loader || loader === "plugin" || v.loaders.includes(loader))
+    .filter((v) => type !== "mod" || !loader || loader === "plugin" || v.loaders.includes(loader))
     .filter((v) => channels.includes(v.channel))
     .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
 }
 
 export async function resolveUrl(url) {
-  const match = String(url).match(/curseforge\.com\/minecraft\/mc-mods\/([^/?#]+)/i);
+  const match = String(url).match(/curseforge\.com\/minecraft\/(mc-mods|texture-packs|worlds|shaders|data-packs)\/([^/?#]+)/i);
   if (!match) return null;
-  const slug = match[1];
+  const kind = kindFromCurseforgePath(match[1]);
+  const slug = match[2];
 
-  if (config.curseforgeReady) {
-    const params = new URLSearchParams({ gameId: String(GAME), slug, classId: "6" });
+  if (config.curseforgeReady && CLASS_ID[kind]) {
+    const params = new URLSearchParams({ gameId: String(GAME), slug, classId: String(CLASS_ID[kind]) });
     const data = await requestJson(`${API}/mods/search?${params}`, { headers: headers() }).catch(() => null);
     const hit = data?.data?.[0];
-    if (hit) return normalizeSearch(hit);
+    if (hit) return { ...normalizeSearch(hit, kind), project_url: url };
   }
 
-  const project = await widgetProject(slug).catch(() => null);
-  return project?.id ? normalizeWidget(project) : null;
+  const project = await widgetProject(slug, kind).catch(() => null);
+  return project?.id ? { ...normalizeWidget(project, kind), project_url: url } : null;
 }
 
-export async function getProject(projectId) {
+export async function getProject(projectId, kind = "mod") {
+  const type = normalizeKind(kind);
   if (config.curseforgeReady) {
     const data = await requestJson(`${API}/mods/${encodeURIComponent(projectId)}`, { headers: headers() }).catch(() => null);
-    if (data?.data) return normalizeSearch(data.data);
+    if (data?.data) return normalizeSearch(data.data, type);
   }
-  const project = await widgetProject(projectId).catch(() => null);
-  return project?.id ? normalizeWidget(project) : null;
+  const project = await widgetProject(projectId, type).catch(() => null);
+  return project?.id ? normalizeWidget(project, type) : null;
+}
+
+export async function projectMeta(projectId, kind = "mod") {
+  const project = await getProject(projectId, kind).catch(() => null);
+  if (!project) return null;
+  return {
+    kind: normalizeKind(kind),
+    name: project.name || "",
+    icon_url: project.icon_url || null,
+    creator_name: project.creator_name || "",
+    creator_url: project.creator_url || "",
+    creator_avatar_url: project.creator_avatar_url || null,
+  };
 }
 
 export { normalizeFile };

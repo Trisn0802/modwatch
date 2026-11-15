@@ -467,6 +467,9 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
 }
 .icon-btn:hover { background: var(--raised); color: var(--text); }
 .icon-btn .ico { width: 17px; height: 17px; }
+.icon-btn.telegram-toggle.is-on { color: var(--brand-text); }
+.icon-btn.telegram-toggle.is-off { color: var(--faint); opacity: 0.55; }
+.icon-btn.telegram-toggle.is-off:hover { opacity: 1; }
 .icon-badge {
   position: absolute; top: 1px; right: 1px;
   min-width: 14px; height: 14px; padding: 0 3px;
@@ -667,6 +670,7 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
   border: 1px solid var(--border);
   border-radius: var(--radius);
   min-width: 0;
+  margin-top: 16px;
 }
 .panel-head {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -800,6 +804,79 @@ table.board { width: 100%; border-collapse: collapse; }
 .zip-form { display: none; }
 .zip-check { align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
 .zip-check input[type="checkbox"] { margin: 0; }
+.mod-meta-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+.kind-badge {
+  display: inline-flex; align-items: center; height: 17px; padding: 0 6px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--raised); color: var(--muted);
+  font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.kind-badge.kind-resourcepack { color: var(--pill-info-ink); background: var(--pill-info-bg); border-color: transparent; }
+.kind-badge.kind-datapack { color: var(--pill-warning-ink); background: var(--pill-warning-bg); border-color: transparent; }
+.kind-badge.kind-shader { color: var(--pill-info-ink); background: var(--pill-info-bg); border-color: transparent; }
+.creator-line { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; color: var(--faint); }
+.creator-line a { color: var(--faint); }
+.creator-line a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.author-avatar {
+  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  object-fit: cover; background: var(--raised); border: 1px solid var(--border);
+}
+.search-result-meta .kind-badge { margin-right: 6px; vertical-align: 1px; }
+
+/* filter popover and active chips */
+.filter-pop { position: relative; }
+.filter-pop > summary { list-style: none; cursor: pointer; }
+.filter-pop > summary::-webkit-details-marker { display: none; }
+.filter-pop > summary.is-active { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); color: var(--text); }
+.filter-count {
+  display: inline-grid; place-items: center;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--brand-text); color: var(--brand-ink);
+  font-size: 9.5px; font-weight: 700;
+}
+.filter-panel { width: 280px; }
+.filter-form { padding: 4px 0; }
+.filter-group { padding: 9px 10px 6px; border-top: 1px solid var(--rule); }
+.filter-group:first-child { border-top: 0; }
+.filter-group-title {
+  margin-bottom: 5px; padding: 0 4px;
+  color: var(--faint); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.filter-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 7px; border-radius: 6px;
+  color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.filter-option:hover { background: var(--raised); color: var(--text); }
+.filter-option input[type="checkbox"] { width: 14px; height: 14px; margin: 0; accent-color: var(--brand); }
+.filter-option .count { margin-left: auto; color: var(--faint); font-size: 10.5px; }
+.filter-actions { display: flex; gap: 6px; padding: 9px 10px; border-top: 1px solid var(--border); }
+.filter-actions .btn { flex: 1; justify-content: center; }
+.filter-chips {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 9px var(--card-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+}
+.filter-chips-label {
+  margin-right: 2px; color: var(--faint);
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 8px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--muted);
+  font-size: 11px; line-height: 1; cursor: pointer;
+}
+.chip:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); color: var(--text); }
+.chip-count { color: var(--faint); font-size: 10px; }
+.chip-x { color: var(--faint); font-size: 13px; line-height: 1; }
+.chip:hover .chip-x { color: var(--text); }
+.chip-clear { border-style: dashed; color: var(--faint); }
+.chip-clear:hover { color: var(--text); }
 .mod-icon {
   width: 32px; height: 32px; flex: none;
   border-radius: 7px; object-fit: cover;
@@ -1198,8 +1275,11 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); z-index: 80;
   box-shadow: var(--shadow-pop);
+  transform-origin: top right;
 }
 .menu[open] { z-index: 81; }
+.menu[open] .menu-panel { animation: mw-pop-in 150ms var(--ease-out) both; }
+.menu.is-closing .menu-panel { animation: mw-pop-out 120ms ease-in both; pointer-events: none; }
 .page-head, .instance-head { position: relative; z-index: 6; }
 .menu-panel a, .menu-panel button {
   display: flex; align-items: center; gap: 8px;
@@ -1399,7 +1479,9 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   background: var(--surface); color: var(--text); font-size: 14px;
 }
 .big-search input::placeholder { color: var(--faint); }
+.big-search .select { flex: 0 0 150px; height: 44px; }
 .result-group + .result-group { margin-top: 24px; }
+.result-meta .kind-badge { margin-right: 4px; vertical-align: 1px; }
 .result-row { display: flex; align-items: center; gap: 11px; padding: 11px var(--card-pad); border-top: 1px solid var(--rule); }
 .result-row:first-child { border-top: 0; }
 .result-row:hover { background: var(--raised); }
@@ -1771,10 +1853,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .share-tabs a:hover { color: var(--text); }
 .share-tabs a[aria-current="page"] { background: var(--raised); color: var(--text); font-weight: 500; }
 .share-mod-toolbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
   padding: 12px var(--card-pad); border-bottom: 1px solid var(--border);
 }
-.share-mod-toolbar .search-field { width: min(320px, 100%); }
+.share-mod-toolbar .search-field { width: min(320px, 100%); flex: 1 1 240px; }
+.share-mod-toolbar .count-note { margin-left: auto; }
+.share-mod-toolbar .btn.sm { white-space: nowrap; }
+.share-mods .filter-chips { padding-left: var(--card-pad); padding-right: var(--card-pad); }
 .share-mod-wrap { max-height: 620px; overflow: auto; }
 .share-mod-table th { position: sticky; top: 0; z-index: 2; background: var(--surface); }
 .share-mod-table .mod-name { max-width: 38ch; }

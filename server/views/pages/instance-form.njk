@@ -74,6 +74,12 @@
             <label for="notes">Notes</label>
             <textarea id="notes" name="notes" placeholder="Server-only build, pinned for the SMP season, known problem mods…">{{ instance.notes or '' }}</textarea>
           </div>
+          {% if isAdmin %}
+          <div class="field full">
+            <label class="check"><input type="checkbox" name="telegram_updates" value="1" {% if instance.telegram_updates != false %}checked{% endif %}><span>Telegram update digest</span></label>
+            <p class="hint">Sends the update digest to Telegram and MyWebhook. In-app notifications still arrive when this is off.</p>
+          </div>
+          {% endif %}
         </div>
         <div class="form-actions">
           <button class="btn primary" type="submit">{% if instance and instance.id %}Save changes{% else %}Create instance{% endif %}</button>

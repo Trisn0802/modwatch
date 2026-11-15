@@ -28,7 +28,7 @@
   $$("#sidebar a").forEach((link) => link.addEventListener("click", () => setSidebar(false)));
 
   // --- popovers built on <details> ------------------------------------------
-  const popovers = $$("details.pop, details.user-pop");
+  const popovers = $$("details.pop, details.user-pop, details.menu");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   function closePopover(item, focus = false) {
@@ -58,13 +58,17 @@
       item.open = true;
       summary.setAttribute("aria-expanded", "true");
       item.classList.remove("is-closing");
-      const panel = item.querySelector(".pop-panel, .user-pop-panel");
+      const panel = item.querySelector(".pop-panel, .user-pop-panel, .menu-panel");
       if (panel && !reduceMotion.matches) {
         panel.classList.remove("pop-in");
         void panel.offsetWidth;
         panel.classList.add("pop-in");
         window.setTimeout(() => panel.classList.remove("pop-in"), 1100);
       }
+    });
+    const panel = item.querySelector(".menu-panel");
+    panel?.addEventListener("click", (event) => {
+      if (event.target.closest("a, button")) closePopover(item);
     });
   }
   document.addEventListener("click", (event) => {
@@ -130,7 +134,16 @@
     title.textContent = item.name;
     const meta = document.createElement("span");
     meta.className = "search-result-meta";
-    meta.textContent = kind === "mod" ? `${item.instance || "Instance"} · ${item.version || "No version"}` : item.scope || "Instance";
+    if (kind === "mod" && item.kindLabel) {
+      const badge = document.createElement("span");
+      badge.className = `kind-badge kind-${item.kind || "mod"}`;
+      badge.textContent = item.kindLabel;
+      meta.append(badge, document.createTextNode(` ${item.instance || "Instance"} · ${item.version || "No version"}`));
+    } else {
+      meta.textContent = kind === "mod"
+        ? `${item.instance || "Instance"} · ${item.version || "No version"}`
+        : item.scope || "Instance";
+    }
     copy.append(title, meta);
     const state = document.createElement("span");
     state.className = "search-result-state";
@@ -151,7 +164,7 @@
       group.className = "search-result-group";
       const head = document.createElement("p");
       head.className = "search-result-head";
-      head.innerHTML = `<span>Mods</span><span class="search-result-count">${data.mods.length}${data.totalMods > data.mods.length ? " of " + data.totalMods : ""}</span>`;
+      head.innerHTML = `<span>Projects</span><span class="search-result-count">${data.mods.length}${data.totalMods > data.mods.length ? " of " + data.totalMods : ""}</span>`;
       group.appendChild(head);
       for (const item of data.mods) group.appendChild(resultRow("mod", item));
       groups.push(group);
@@ -342,6 +355,7 @@
         if (!next) return;
         target.innerHTML = next.innerHTML;
         target.querySelector(".table-wrap")?.classList.add("table-live");
+        document.dispatchEvent(new CustomEvent("mw:results-replaced"));
         const nextCount = doc.querySelector(".count-note");
         const currentCount = form.querySelector(".count-note");
         if (nextCount && currentCount) currentCount.textContent = nextCount.textContent;
@@ -353,19 +367,27 @@
         status.hidden = true;
       }
     };
+    // Repeated params (kind, source) must stay repeated: appending keeps every
+    // checked box, while set() would leave only the last one.
+    const formUrl = () => {
+      const url = new URL(form.action, location.href);
+      url.search = "";
+      for (const [key, value] of new FormData(form)) {
+        if (value !== "") url.searchParams.append(key, value);
+      }
+      return url;
+    };
     const schedule = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        const url = new URL(form.action, location.href);
-        for (const [key, value] of new FormData(form)) if (value !== "") url.searchParams.set(key, value);
+        const url = formUrl();
         fetchResults(url.pathname + url.search);
       }, 360);
     };
     field?.addEventListener("input", schedule);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      const url = new URL(form.action, location.href);
-      for (const [key, value] of new FormData(form)) if (value !== "") url.searchParams.set(key, value);
+      const url = formUrl();
       fetchResults(url.pathname + url.search);
     });
     target.addEventListener("click", (event) => {
@@ -487,6 +509,136 @@
       if (event.target.closest("button")) return;
       input?.click();
     });
+  }
+
+  // --- faceted filters: text + kind + source (public share table) -----------
+  for (const scope of $$("[data-facet-filter]")) {
+    const target = $(scope.dataset.facetTarget || "");
+    if (!target) continue;
+    const rows = $$("[data-row]", target);
+    const search = $("[data-facet-search]", scope);
+    const kinds = $$("[data-facet-kind]", scope);
+    const sources = $$("[data-facet-source]", scope);
+    const count = $("[data-facet-count]", scope);
+    const badge = $("[data-facet-count-badge]", scope);
+    const chips = $("[data-facet-chips]", scope);
+    const empty = $(scope.dataset.facetEmpty || "");
+    const noun = scope.dataset.facetNoun || "project";
+    const total = rows.length;
+
+    const labelFor = (input) => input.closest("label")?.querySelector("span")?.textContent?.trim() || input.value;
+    const checked = (list) => list.filter((input) => input.checked).map((input) => input.value);
+
+    const makeChip = (label, onRemove) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.append(document.createTextNode(`${label} `));
+      const mark = document.createElement("span");
+      mark.className = "chip-x";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = "×";
+      chip.append(mark);
+      chip.addEventListener("click", onRemove);
+      return chip;
+    };
+
+    const apply = () => {
+      const needle = (search?.value || "").trim().toLowerCase();
+      const pickedKinds = checked(kinds);
+      const pickedSources = checked(sources);
+      let shown = 0;
+      for (const row of rows) {
+        const hit = (!needle || row.textContent.toLowerCase().includes(needle))
+          && (!pickedKinds.length || pickedKinds.includes(row.dataset.kind))
+          && (!pickedSources.length || pickedSources.includes(row.dataset.source));
+        row.hidden = !hit;
+        if (hit) shown += 1;
+        else {
+          const box = row.querySelector(".mod-select");
+          if (box) box.checked = false;
+        }
+      }
+      if (count) {
+        count.textContent = shown === total
+          ? `${shown} ${noun}${shown === 1 ? "" : "s"}`
+          : `${shown} of ${total} ${noun}${total === 1 ? "" : "s"}`;
+      }
+      const activeCount = pickedKinds.length + pickedSources.length;
+      if (badge) {
+        badge.textContent = String(activeCount);
+        badge.hidden = activeCount === 0;
+      }
+      if (empty) empty.hidden = shown > 0;
+      if (chips) {
+        chips.replaceChildren();
+        const active = [
+          ...kinds.filter((input) => input.checked).map((input) => ({ input, label: labelFor(input) })),
+          ...sources.filter((input) => input.checked).map((input) => ({ input, label: labelFor(input) })),
+        ];
+        chips.hidden = active.length === 0;
+        if (active.length) {
+          const caption = document.createElement("span");
+          caption.className = "filter-chips-label";
+          caption.textContent = "Active";
+          chips.append(caption);
+          for (const item of active) {
+            chips.append(makeChip(item.label, () => {
+              item.input.checked = false;
+              apply();
+            }));
+          }
+          const clear = document.createElement("button");
+          clear.type = "button";
+          clear.className = "chip chip-clear";
+          clear.textContent = "Clear all";
+          clear.addEventListener("click", () => {
+            for (const input of [...kinds, ...sources]) input.checked = false;
+            if (search) search.value = "";
+            apply();
+          });
+          chips.append(clear);
+        }
+      }
+      scope.dispatchEvent(new CustomEvent("mw:filterchange", { bubbles: true }));
+    };
+
+    search?.addEventListener("input", apply);
+    for (const input of [...kinds, ...sources]) input.addEventListener("change", apply);
+    $("[data-facet-clear]", scope)?.addEventListener("click", () => {
+      for (const input of [...kinds, ...sources]) input.checked = false;
+      if (search) search.value = "";
+      apply();
+    });
+    apply();
+  }
+
+  // --- public share: select visible projects for a zipped download ----------
+  const shareZipForm = $("#share-zip-form");
+  if (shareZipForm) {
+    const boxes = $$('.mod-select[form="share-zip-form"]');
+    const selectAll = $("[data-share-select-all]");
+    const submit = $("[data-share-zip-submit]");
+    const label = $("[data-share-zip-label]");
+    const visibleBoxes = () => boxes.filter((box) => !box.closest("tr")?.hidden);
+    const sync = () => {
+      const selected = boxes.filter((box) => box.checked).length;
+      if (submit) submit.disabled = selected === 0;
+      if (label) label.textContent = selected ? `Download selected (${selected})` : "Download selected";
+      if (selectAll) {
+        const visible = visibleBoxes();
+        const picked = visible.filter((box) => box.checked).length;
+        selectAll.checked = visible.length > 0 && picked === visible.length;
+        selectAll.indeterminate = picked > 0 && picked < visible.length;
+      }
+    };
+    selectAll?.addEventListener("change", () => {
+      for (const box of visibleBoxes()) box.checked = selectAll.checked;
+      sync();
+    });
+    for (const box of boxes) box.addEventListener("change", sync);
+    document.addEventListener("mw:filterchange", sync);
+    sync();
   }
 
   // --- filters that only touch the DOM --------------------------------------
@@ -915,28 +1067,36 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshScheduler(); });
   }
 
-  // --- select tracked mods for a zipped jar download -----------------------
+  // --- select tracked projects for a zipped file download ------------------
   const zipForm = $("#zip-form");
   if (zipForm) {
-    const boxes = Array.from(document.querySelectorAll(".mod-select"));
     const selectAll = $("[data-select-all]");
     const zipSubmit = $("[data-zip-submit]");
     const zipLabel = $("[data-zip-label]");
+    let zipBoxes = [];
     const syncZip = () => {
-      const selected = boxes.filter((box) => box.checked).length;
+      const selected = zipBoxes.filter((box) => box.checked).length;
       if (zipSubmit) zipSubmit.disabled = selected === 0;
       if (zipLabel) zipLabel.textContent = selected ? `Download selected (${selected})` : "Download selected";
       if (selectAll) {
-        selectAll.checked = boxes.length > 0 && selected === boxes.length;
-        selectAll.indeterminate = selected > 0 && selected < boxes.length;
+        selectAll.checked = zipBoxes.length > 0 && selected === zipBoxes.length;
+        selectAll.indeterminate = selected > 0 && selected < zipBoxes.length;
       }
     };
-    selectAll?.addEventListener("change", () => {
-      boxes.forEach((box) => { box.checked = selectAll.checked; });
+    const bindZip = () => {
+      zipBoxes = $$('input.mod-select[form="zip-form"]');
+      for (const box of zipBoxes) box.addEventListener("change", syncZip);
       syncZip();
-    });
-    boxes.forEach((box) => box.addEventListener("change", syncZip));
-    syncZip();
+    };
+    // The live table search swaps the tbody, so the listeners must be rebuilt.
+    document.addEventListener("mw:results-replaced", bindZip);
+    if (selectAll) {
+      selectAll.onchange = () => {
+        for (const box of zipBoxes) box.checked = selectAll.checked;
+        syncZip();
+      };
+    }
+    bindZip();
   }
 
   // --- "/" focuses the topbar search ----------------------------------------
