@@ -822,22 +822,22 @@ table.board { width: 100%; border-collapse: collapse; }
 .zip-check input[type="checkbox"] { margin: 0; }
 .mod-meta-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
 .kind-badge {
-  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px;
+  display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 13px 4px 13px 4px;
   border: 1px solid var(--border); border-radius: 5px;
   background: var(--raised); color: var(--muted);
   font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   white-space: nowrap;
 }
-.kind-ico { width: 10px; height: 10px; flex: none; }
+.kind-ico { width: 20px; height: 20px; flex: none; }
 .kind-badge.kind-mod { color: var(--kind-mod-ink); background: var(--kind-mod-bg); border-color: transparent; }
 .kind-badge.kind-resourcepack { color: var(--kind-rp-ink); background: var(--kind-rp-bg); border-color: transparent; }
 .kind-badge.kind-datapack { color: var(--kind-dp-ink); background: var(--kind-dp-bg); border-color: transparent; }
 .kind-badge.kind-shader { color: var(--kind-sh-ink); background: var(--kind-sh-bg); border-color: transparent; }
-.creator-line { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; color: var(--faint); }
+.creator-line { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--faint); }
 .creator-line a { color: var(--faint); }
 .creator-line a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 .author-avatar {
-  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  width: 24px; height: 24px; flex: none; border-radius: 50%;
   object-fit: cover; background: var(--raised); border: 1px solid var(--border);
 }
 .search-result-meta .kind-badge { margin-right: 6px; vertical-align: 1px; }
@@ -908,17 +908,17 @@ table.board { width: 100%; border-collapse: collapse; }
 .mod-thumb { position: relative; display: inline-grid; flex: none; }
 .status-badges { position: absolute; right: -4px; bottom: -4px; display: flex; gap: 2px; }
 .status-badge {
-  width: 16px; height: 16px; display: grid; place-items: center;
+  width: 20px; height: 20px; display: grid; place-items: center;
   border: 2px solid var(--surface); border-radius: 50%;
   background: var(--raised); color: var(--faint);
 }
-.status-badge .ico { width: 9px; height: 9px; }
-.status-update_available { background: var(--brand); color: var(--brand-ink); }
-.status-source_error { background: var(--negative); color: #fff; }
-.status-unknown { background: var(--warning); color: #1a1205; }
-.status-manual, .status-frozen { background: var(--info); color: #fff; }
-.status-ignored, .status-snoozed { background: var(--control); color: var(--muted); }
-.status-disabled { background: var(--surface); color: var(--faint); border-color: var(--border); }
+.status-badge .ico { width: 15px; height: 15px; }
+.status-update_available { background: var(--brand); color: var(--brand-ink); display: flex; justify-content: end; align-items: end; }
+.status-source_error { background: var(--negative); color: #fff; display: flex; justify-content: end; align-items: end; }
+.status-unknown { background: var(--warning); color: #1a1205; display: flex; justify-content: end; align-items: end; }
+.status-manual, .status-frozen { background: var(--info); color: #030303; display: flex; justify-content: end; align-items: end; }
+.status-ignored, .status-snoozed { background: var(--control); color: var(--muted); display: flex; justify-content: end; align-items: end; }
+.status-disabled { background: var(--surface); color: var(--faint); border-color: var(--border); display: flex; justify-content: end; align-items: end; }
 .mods-board .mod-icon { width: 48px; height: 48px; border-radius: 10px; }
 .mods-board .mod-cell { gap: 12px; }
 .mods-board .mod-icon.fallback { font-size: 12px; }
@@ -926,8 +926,10 @@ table.board { width: 100%; border-collapse: collapse; }
 .share-mod-table .mod-icon { width: 44px; height: 44px; }
 .mod-copy { min-width: 0; }
 .mod-name {
-  display: block; font-size: 12.5px; font-weight: 500; color: var(--text);
+  display: block; font-weight: 500; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch;
+  font-size: 16px; 
+  /* line-height: 1.2; */
 }
 a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .mod-file {
@@ -965,7 +967,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   width: 6px; height: 6px; border-radius: 2px;
   background: var(--faint); flex: none;
 }
-.source-label .source-icon { width: 14px; height: 14px; flex: none; display: block; }
+.source-label .source-icon { width: 25px; height: 25px; flex: none; display: block; }
 .source-label.github .source-icon { color: var(--text); }
 .source-label.modrinth .mark { background: var(--brand); }
 .source-label.github .mark { background: #c8d1db; }
@@ -1265,7 +1267,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .instance-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
 .instance-id { display: flex; align-items: center; gap: 13px; min-width: 0; }
 .instance-mark {
-  width: 42px; height: 42px; flex: none;
+  width: 80px; height: 80px; flex: none;
   display: grid; place-items: center;
   border-radius: 10px; background: var(--surface);
   border: 1px solid var(--border); color: var(--faint);
@@ -1274,7 +1276,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .instance-mark.lg { width: 52px; height: 52px; font-size: 15px; border-radius: 12px; }
 .instance-mark.xl { width: 72px; height: 72px; font-size: 20px; border-radius: 14px; }
 .instance-photo { width: 72px; height: 72px; flex: none; object-fit: cover; border-radius: 14px; border: 1px solid var(--border); background: var(--raised); }
-.instance-photo.sm { width: 42px; height: 42px; border-radius: 10px; }
+/* .instance-photo.sm { width: 42px; height: 42px; border-radius: 10px; } */
 .instance-thumb { width: 32px; height: 32px; flex: none; object-fit: cover; border-radius: 7px; border: 1px solid var(--border); background: var(--raised); }
 .instance-title { font-size: 21px; line-height: 1.25; font-weight: 600; letter-spacing: -0.02em; }
 .instance-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-size: 11.5px; color: var(--faint); }

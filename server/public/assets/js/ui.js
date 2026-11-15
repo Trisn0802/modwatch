@@ -322,6 +322,7 @@
         target.replaceChildren(empty);
       } finally {
         if (mine === sequence) setStatus("");
+        topFinish();
       }
     };
     field?.addEventListener("input", () => {
@@ -377,6 +378,7 @@
       } finally {
         form.closest(".panel")?.classList.remove("is-loading");
         status.hidden = true;
+        topFinish();
       }
     };
     // Repeated params (kind, source) must stay repeated: appending keeps every
@@ -766,7 +768,10 @@
         kicker: form.dataset.confirmKicker || "Confirm",
         danger,
       });
-      if (!ok) return;
+      if (!ok) {
+        topFinish();
+        return;
+      }
       form.dataset.confirmed = "1";
       window.setTimeout(() => { delete form.dataset.confirmed; }, 8000);
       if (typeof form.requestSubmit === "function") form.requestSubmit();
@@ -836,12 +841,6 @@
     } catch { return; }
     topStart();
   }, true);
-  const nativeFetch = window.fetch.bind(window);
-  window.fetch = (...args) => {
-    topStart();
-    return nativeFetch(...args).finally(topFinish);
-  };
-
   // --- progress dialog for long writes, uploads and navigations --------------
   const progressModal = $("#progress-modal");
   let progressBusy = false;
@@ -1211,6 +1210,8 @@
         }
       } catch (err) {
         finish("error", err.message || "The request could not reach the server.", location.href, "Reload the page");
+      } finally {
+        topFinish();
       }
     });
   };
