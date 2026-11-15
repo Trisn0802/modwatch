@@ -482,6 +482,10 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
   transition: background-color var(--t-hover) ease, color var(--t-hover) ease;
 }
 .icon-btn:hover { background: var(--raised); color: var(--text); }
+.icon-btn.danger { color: var(--muted); }
+.icon-btn.danger:hover { background: var(--pill-negative-bg); color: var(--danger); }
+.icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.icon-btn:disabled:hover { background: transparent; color: var(--muted); }
 .icon-btn .ico { width: 17px; height: 17px; }
 .icon-btn.telegram-toggle.is-on { color: var(--brand-text); }
 .icon-btn.telegram-toggle.is-off { color: var(--faint); opacity: 0.55; }
@@ -1271,7 +1275,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   display: grid; place-items: center;
   border-radius: 10px; background: var(--surface);
   border: 1px solid var(--border); color: var(--faint);
-  font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  font-size: 30px; font-weight: 600; letter-spacing: 0.02em;
 }
 .instance-mark.lg { width: 52px; height: 52px; font-size: 15px; border-radius: 12px; }
 .instance-mark.xl { width: 72px; height: 72px; font-size: 20px; border-radius: 14px; }

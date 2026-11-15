@@ -174,7 +174,7 @@
       <div class="panel-body">
         <div class="kv">
           <div class="kv-row"><span class="kv-label">Source</span><span class="kv-value"><span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span></span></div>
-          <div class="kv-row"><span class="kv-label">Project</span><span class="kv-value">{% if mod.project_url %}<a class="card-link" href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ mod.project_id or mod.project_url }} {{ icon('external') }}</a>{% else %}<span class="faint">Manual entry</span>{% endif %}</span></div>
+          <div class="kv-row"><span class="kv-label">Project</span><span class="kv-value">{% if mod.project_url %}<a class="card-link" href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ mod.name or mod.project_url }} {{ icon('external') }}</a>{% else %}<span class="faint">Manual entry</span>{% endif %}</span></div>
           <div class="kv-row"><span class="kv-label">File</span><span class="kv-value">{{ mod.file_name or '—' }}</span></div>
           <div class="kv-row"><span class="kv-label">Size</span><span class="kv-value">{{ mod.file_size | fileSize }}</span></div>
           <div class="kv-row">

@@ -5,6 +5,7 @@ import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { ROLE, USER_STATUS } from "../labels.js";
 import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage } from "../uploads.js";
+import { discardPreview } from "../import.js";
 
 export const usersRouter = express.Router();
 
@@ -22,8 +23,12 @@ async function listUsers() {
 
 usersRouter.get("/users", async (req, res, next) => {
   try {
+    const { rows: admins } = await query(
+      "SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND status = 'active'"
+    );
     res.render("pages/users.njk", {
       page: "users", title: "Users", users: await listUsers(), roles: ROLE, statusLabels: USER_STATUS,
+      activeAdminCount: admins[0]?.n || 0,
     });
   } catch (err) {
     next(err);
@@ -82,6 +87,50 @@ usersRouter.post("/users", async (req, res, next) => {
       meta: { name, email, role },
     });
     flash(req, "ok", `${name} can now sign in.`);
+    res.redirect("/users");
+  } catch (err) {
+    next(err);
+  }
+});
+
+usersRouter.post("/users/:id/delete", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return next();
+    if (id === req.session.user.id) {
+      flash(req, "error", "You cannot delete your own account.");
+      return res.redirect("/users");
+    }
+    const { rows } = await query("SELECT * FROM users WHERE id = $1", [id]);
+    const account = rows[0];
+    if (!account) {
+      flash(req, "error", "That user no longer exists.");
+      return res.redirect("/users");
+    }
+    if (account.role === "admin" && account.status === "active") {
+      const { rows: admins } = await query(
+        "SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND status = 'active'"
+      );
+      if ((admins[0]?.n || 0) <= 1) {
+        flash(req, "error", "Keep at least one active admin.");
+        return res.redirect("/users");
+      }
+    }
+    const { rows: pending } = await query(
+      "SELECT token FROM import_requests WHERE requested_by = $1 AND status = 'pending'",
+      [id]
+    );
+    for (const row of pending) {
+      await discardPreview(row.token).catch(() => {});
+    }
+    await query("DELETE FROM users WHERE id = $1", [id]);
+    await query(`DELETE FROM "session" WHERE sess->'user'->>'id' = $1`, [String(id)]).catch(() => {});
+    await removeUpload(account.avatar_path);
+    await logActivity({
+      userId: req.session.user.id, action: "user_deleted", subjectType: "user", subjectId: id,
+      meta: { name: account.name, email: account.email, role: account.role },
+    });
+    flash(req, "ok", `${account.name} was deleted.`);
     res.redirect("/users");
   } catch (err) {
     next(err);

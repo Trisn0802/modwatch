@@ -81,5 +81,6 @@ export const ACTIVITY_LABEL = {
   settings_updated: "Changed settings",
   user_created: "Created a user",
   user_updated: "Updated a user",
+  user_deleted: "Deleted a user",
   login: "Signed in",
 };

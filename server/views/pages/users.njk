@@ -7,7 +7,7 @@
   <div class="page-head-main">
     <p class="eyebrow">Access</p>
     <h1 class="page-title">Users</h1>
-    <p class="page-sub">Admins manage instances and approvals. Members read the board and request mods. Accounts are local to ModWatch.</p>
+    <p class="page-sub">Admins manage instances and approvals. Members read the board, request mods and submit pack imports for review. Accounts are local to ModWatch.</p>
   </div>
   <div class="page-actions">
     <a class="btn primary" href="/users/new">{{ icon('plus') }} New user</a>
@@ -25,7 +25,7 @@
           <th class="n hide-sm">Mods added</th>
           <th class="n hide-sm">Requests</th>
           <th class="hide-sm">Last sign-in</th>
-          <th aria-label="Edit"></th>
+          <th aria-label="Actions"></th>
         </tr>
       </thead>
       <tbody>
@@ -48,7 +48,23 @@
           <td class="n hide-sm">{{ user.mods_added }}</td>
           <td class="n hide-sm">{{ user.requests }}</td>
           <td class="faint hide-sm nowrap">{{ user.last_login_at | relative }}</td>
-          <td class="n"><a class="icon-btn" href="/users/{{ user.id }}/edit" aria-label="Edit {{ user.name }}">{{ icon('pencil') }}</a></td>
+          <td class="n">
+            <span class="row" style="gap:2px;justify-content:flex-end">
+              <a class="icon-btn" href="/users/{{ user.id }}/edit" aria-label="Edit {{ user.name }}" title="Edit {{ user.name }}">{{ icon('pencil') }}</a>
+              {% set cannotDelete = user.id == currentUser.id or (user.role == 'admin' and user.status == 'active' and activeAdminCount <= 1) %}
+              {% if cannotDelete %}
+              <button class="icon-btn" type="button" disabled aria-label="Cannot delete {{ user.name }}" title="{% if user.id == currentUser.id %}You cannot delete your own account{% else %}Keep at least one active admin{% endif %}">{{ icon('trash') }}</button>
+              {% else %}
+              <form method="post" action="/users/{{ user.id }}/delete"
+                data-confirm-title="Delete user?"
+                data-confirm-label="Delete"
+                data-confirm="Delete {{ user.name }} ({{ user.email }})? Their account, notifications and pending requests are removed, and any active session is signed out. This cannot be undone.">
+                {% include "partials/csrf.njk" %}
+                <button class="icon-btn danger" type="submit" aria-label="Delete {{ user.name }}" title="Delete {{ user.name }}">{{ icon('trash') }}</button>
+              </form>
+              {% endif %}
+            </span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -71,7 +87,7 @@
       </div>
       <div class="span-6">
         <p class="cell-main">Member</p>
-        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.6">Sees every instance board and notification. Can request a mod; the request waits for an admin. Cannot import, delete or change settings.</p>
+        <p class="faint" style="margin-top:5px;font-size:11.5px;line-height:1.6">Sees every instance board and notification. Can request a mod and submit a .mrpack import; both wait for an admin. Cannot delete users, edit instances or change settings.</p>
       </div>
     </div>
   </div>
