@@ -1,5 +1,5 @@
 {% from "partials/icon.njk" import icon %}
-<dialog class="progress-modal" id="progress-modal" aria-labelledby="progress-title" aria-busy="true">
+<dialog class="progress-modal" id="progress-modal" aria-labelledby="progress-title" aria-busy="true" aria-modal="true" closedby="none" data-static>
   <div class="progress-body">
     <span class="progress-spinner" aria-hidden="true"></span>
     <span class="progress-check" id="progress-check" aria-hidden="true" hidden>{{ icon('check', 26) }}</span>

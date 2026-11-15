@@ -832,6 +832,48 @@
 
   // --- progress dialog for long writes, uploads and navigations --------------
   const progressModal = $("#progress-modal");
+  let progressBusy = false;
+  let progressGuard = null;
+  const ensureProgressOpen = () => {
+    if (!progressModal || !progressBusy || progressModal.open) return;
+    try { progressModal.showModal(); } catch {}
+  };
+  const setProgressBusy = (value) => {
+    progressBusy = Boolean(value);
+    progressModal?.classList.toggle("is-busy", progressBusy);
+    if (progressModal) progressModal.setAttribute("aria-busy", progressBusy ? "true" : "false");
+    if (progressBusy) {
+      ensureProgressOpen();
+      if (!progressGuard) progressGuard = window.setInterval(ensureProgressOpen, 250);
+    } else if (progressGuard) {
+      window.clearInterval(progressGuard);
+      progressGuard = null;
+    }
+  };
+  if (progressModal) {
+    // The loading dialog is a hard stop: Escape, a backdrop click or a stray
+    // close() must not remove it while the request is still running.
+    progressModal.setAttribute("closedby", "none");
+    progressModal.addEventListener("cancel", (event) => {
+      if (progressBusy) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    });
+    progressModal.addEventListener("close", ensureProgressOpen);
+    progressModal.addEventListener("click", (event) => {
+      if (event.target === progressModal) {
+        event.preventDefault();
+        window.setTimeout(ensureProgressOpen, 0);
+      }
+    });
+    progressModal.addEventListener("keydown", (event) => {
+      if (progressBusy && event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    });
+  }
 
   const makeOp = () => {
     if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -887,6 +929,7 @@
       let sseSeen = false;
       let navigated = false;
       let lastPercent = 0;
+      setProgressBusy(true);
 
       const stopTimer = () => { if (interval) { window.clearInterval(interval); interval = null; } };
       const closeSource = () => { if (source) { source.close(); source = null; } };
@@ -908,6 +951,7 @@
       };
       const finish = (result, text, nextUrl, label) => {
         busy = false;
+        setProgressBusy(false);
         stopTimer();
         closeSource();
         progressModal.setAttribute("aria-busy", "false");

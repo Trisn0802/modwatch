@@ -1646,6 +1646,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
 .confirm-modal .dialog-foot .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--control)); }
 .confirm-modal .dialog-foot .btn.danger:hover { background: var(--pill-negative-bg); border-color: var(--danger); }
 .progress-modal { width: min(430px, calc(100vw - 28px)); }
+.progress-modal::backdrop { pointer-events: auto; cursor: wait; }
+.progress-modal.is-busy { user-select: none; }
+body.dialog-open { overflow: hidden; }
 .progress-body { padding: 30px 26px 26px; text-align: center; }
 .progress-spinner {
   display: block; width: 30px; height: 30px; margin: 0 auto 18px;
