@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret, syncKeyReady } from "../sync/crypto.js";
 import { scanTarget, syncConnectionById, syncConnectionList, syncTargetById, syncTargetsForInstance, testSyncConnection } from "../sync/index.js";
 import { applyTarget } from "../sync/apply.js";
 import { ampConfigured } from "../sync/drivers/amp.js";
+import { normalizeFingerprint } from "../sync/drivers/sftp.js";
 import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
 
 export const syncRouter = express.Router();
@@ -22,7 +23,7 @@ function connectionFields(body) {
     port: Number.parseInt(body.port, 10) || 22,
     username: String(body.username || "").trim(),
     basePath: String(body.base_path || "").trim(),
-    hostFingerprint: String(body.host_fingerprint || "").trim(),
+    hostFingerprint: normalizeFingerprint(body.host_fingerprint),
     ampUrl: String(body.amp_url || "").trim(),
     ampUsername: String(body.amp_username || "").trim(),
     ampInstance: String(body.amp_instance || "").trim(),

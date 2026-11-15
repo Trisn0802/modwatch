@@ -60,12 +60,14 @@
               <input class="input" id="sync-passphrase" name="passphrase" type="password" autocomplete="new-password">
             </div>
             <div class="field full">
-              <label for="sync-key">Private key <span class="faint">optional; use instead of a password</span></label>
+              <label for="sync-key">Private key <span class="faint">optional; use instead of a password when the server accepts keys</span></label>
               <textarea id="sync-key" name="private_key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+              <p class="hint" style="margin-top:6px">Standard SSH servers only. AMP's built-in SFTP authenticates with the password on current AMP builds.</p>
             </div>
             <div class="field full">
-              <label for="sync-fingerprint">Pinned host key <span class="faint">SHA256, filled by Test connection</span></label>
-              <input class="input" id="sync-fingerprint" name="host_fingerprint" value="{{ editConnection.config.hostFingerprint if editConnection else '' }}" placeholder="Leave empty for trust-on-first-use">
+              <label for="sync-fingerprint">Pinned host key <span class="faint">SHA256, 64 hex characters; filled by Test connection</span></label>
+              <input class="input" id="sync-fingerprint" name="host_fingerprint" value="{{ editConnection.config.hostFingerprint if editConnection else '' }}" placeholder="Leave empty, save, then Test connection">
+              <p class="hint" style="margin-top:6px">Leave empty and press Test connection to pin it. To paste it yourself, use the hex from <span class="mono-sm">ssh-keyscan -p PORT HOST | awk '{print $3}' | base64 -d | sha256sum</span> — not the <span class="mono-sm">SHA256:…</span> base64 that ssh-keygen prints.</p>
             </div>
             <div class="field full">
               <p class="cell-main" style="margin-bottom:4px">AMP power control <span class="faint">optional, needed for stop/start and rollback</span></p>

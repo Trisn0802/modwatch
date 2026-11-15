@@ -9,12 +9,23 @@ function cleanPath(basePath, dir) {
   return full;
 }
 
+export function normalizeFingerprint(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^[a-f0-9]{64}$/i.test(raw)) return raw.toLowerCase();
+  const encoded = raw.replace(/^SHA256:/i, "").replace(/\s+/g, "");
+  const bytes = Buffer.from(encoded, "base64");
+  if (bytes.length === 32) return bytes.toString("hex");
+  return raw.toLowerCase();
+}
+
 export async function connect(connection) {
   const config = connection.config || {};
   const secret = connection.secret || {};
   const host = String(config.host || "").trim();
   if (!host) throw new Error("The connection has no host.");
   const port = Number(config.port) || 22;
+  const pinned = normalizeFingerprint(config.hostFingerprint);
   let captured = "";
   const options = {
     host,
@@ -26,14 +37,14 @@ export async function connect(connection) {
   if (secret.password) options.password = secret.password;
   if (secret.privateKey) options.privateKey = secret.privateKey;
   if (secret.passphrase) options.passphrase = secret.passphrase;
-  if (config.hostFingerprint) {
-    options.hostVerifier = (hash) => hash === config.hostFingerprint;
+  if (pinned) {
+    options.hostVerifier = (hash) => hash === pinned;
   } else {
     options.hostVerifier = (hash) => { captured = hash; return true; };
   }
   const client = new SftpClient(`modwatch-${connection.name || connection.id || "sftp"}`);
   await client.connect(options);
-  return { client, fingerprint: captured || config.hostFingerprint || "" };
+  return { client, fingerprint: captured || pinned || "" };
 }
 
 export async function listFiles(client, connection, dir) {
