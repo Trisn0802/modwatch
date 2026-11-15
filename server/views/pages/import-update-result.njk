@@ -1,0 +1,120 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow"><span class="dot live"></span> Update complete</p>
+    <h1 class="page-title">{{ instance.name }} updated</h1>
+    <p class="page-sub">{{ summary.packName }}{% if summary.packVersion %} {{ summary.packVersion }}{% endif %} · {{ summary.updated.length }} replaced, {{ summary.added.length }} added, {{ summary.filesUpdated.length }} pack files written.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn primary" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} Back to projects</a>
+    {% if summary.filesUpdated.length %}<a class="btn" href="/instances/{{ instance.id }}/files">{{ icon('folder') }} Open files</a>{% endif %}
+  </div>
+</div>
+
+<div class="import-summary" style="margin-bottom:16px">
+  <div class="import-stat"><strong class="accent">{{ summary.updated.length }}</strong>got updated</div>
+  <div class="import-stat"><strong>{{ summary.added.length }}</strong>added</div>
+  <div class="import-stat"><strong class="faint">{{ summary.skipped.length }}</strong>skipped</div>
+  <div class="import-stat"><strong class="faint">{{ summary.notInPack.length }}</strong>not in pack</div>
+  <div class="import-stat"><strong>{{ summary.filesUpdated.length }}</strong>pack files</div>
+</div>
+
+{% if summary.updated.length %}
+<section class="panel">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Got updated</h2><p class="panel-sub">The installed baseline moved to the pack version</p></div>
+    <span class="count-note">{{ summary.updated.length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead><tr><th>Project</th><th>From</th><th>To</th></tr></thead>
+      <tbody>
+        {% for item in summary.updated %}
+        <tr><td>{{ item.name }}</td><td class="faint">{{ item.from }}</td><td><span class="pill pos"><span class="dot"></span>{{ item.to }}</span></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if summary.added.length %}
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Added</h2><p class="panel-sub">Projects that were not in this instance before</p></div>
+    <span class="count-note">{{ summary.added.length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead><tr><th>Project</th><th>Version</th></tr></thead>
+      <tbody>
+        {% for item in summary.added %}<tr><td>{{ item.name }}</td><td class="faint">{{ item.version or '—' }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if summary.filesUpdated.length %}
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Pack files</h2><p class="panel-sub">Configs and extra folders written from the pack</p></div>
+    <span class="count-note">{{ summary.filesUpdated.length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead><tr><th>File</th><th>State</th></tr></thead>
+      <tbody>
+        {% for item in summary.filesUpdated %}<tr><td><span class="mono-sm">{{ item.path }}</span></td><td><span class="pill {% if item.state == 'new' %}pos{% else %}warn{% endif %}">{{ item.state }}</span></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if summary.skipped.length %}
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Skipped</h2><p class="panel-sub">No change was written for these rows</p></div>
+    <span class="count-note">{{ summary.skipped.length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead><tr><th>Project</th><th>Version</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for item in summary.skipped %}<tr><td>{{ item.name }}</td><td class="faint">{{ item.version or '—' }}</td><td class="faint">{{ item.reason or '—' }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if summary.notInPack.length %}
+<section class="panel section-gap">
+  <div class="panel-head">
+    <div><h2 class="panel-title">Kept from the instance</h2><p class="panel-sub">These projects are not in the new pack and were left alone</p></div>
+    <span class="count-note">{{ summary.notInPack.length }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="board compact">
+      <thead><tr><th>Project</th><th>Installed</th></tr></thead>
+      <tbody>
+        {% for item in summary.notInPack %}<tr><td>{{ item.name }}</td><td class="faint">{{ item.version or '—' }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if summary.warnings.length %}
+<section class="panel section-gap">
+  <div class="panel-head"><div><h2 class="panel-title">Warnings</h2><p class="panel-sub">Files that could not be written</p></div></div>
+  <div class="panel-body"><ul class="progress-steps">{% for warning in summary.warnings %}<li class="is-done is-log">{{ warning }}</li>{% endfor %}</ul></div>
+</section>
+{% endif %}
+{% endblock %}

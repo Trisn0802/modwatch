@@ -1,0 +1,204 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">{% if reviewRequest %}Update review · {{ reviewRequest.requester_name }}{% else %}Update preview · nothing written yet{% endif %}</p>
+    <h1 class="page-title">{{ preview.pack.name }}</h1>
+    <p class="page-sub">{{ preview.file_name }}{% if preview.pack.version %} · pack version {{ preview.pack.version }}{% endif %} · compared with {{ instance.name }}</p>
+    <div style="margin-top:12px">
+      <div class="scope">
+        <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ preview.pack.mc_version }}</strong></span>
+        <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ preview.pack.loader | loaderLabel }}{% if preview.pack.loader_version %} {{ preview.pack.loader_version }}{% endif %}</strong></span>
+        <span class="scope-cell"><span class="scope-label">Pack</span><strong>{{ preview.pack.version or '—' }}</strong></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="import-summary" style="margin-bottom:16px">
+  <div class="import-stat"><strong class="accent">{{ diff.counts.newer + diff.counts.older + diff.counts.changed }}</strong>version changes</div>
+  <div class="import-stat"><strong>{{ diff.counts.new }}</strong>new projects</div>
+  <div class="import-stat"><strong class="faint">{{ diff.counts.notInPack }}</strong>not in pack</div>
+  <div class="import-stat"><strong class="{% if diff.counts.unknown %}warn{% endif %}">{{ diff.counts.unknown }}</strong>unknown incoming</div>
+  <div class="import-stat"><strong class="faint">{{ diff.counts.filesNew + diff.counts.filesChanged }}</strong>pack files changed</div>
+  <div class="import-stat"><strong class="faint">{{ diff.counts.same }}</strong>already identical</div>
+</div>
+
+<form id="update-form" method="post"
+  action="{% if reviewRequest %}/approvals/imports/{{ reviewRequest.id }}/approve{% else %}/instances/{{ instance.id }}/import/{{ token }}/apply{% endif %}"
+  data-progress-title="{% if reviewRequest %}Approving the update{% elif isAdmin %}Applying the update{% else %}Sending the update{% endif %}"
+  data-progress-message="{% if isAdmin or reviewRequest %}Replacing the selected project files, storing the selected pack files and rechecking each project.{% else %}Sending the comparison and your selections to an admin. Nothing is written before approval.{% endif %}"
+  data-progress-steps="{% if isAdmin or reviewRequest %}Download the selected files|Replace stored projects|Store pack files|Recheck project status|Build the result{% else %}Package the comparison|Notify the admins|Wait for approval{% endif %}"
+  data-progress-done-title="{% if reviewRequest %}Update approved{% elif isAdmin %}Update complete{% else %}Update sent for approval{% endif %}"
+  data-progress-done-label="{% if isAdmin or reviewRequest %}Open the result{% else %}Back to the instance{% endif %}">
+  {% include "partials/csrf.njk" %}
+
+  <div class="layout-main">
+    <div class="stack">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Version changes</h2>
+            <p class="panel-sub">Replace newer versions by default. Older versions are skipped unless you replace them.</p>
+          </div>
+          <span class="count-note">{{ diff.counts.newer }} newer · {{ diff.counts.older }} older · {{ diff.counts.changed }} changed</span>
+        </div>
+        {% for item in diff.projects %}
+        {% if item.state in ['newer', 'older', 'changed'] %}
+        <div class="update-row">
+          <div class="update-main">
+            <div class="update-title">
+              <span>{{ item.name }}</span>
+              {{ kindBadge(item.kind) }}
+              <span class="pill {% if item.state == 'newer' %}pos{% elif item.state == 'older' %}warn{% else %}info{% endif %}">{{ item.state }}</span>
+            </div>
+            <p class="update-meta">{{ item.existingVersion or 'unknown' }} → {{ item.incoming.version or 'unknown' }} · {{ item.incoming.fileName }}</p>
+            {% if item.note %}<p class="hint">{{ item.note }}</p>{% endif %}
+          </div>
+          <label class="update-action">
+            <span class="sr-only">Action for {{ item.name }}</span>
+            {% set current = selectedProjects[item.key] or item.defaultAction %}
+            <select class="select" name="action__{{ item.key }}">
+              <option value="replace" {% if current == 'replace' %}selected{% endif %}>Replace</option>
+              <option value="skip" {% if current == 'skip' %}selected{% endif %}>Skip</option>
+            </select>
+          </label>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% if not diff.counts.newer and not diff.counts.older and not diff.counts.changed %}
+        <div class="panel-body"><p class="faint" style="font-size:12px">No existing project needs a version change.</p></div>
+        {% endif %}
+      </section>
+
+      {% if diff.counts.new %}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">New projects</h2>
+            <p class="panel-sub">These are in the pack but not in this instance yet</p>
+          </div>
+          <span class="count-note">{{ diff.counts.new }}</span>
+        </div>
+        {% for item in diff.projects %}
+        {% if item.state == 'new' %}
+        <div class="update-row">
+          <div class="update-main">
+            <div class="update-title"><span>{{ item.name }}</span>{{ kindBadge(item.kind) }}</div>
+            <p class="update-meta">{{ item.incoming.version or 'unknown version' }} · {{ item.incoming.fileName }}</p>
+          </div>
+          <label class="update-action">
+            <span class="sr-only">Action for {{ item.name }}</span>
+            {% set current = selectedProjects[item.key] or item.defaultAction %}
+            <select class="select" name="action__{{ item.key }}">
+              <option value="add" {% if current == 'add' %}selected{% endif %}>Add</option>
+              <option value="skip" {% if current == 'skip' %}selected{% endif %}>Skip</option>
+            </select>
+          </label>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Pack files</h2>
+            <p class="panel-sub">Changed configs and extra folders from the pack. Project files are handled above.</p>
+          </div>
+          <span class="count-note">{{ diff.counts.filesNew }} new · {{ diff.counts.filesChanged }} changed</span>
+        </div>
+        {% if diff.files.length %}
+        <div class="table-wrap scroll-list">
+          <table class="board compact">
+            <thead><tr><th></th><th>File</th><th>State</th><th class="n">Size</th></tr></thead>
+            <tbody>
+              {% for file in diff.files %}
+              {% if file.state != 'same' %}
+              {% if reviewRequest %}{% set checked = selectedFiles | includes(file.path) %}{% else %}{% set checked = file.defaultSelected %}{% endif %}
+              <tr>
+                <td><input class="mod-select" type="checkbox" name="files" value="{{ file.path }}" {% if checked %}checked{% endif %} aria-label="Include {{ file.path }}"></td>
+                <td><span class="mono-sm">{{ file.path }}</span></td>
+                <td><span class="pill {% if file.state == 'new' %}pos{% else %}warn{% endif %}">{{ file.state }}</span></td>
+                <td class="n faint">{{ file.size | fileSize }}</td>
+              </tr>
+              {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="panel-body"><p class="faint" style="font-size:12px">The pack has no extra files to compare.</p></div>
+        {% endif %}
+      </section>
+
+      {% if diff.counts.notInPack or diff.counts.unknown %}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Kept and skipped</h2>
+            <p class="panel-sub">These rows will not be written</p>
+          </div>
+        </div>
+        {% for item in diff.projects %}
+        {% if item.state == 'not_in_pack' or item.state == 'unknown' %}
+        <div class="update-row">
+          <div class="update-main">
+            <div class="update-title"><span>{{ item.name }}</span>{% if item.kind %}{{ kindBadge(item.kind) }}{% endif %}<span class="pill muted">{{ item.state | replace('_', ' ') }}</span></div>
+            <p class="update-meta">{% if item.state == 'not_in_pack' %}{{ item.existingVersion }} · kept{% else %}{{ item.incoming.fileName }} · no source match{% endif %}</p>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="rail">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">{% if reviewRequest %}Review & approve{% elif isAdmin %}Apply update{% else %}Request update{% endif %}</h2>
+            <p class="panel-sub">{% if reviewRequest %}Decision for {{ reviewRequest.requester_name }}{% elif isAdmin %}Writes the selected changes{% else %}An admin applies it{% endif %}</p>
+          </div>
+        </div>
+        <div class="panel-body">
+          {% if reviewRequest %}
+          <div class="import-summary" style="margin-bottom:14px">
+            <div class="import-stat"><strong>{{ reviewRequest.requester_name }}</strong>{{ reviewRequest.requester_email }}</div>
+            <div class="import-stat"><strong class="faint">{{ reviewRequest.created_at | relative }}</strong>submitted</div>
+          </div>
+          <div class="field">
+            <label for="decision-note">Note to {{ reviewRequest.requester_name }}</label>
+            <input class="input" id="decision-note" name="note" type="text" placeholder="Optional decision note">
+          </div>
+          {% endif %}
+          <p class="hint">Only the selected projects and pack files are written. Projects marked Not in pack are kept as they are.</p>
+          <button class="btn primary" type="submit">{% if reviewRequest %}{{ icon('check') }} Approve and update{% elif isAdmin %}{{ icon('refresh') }} Apply update{% else %}{{ icon('upload') }} Send update for approval{% endif %}</button>
+          {% if reviewRequest %}
+          <button class="btn danger" type="submit" formaction="/approvals/imports/{{ reviewRequest.id }}/reject" formnovalidate
+            data-progress-title="Rejecting the update"
+            data-progress-message="Discarding the uploaded pack and notifying the member."
+            data-progress-steps="Discard the pack|Notify the member|Return to approvals"
+            data-progress-done-title="Update rejected"
+            data-progress-done-label="Back to approvals">Reject update</button>
+          {% else %}
+          <button class="btn ghost" type="submit" formaction="/instances/{{ instance.id }}/import/{{ token }}/cancel" formnovalidate
+            data-progress-title="Cancelling the update"
+            data-progress-message="Discarding the preview. Nothing will be written."
+            data-progress-steps="Discard the preview|Return to the instance"
+            data-progress-done-title="Update cancelled"
+            data-progress-done-label="Back to the instance">Cancel update</button>
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </div>
+</form>
+{% endblock %}

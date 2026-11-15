@@ -164,9 +164,9 @@ export async function notificationsFor(userId, { filter = "all", limit = 100 } =
 }
 
 export function notificationHref(n) {
+  if (n.kind === "request") return "/approvals";
   if (n.mod_id) return `/mods/${n.mod_id}`;
   if (n.instance_id) return `/instances/${n.instance_id}`;
-  if (n.kind === "request") return "/approvals";
   if (n.kind === "decision") return "/instances";
   return "/notifications";
 }

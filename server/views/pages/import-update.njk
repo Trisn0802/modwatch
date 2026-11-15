@@ -1,0 +1,87 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ instance.id }}">{{ icon('arrow-left') }} {{ instance.name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Update pack</p>
+    <h1 class="page-title">Update {{ instance.name }}</h1>
+    <p class="page-sub">Upload a newer .mrpack. ModWatch compares its mods, resource packs, shaders, data packs and pack files with this instance before anything is written{% if approvalRequired %} — a member update waits for an admin{% endif %}.</p>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-box" role="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+{% endif %}
+
+<div class="layout-main">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Choose the update</h2>
+        <p class="panel-sub">The pack must match {{ instance.mc_version }} · {{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</p>
+      </div>
+    </div>
+    <div class="panel-body">
+      <form class="form" id="import-update-form" method="post" action="/instances/{{ instance.id }}/import/upload" enctype="multipart/form-data"
+        data-progress-upload
+        data-progress-title="Comparing the pack"
+        data-progress-message="Hashing the pack files, matching projects and comparing them with this instance."
+        data-progress-steps="Upload the .mrpack|Read modrinth.index.json|Hash project files|Match hashes on Modrinth|Compare with this instance|Open the update preview"
+        data-progress-done-title="Update preview ready"
+        data-progress-done-label="Open the update preview">
+        {% include "partials/csrf.njk" %}
+        <div class="dropzone" data-dropzone>
+          <input type="file" name="pack" accept=".mrpack,application/x-zip-compressed,application/zip" required aria-label="Modpack update file">
+          <span class="dropzone-icon">{{ icon('upload') }}</span>
+          <p class="dropzone-title">Drop the updated .mrpack here or browse</p>
+          <p class="dropzone-name" data-dropzone-name>No file chosen yet</p>
+          <p class="dropzone-note">Zip archive · up to {{ maxUploadMb }} MB</p>
+          {% if approvalRequired %}<p class="hint" style="margin-top:8px">The update will be sent to an admin. Nothing is written before approval.</p>{% endif %}
+        </div>
+        <div class="form-actions">
+          <button class="btn primary" type="submit">{{ icon('upload') }} Upload and compare</button>
+          <a class="btn ghost" href="/instances/{{ instance.id }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">The instance scope</h2>
+          <p class="panel-sub">This update must match it</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="scope compact">
+          <span class="scope-cell"><span class="scope-label">Minecraft</span><strong>{{ instance.mc_version }}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Loader</span><strong>{{ instance.loader | loaderLabel }}{% if instance.loader_version %} {{ instance.loader_version }}{% endif %}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Pack</span><strong>{{ instance.pack_version or '—' }}</strong></span>
+        </div>
+        <p class="hint" style="margin-top:10px">A pack with a different Minecraft version or loader is rejected. Use Edit instance to change the scope separately.</p>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">What gets compared</h2>
+          <p class="panel-sub">Projects first, pack files second</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="steps">
+          <div class="step"><span class="step-num">1</span><div><strong>Existing projects</strong><p>Newer versions are replaced by default; older ones are skipped unless you choose Replace.</p></div></div>
+          <div class="step"><span class="step-num">2</span><div><strong>New projects</strong><p>Projects that are not in this instance yet can be added in the same update.</p></div></div>
+          <div class="step"><span class="step-num">3</span><div><strong>Pack files</strong><p>Changed configs and extra folders are listed separately. Runtime folders such as saves and logs stay untouched by default.</p></div></div>
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

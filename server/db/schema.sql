@@ -217,6 +217,11 @@ CREATE TABLE IF NOT EXISTS import_requests (
 );
 CREATE INDEX IF NOT EXISTS import_requests_status_idx ON import_requests (status, created_at);
 CREATE INDEX IF NOT EXISTS import_requests_user_idx ON import_requests (requested_by, created_at DESC);
+ALTER TABLE import_requests ADD COLUMN IF NOT EXISTS instance_id INTEGER REFERENCES instances(id) ON DELETE CASCADE;
+ALTER TABLE import_requests ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'new';
+ALTER TABLE import_requests ADD COLUMN IF NOT EXISTS selected_projects JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE import_requests DROP CONSTRAINT IF EXISTS import_requests_mode_check;
+ALTER TABLE import_requests ADD CONSTRAINT import_requests_mode_check CHECK (mode IN ('new','update'));
 
 CREATE TABLE IF NOT EXISTS notifications (
   id          SERIAL PRIMARY KEY,

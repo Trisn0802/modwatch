@@ -9,7 +9,7 @@ import { kindExtension } from "./kinds.js";
 
 const MAX_JAR = 120 * 1024 * 1024;
 
-async function fetchJar(url) {
+export async function fetchJar(url) {
   if (!/^https:\/\//i.test(url)) throw new Error("Only HTTPS downloads are allowed");
   const response = await fetch(url, {
     headers: { "user-agent": "ModWatch/1.0 (+self-hosted)" },

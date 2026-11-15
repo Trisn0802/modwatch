@@ -35,6 +35,7 @@ export function csrfProtection(req, res, next) {
       /\/imports\/upload\/?$/,
       /\/instances\/?$/,
       /\/instances\/\d+\/?$/,
+      /\/instances\/\d+\/import\/upload\/?$/,
       /\/users\/?$/,
       /\/users\/\d+\/edit\/?$/,
       /\/settings\/account\/?$/,

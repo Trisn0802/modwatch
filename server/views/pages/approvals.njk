@@ -27,14 +27,14 @@
     <article class="request-card">
       <div class="request-head">
         <div>
-          <p class="request-mod">{{ request.pack_name or request.file_name }}</p>
+          <p class="request-mod">{% if request.mode == 'update' %}Update · {{ request.instance_name }}{% else %}{{ request.pack_name or request.file_name }}{% endif %}</p>
           <div class="request-meta">
             <span>{{ request.requester_name }} · {{ request.requester_email }}</span>
             <span>·</span>
             <span>{{ request.created_at | relative }}</span>
           </div>
         </div>
-        <span class="pill info">{{ request.counts.projects or 0 }} projects</span>
+        <span class="pill {% if request.mode == 'update' %}warn{% else %}info{% endif %}">{% if request.mode == 'update' %}Pack update{% else %}{{ request.counts.projects or 0 }} projects{% endif %}</span>
       </div>
       <div class="request-scope">
         <div class="scope compact">
@@ -45,7 +45,7 @@
       </div>
       <p class="faint" style="margin-top:10px;font-size:10.5px;word-break:break-all">{{ request.file_name }}</p>
       <div class="btn-row" style="margin-top:12px">
-        <a class="btn primary" href="/approvals/imports/{{ request.id }}">{{ icon('search') }} Review contents</a>
+        <a class="btn primary" href="/approvals/imports/{{ request.id }}">{{ icon('search') }} {% if request.mode == 'update' %}Review update{% else %}Review contents{% endif %}</a>
       </div>
     </article>
     {% else %}
@@ -162,7 +162,7 @@
         <div class="decision-row">
           <span class="dot {% if request.status == 'approved' %}live{% else %}bad{% endif %}" style="margin-top:7px"></span>
           <div style="min-width:0">
-            <p style="font-size:12px"><strong>{{ request.pack_name or request.file_name }}</strong> <span class="faint">· {{ request.requester_name }}</span></p>
+            <p style="font-size:12px"><strong>{% if request.mode == 'update' %}{{ request.instance_name }}{% else %}{{ request.pack_name or request.file_name }}{% endif %}</strong> <span class="faint">· {{ request.requester_name }}</span></p>
             <p class="faint" style="font-size:10.5px;margin-top:2px">{{ request.status | capitalize }} by {{ request.decider_name or 'an admin' }} · {{ request.decided_at | relative }}{% if request.decision_note %} · “{{ request.decision_note | truncate(60) }}”{% endif %}</p>
           </div>
         </div>

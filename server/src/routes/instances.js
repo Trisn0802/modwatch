@@ -1,7 +1,9 @@
 import express from "express";
 import crypto from "node:crypto";
+import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
+import { config } from "../config.js";
 import { query, withTransaction } from "../db.js";
 import { instanceById, instanceStats, unknownMods } from "../queries.js";
 import { checkInstance } from "../checker.js";
@@ -15,6 +17,12 @@ import { buildExport, latestExport, getExportByToken, removeInstanceFiles, ensur
 import { updateAllInInstance } from "../updater.js";
 import { listModsForZip, streamModZip } from "../mod-zip.js";
 import { buildFileTree, contentTypeFor, instanceFileByPath, listInstanceFiles } from "../instance-files.js";
+import { parseMrpack, savePreview, loadPreview, discardPreview } from "../import.js";
+import { applyPackUpdate, buildPackUpdate, loadUpdateResult, saveUpdateResult } from "../pack-update.js";
+import { receivePackUpload } from "../pack-upload.js";
+import { createImportRequest } from "../import-requests.js";
+import { createNotifications } from "../notify.js";
+import { failProgress, finishProgress, isProgressOp, publishProgress } from "../progress.js";
 
 export const instancesRouter = express.Router();
 
@@ -315,6 +323,218 @@ instancesRouter.get("/instances/:id/files/view", async (req, res, next) => {
       "Cache-Control": "private, max-age=60",
     });
     res.sendFile(absolute);
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/import", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    res.render("pages/import-update.njk", {
+      page: "instances",
+      title: `Update ${instance.name}`,
+      instance,
+      maxUploadMb: config.maxUploadMb,
+      approvalRequired: req.session.user.role !== "admin",
+      error: null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.post("/instances/:id/import/upload", async (req, res, next) => {
+  const instance = await instanceById(intParam(req.params.id)).catch(() => null);
+  if (!instance) return next();
+  const renderError = (message, status = 400) => res.status(status).render("pages/import-update.njk", {
+    page: "instances", title: `Update ${instance.name}`, instance,
+    maxUploadMb: config.maxUploadMb, approvalRequired: req.session.user.role !== "admin", error: message,
+  });
+  try {
+    await receivePackUpload(req, res);
+    if (!csrfValid(req)) {
+      if (req.file) await fs.promises.rm(req.file.path, { force: true });
+      return res.status(403).render("pages/403.njk", {
+        page: "", title: "Request expired",
+        message: "Your form session expired. Reload the page and try again.",
+      });
+    }
+    if (!req.file) return renderError("Choose a .mrpack file to upload.");
+    const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+    publishProgress(op, { stage: "received", message: "Upload received; reading the archive", percent: 10 });
+    const handle = await fs.promises.open(req.file.path, "r");
+    const magic = Buffer.alloc(4);
+    await handle.read(magic, 0, 4, 0);
+    await handle.close();
+    if (magic.toString("binary") !== "PK\u0003\u0004") {
+      await fs.promises.rm(req.file.path, { force: true });
+      return renderError("That file is not a zip archive. A .mrpack is a zip containing modrinth.index.json.");
+    }
+    let preview;
+    try {
+      preview = await parseMrpack(req.file.path, req.file.originalname, {
+        onProgress: (event) => publishProgress(op, event),
+      });
+    } catch (err) {
+      failProgress(op, err.message);
+      await fs.promises.rm(req.file.path, { force: true });
+      return renderError(err.message);
+    }
+    preview.mode = "update";
+    preview.instance_id = instance.id;
+    publishProgress(op, { stage: "diff", message: "Comparing the pack with this instance", percent: 88 });
+    const diff = await buildPackUpdate(preview, instance);
+    if (diff.scopeMismatch) {
+      await fs.promises.rm(req.file.path, { force: true });
+      failProgress(op, "The pack scope does not match this instance.");
+      return renderError(`This pack is for Minecraft ${diff.scopeMismatch.packMc || "unknown"} ${diff.scopeMismatch.packLoader || ""}, but this instance is Minecraft ${instance.mc_version} ${instance.loader}. Edit the instance scope first, or import this pack as a new instance.`);
+    }
+    preview.diff = diff;
+    const token = await savePreview(preview, { uploadedBy: req.session.user.id });
+    finishProgress(op, "Update preview ready");
+    res.redirect(`/instances/${instance.id}/import/${token}`);
+  } catch (err) {
+    if (err instanceof multer.MulterError) {
+      const message = err.code === "LIMIT_FILE_SIZE"
+        ? `The pack is larger than the ${100} MB limit.`
+        : err.message;
+      failProgress(isProgressOp(req.body?.progress_op) ? req.body.progress_op : "", message);
+      return renderError(message);
+    }
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/import/result/:token", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const summary = await loadUpdateResult(req.params.token);
+    if (!summary || summary.instanceId !== instance.id) {
+      flash(req, "error", "That update result is no longer available.");
+      return res.redirect(`/instances/${instance.id}`);
+    }
+    res.render("pages/import-update-result.njk", {
+      page: "instances",
+      title: `Update ${instance.name}`,
+      instance,
+      summary,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.get("/instances/:id/import/:token", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const preview = await loadPreview(req.params.token);
+    if (!preview || preview.mode !== "update" || preview.instance_id !== instance.id) {
+      flash(req, "error", "That update preview expired. Upload the pack again.");
+      return res.redirect(`/instances/${instance.id}/import`);
+    }
+    if (preview.uploaded_by && req.session.user.role !== "admin" && preview.uploaded_by !== req.session.user.id) return next();
+    res.render("pages/import-update-preview.njk", {
+      page: "instances",
+      title: `Update ${instance.name}`,
+      instance,
+      preview,
+      diff: preview.diff,
+      token: req.params.token,
+      reviewRequest: null,
+      isAdmin: req.session.user.role === "admin",
+      selectedProjects: {},
+      selectedFiles: [],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+instancesRouter.post("/instances/:id/import/:token/apply", async (req, res, next) => {
+  const instance = await instanceById(intParam(req.params.id)).catch(() => null);
+  if (!instance) return next();
+  const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+  try {
+    if (!csrfValid(req)) {
+      return res.status(403).render("pages/403.njk", {
+        page: "", title: "Request expired",
+        message: "Your form session expired. Reload the page and try again.",
+      });
+    }
+    const preview = await loadPreview(req.params.token);
+    if (!preview || preview.mode !== "update" || preview.instance_id !== instance.id) {
+      flash(req, "error", "That update preview expired. Upload the pack again.");
+      return res.redirect(`/instances/${instance.id}/import`);
+    }
+    const selectedProjects = {};
+    for (const [key, value] of Object.entries(req.body)) {
+      if (key.startsWith("action__")) selectedProjects[key.slice(8)] = String(value);
+    }
+    const selectedFiles = [].concat(req.body.files || []).map((value) => String(value || "")).filter(Boolean);
+    if (req.session.user.role !== "admin") {
+      publishProgress(op, { stage: "request", message: "Sending the update request to an admin", percent: 40 });
+      const request = await createImportRequest(preview, {
+        userId: req.session.user.id,
+        instanceId: instance.id,
+        mode: "update",
+        selectedFiles,
+        selectedProjects,
+      });
+      const { rows: admins } = await query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+      await createNotifications({
+        kind: "request",
+        instanceId: instance.id,
+        title: `Pack update: ${instance.name}`,
+        body: `${req.session.user.name} submitted ${preview.file_name} as an update for ${instance.name}.`,
+        userIds: admins.map((row) => row.id),
+      });
+      await logActivity({
+        userId: req.session.user.id, action: "import_update_requested", subjectType: "request", subjectId: request.id,
+        meta: { pack: preview.pack.name, instance: instance.name },
+      });
+      finishProgress(op, "Update sent for approval");
+      flash(req, "ok", `The update for ${instance.name} is waiting for an admin to review it.`);
+      return res.redirect(`/instances/${instance.id}`);
+    }
+    publishProgress(op, { stage: "apply", message: "Applying the selected projects and pack files", percent: 45 });
+    const summary = await applyPackUpdate(preview, instance, preview.diff, { projects: selectedProjects, files: selectedFiles }, { userId: req.session.user.id });
+    await discardPreview(req.params.token);
+    await query(
+      "UPDATE import_requests SET status = 'approved', decided_by = $2, decided_at = now() WHERE token = $1 AND status = 'pending'",
+      [req.params.token, req.session.user.id]
+    );
+    const resultToken = await saveUpdateResult(summary);
+    finishProgress(op, `Updated ${summary.updated.length + summary.added.length} projects`);
+    flash(req, "ok", `${instance.name}: ${summary.updated.length} updated, ${summary.added.length} added, ${summary.filesUpdated.length} pack files.`);
+    res.redirect(`/instances/${instance.id}/import/result/${resultToken}`);
+  } catch (err) {
+    failProgress(op, err.message);
+    flash(req, "error", err.message || "The update could not be applied.");
+    res.redirect(`/instances/${instance.id}/import`);
+  }
+});
+
+instancesRouter.post("/instances/:id/import/:token/cancel", async (req, res, next) => {
+  try {
+    const instance = await instanceById(intParam(req.params.id));
+    if (!instance) return next();
+    const preview = await loadPreview(req.params.token);
+    if (!preview) {
+      flash(req, "error", "That preview has already been processed.");
+      return res.redirect(`/instances/${instance.id}`);
+    }
+    if (preview.uploaded_by && req.session.user.role !== "admin" && preview.uploaded_by !== req.session.user.id) return next();
+    await query(
+      "UPDATE import_requests SET status = 'cancelled', decided_by = $2, decided_at = now() WHERE token = $1 AND status = 'pending'",
+      [req.params.token, req.session.user.id]
+    );
+    await discardPreview(req.params.token);
+    flash(req, "ok", "Update cancelled. Nothing was written.");
+    res.redirect(`/instances/${instance.id}`);
   } catch (err) {
     next(err);
   }

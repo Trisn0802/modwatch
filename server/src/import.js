@@ -71,7 +71,7 @@ function entryModified(entry) {
   }
 }
 
-async function readZipEntries(filePath, wanted) {
+export async function readZipEntries(filePath, wanted) {
   const zip = await openZip(filePath);
   const found = new Map();
   const listing = [];
@@ -533,6 +533,53 @@ export async function parseMrpack(filePath, originalName, { onProgress } = {}) {
     tree_truncated: truncated,
     index_file_count: fileEntries.length,
   };
+}
+
+export async function hashOverrideFiles(filePath, { maxFile = 50 * 1024 * 1024, maxTotal = 512 * 1024 * 1024 } = {}) {
+  const zip = await openZip(filePath);
+  const files = new Map();
+  let total = 0;
+  await new Promise((resolve, reject) => {
+    zip.on("entry", (entry) => {
+      const name = String(entry.fileName || "").replace(/\\/g, "/");
+      if (entry.fileName === "modrinth.index.json" || !name.startsWith("overrides/") || isProjectPath(name)) {
+        zip.readEntry();
+        return;
+      }
+      const size = entry.uncompressedSize || 0;
+      if (size > maxFile || total + size > maxTotal) {
+        zip.readEntry();
+        return;
+      }
+      zip.openReadStream(entry, (err, stream) => {
+        if (err) {
+          try { zip.close(); } catch {}
+          reject(err);
+          return;
+        }
+        const hash = crypto.createHash("sha1");
+        let length = 0;
+        stream.on("data", (chunk) => {
+          length += chunk.length;
+          hash.update(chunk);
+        });
+        stream.on("error", reject);
+        stream.on("end", () => {
+          files.set(packPath(name), {
+            sha1: hash.digest("hex"),
+            size: length,
+            modified_at: entryModified(entry),
+          });
+          total += length;
+          zip.readEntry();
+        });
+      });
+    });
+    zip.on("end", resolve);
+    zip.on("error", reject);
+    zip.readEntry();
+  });
+  return files;
 }
 
 export async function savePreview(preview, { uploadedBy = null } = {}) {

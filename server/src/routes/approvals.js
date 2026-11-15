@@ -7,6 +7,8 @@ import { insertMod } from "../mod-service.js";
 import { checkOne } from "../checker.js";
 import { LOADER, SOURCE } from "../labels.js";
 import { loadPreview, discardPreview, createInstanceFromPreview, applyTreeSelection } from "../import.js";
+import { applyPackUpdate, saveUpdateResult } from "../pack-update.js";
+import { instanceById } from "../queries.js";
 import { checkInstance } from "../checker.js";
 import {
   decidedImportRequests, expireImportRequests, importRequestById, pendingImportRequests,
@@ -161,6 +163,25 @@ approvalsRouter.get("/approvals/imports/:id", async (req, res, next) => {
       flash(req, "error", "The uploaded pack expired. Ask the member to upload it again.");
       return res.redirect("/approvals");
     }
+    if (request.mode === "update") {
+      const instance = await instanceById(request.instance_id);
+      if (!instance) {
+        flash(req, "error", "The instance for that update no longer exists.");
+        return res.redirect("/approvals");
+      }
+      return res.render("pages/import-update-preview.njk", {
+        page: "approvals",
+        title: `Review update for ${instance.name}`,
+        instance,
+        preview,
+        diff: preview.diff,
+        token: request.token,
+        reviewRequest: request,
+        isAdmin: true,
+        selectedProjects: request.selected_projects || {},
+        selectedFiles: request.selected_files || [],
+      });
+    }
     applyTreeSelection(preview.tree, request.selected_files);
     const { rows: existing } = await query(
       "SELECT id, name, mc_version, loader FROM instances WHERE lower(name) = lower($1) AND loader = $2",
@@ -196,6 +217,45 @@ approvalsRouter.post("/approvals/imports/:id/approve", async (req, res, next) =>
       await query("UPDATE import_requests SET status = 'expired', decided_at = now() WHERE id = $1", [id]);
       flash(req, "error", "The uploaded pack expired. Ask the member to upload it again.");
       return res.redirect("/approvals");
+    }
+    if (request.mode === "update") {
+      const instance = await instanceById(request.instance_id);
+      if (!instance) {
+        flash(req, "error", "The instance for that update no longer exists.");
+        return res.redirect("/approvals");
+      }
+      const selectedProjects = {};
+      for (const [key, value] of Object.entries(req.body)) {
+        if (key.startsWith("action__")) selectedProjects[key.slice(8)] = String(value);
+      }
+      const selectedFiles = [].concat(req.body.files || []).map((value) => String(value || "")).filter(Boolean);
+      const summary = await applyPackUpdate(
+        preview,
+        instance,
+        preview.diff,
+        { projects: selectedProjects, files: selectedFiles },
+        { userId: req.session.user.id }
+      );
+      await discardPreview(request.token);
+      await query(
+        `UPDATE import_requests SET status = 'approved', decided_by = $2, decision_note = $3,
+           instance_id = $4, decided_at = now() WHERE id = $1`,
+        [id, req.session.user.id, String(req.body.note || "").trim(), instance.id]
+      );
+      const resultToken = await saveUpdateResult(summary);
+      await createNotifications({
+        kind: "decision",
+        instanceId: instance.id,
+        title: `Approved update: ${instance.name}`,
+        body: `Your pack update was applied to ${instance.name}.`,
+        userIds: [request.requested_by],
+      });
+      await logActivity({
+        userId: req.session.user.id, action: "import_update_approved", subjectType: "request", subjectId: id,
+        meta: { pack: preview.pack.name, instance: instance.name, updated: summary.updated.length, added: summary.added.length },
+      });
+      flash(req, "ok", `${instance.name}: ${summary.updated.length} updated, ${summary.added.length} added.`);
+      return res.redirect(`/instances/${instance.id}/import/result/${resultToken}`);
     }
     const mode = req.body.mode === "update" ? "update" : "new";
     const existingId = Number.parseInt(req.body.existing_id, 10) || null;

@@ -61,7 +61,7 @@
       <summary aria-label="Instance actions">{{ icon('kebab') }}</summary>
       <div class="menu-panel">
         <a href="/instances/{{ instance.id }}/edit">{{ icon('pencil') }} Edit instance</a>
-        {% if isAdmin %}<a href="/imports/new">{{ icon('upload') }} Import update</a>{% endif %}
+        <a href="/instances/{{ instance.id }}/import">{{ icon('upload') }} Import update</a>
         {% if isAdmin %}
         <form method="post" action="/instances/{{ instance.id }}/export">{% include "partials/csrf.njk" %}<button type="submit" class="download">{{ icon('download') }} Export .mrpack</button></form>
         {% endif %}
