@@ -1071,45 +1071,70 @@
       }
 
       if (mode === "upload") {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", action, true);
-        xhr.setRequestHeader("X-Requested-With", "fetch");
-        xhr.upload.addEventListener("progress", (progressEvent) => {
-          if (!progressEvent.lengthComputable) return;
-          const percent = Math.round((progressEvent.loaded / progressEvent.total) * 55);
-          setMeter(percent);
-          if (message) message.textContent = `Uploading the archive · ${Math.round((progressEvent.loaded / progressEvent.total) * 100)}%`;
-        });
-        xhr.addEventListener("load", () => {
-          topFinish();
-          const finalUrl = xhr.responseURL || location.href;
-          if (xhr.status >= 400) {
-            let detail = `The server returned ${xhr.status}.`;
+        const sendUpload = (retried = false) => {
+          if (retried) topStart();
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", action, true);
+          xhr.setRequestHeader("X-Requested-With", "fetch");
+          xhr.upload.addEventListener("progress", (progressEvent) => {
+            if (!progressEvent.lengthComputable) return;
+            const percent = Math.round((progressEvent.loaded / progressEvent.total) * 55);
+            setMeter(percent);
+            if (message) message.textContent = `Uploading the archive · ${Math.round((progressEvent.loaded / progressEvent.total) * 100)}%`;
+          });
+          xhr.addEventListener("load", async () => {
+            topFinish();
+            const finalUrl = xhr.responseURL || location.href;
+            if (xhr.status >= 400) {
+              let detail = `The server returned ${xhr.status}.`;
+              let doc = null;
+              try {
+                doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
+                detail = doc.querySelector(".error-box")?.textContent.trim() || detail;
+              } catch {}
+              if (xhr.status === 403) {
+                const title = doc?.querySelector(".state-title")?.textContent.trim() || "";
+                if (/^Admins only$/i.test(title)) {
+                  return finish("error", "Only an admin can import a pack. Sign in with an admin account.", "/login", "Sign in");
+                }
+                // A stale token is recoverable: read a fresh one from a new
+                // upload page and retry once without losing the chosen file.
+                if (!retried) {
+                  try {
+                    const page = await fetch("/imports/new", { headers: { "X-Requested-With": "fetch" }, cache: "no-store" });
+                    const html = await page.text();
+                    const fresh = new DOMParser().parseFromString(html, "text/html");
+                    const token = fresh.querySelector('#import-upload-form input[name="_csrf"]')?.value;
+                    if (token && new URL(page.url, location.href).pathname === "/imports/new") {
+                      form.querySelector('input[name="_csrf"]').value = token;
+                      if (message) message.textContent = "Session token refreshed. Retrying the upload…";
+                      lastPercent = 0;
+                      setMeter(0);
+                      sendUpload(true);
+                      return;
+                    }
+                  } catch {}
+                  return finish("error", "Your session expired. Sign in again, then upload the pack.", "/login", "Sign in");
+                }
+                detail = "Your session or form token expired. Reload the import page, then upload the pack again.";
+                return finish("error", detail, "/imports/new", "Reload the import page");
+              }
+              return finish("error", detail, finalUrl, "Reload the page");
+            }
+            let successText = "";
             try {
               const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
-              detail = doc.querySelector(".error-box")?.textContent.trim() || detail;
+              successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
             } catch {}
-            if (xhr.status === 403) {
-              if (/Admins only/i.test(xhr.responseText)) {
-                return finish("error", "Only an admin can import a pack. Sign in with an admin account.", "/login", "Sign in");
-              }
-              detail = "Your session or form token expired. Reload the import page, then upload the pack again.";
-              return finish("error", detail, "/imports/new", "Reload the import page");
-            }
-            return finish("error", detail, finalUrl, "Reload the page");
-          }
-          let successText = "";
-          try {
-            const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
-            successText = doc.querySelector(".flash-ok")?.textContent.trim() || "";
-          } catch {}
-          finish("ok", successText || "The preview is ready.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Open the preview");
-        });
-        xhr.addEventListener("error", () => {
-          topFinish();
-          finish("error", "The upload could not reach the server.", location.href, "Reload the page");
-        });
-        xhr.send(new FormData(form));
+            finish("ok", successText || "The preview is ready.", finalUrl, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Open the preview");
+          });
+          xhr.addEventListener("error", () => {
+            topFinish();
+            finish("error", "The upload could not reach the server.", location.href, "Reload the page");
+          });
+          xhr.send(new FormData(form));
+        };
+        sendUpload();
         return;
       }
 
@@ -1140,7 +1165,8 @@
         if (!response.ok) {
           let detail = doc.querySelector(".error-box")?.textContent.trim() || `The server returned ${response.status}.`;
           if (response.status === 403) {
-            if (/Admins only/i.test(doc.body?.textContent || "")) {
+            const title = doc.querySelector(".state-title")?.textContent.trim() || "";
+            if (/^Admins only$/i.test(title)) {
               detail = "Only an admin can do that. Sign in with an admin account.";
             } else {
               detail = "Your session or form token expired. Reload the page and try again.";
