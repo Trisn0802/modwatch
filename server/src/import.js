@@ -535,11 +535,11 @@ export async function parseMrpack(filePath, originalName, { onProgress } = {}) {
   };
 }
 
-export async function savePreview(preview) {
+export async function savePreview(preview, { uploadedBy = null } = {}) {
   const token = crypto.randomUUID();
   const dir = path.join(process.cwd(), "uploads", "tmp");
   await fs.promises.mkdir(dir, { recursive: true });
-  const meta = { ...preview, token, created_at: new Date().toISOString() };
+  const meta = { ...preview, token, uploaded_by: uploadedBy, created_at: new Date().toISOString() };
   await fs.promises.writeFile(path.join(dir, `${token}.json`), JSON.stringify(meta));
   return token;
 }
@@ -554,6 +554,18 @@ export async function loadPreview(token) {
   } catch {
     return null;
   }
+}
+
+export function applyTreeSelection(tree, selectedFiles) {
+  const selected = new Set((selectedFiles || []).map((value) => String(value)));
+  const walk = (nodes) => {
+    for (const node of nodes || []) {
+      if (node.type === "folder") walk(node.children);
+      else if (node.selectable) node.defaultChecked = selected.has(node.path);
+    }
+  };
+  walk(tree);
+  return tree;
 }
 
 export async function discardPreview(token) {

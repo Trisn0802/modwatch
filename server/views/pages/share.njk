@@ -1,6 +1,7 @@
 {% extends "share-layout.njk" %}
 {% from "partials/icon.njk" import icon %}
 {% from "partials/kind-badge.njk" import kindBadge %}
+{% from "partials/status-badge.njk" import statusBadges %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 
 {% block content %}
@@ -125,11 +126,14 @@
             <div class="mod-cell">
               <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="share-zip-form" aria-label="Select {{ mod.name }}">
               {% set art = mod | modIcon %}
-              {% if art %}
-              <img class="mod-icon" src="{{ art }}" alt="" width="30" height="30" loading="lazy" data-fallback="{{ mod.name | initials }}">
-              {% else %}
-              <span class="mod-icon fallback">{{ mod.name | initials }}</span>
-              {% endif %}
+              <span class="mod-thumb">
+                {% if art %}
+                <img class="mod-icon" src="{{ art }}" alt="" width="44" height="44" loading="lazy" data-fallback="{{ mod.name | initials }}">
+                {% else %}
+                <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+                {% endif %}
+                {{ statusBadges(shown, mod.disabled) }}
+              </span>
               <span class="mod-copy">
                 <span class="mod-name">{{ mod.name }}</span>
                 <span class="mod-file">{{ mod.file_name or mod.installed_version or 'No file recorded' }}</span>

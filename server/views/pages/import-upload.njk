@@ -9,7 +9,7 @@
   <div class="page-head-main">
     <p class="eyebrow">Import</p>
     <h1 class="page-title">Import a .mrpack</h1>
-    <p class="page-sub">ModWatch reads the pack index, hashes every mod jar, and matches each one against Modrinth. Nothing is written until you review the preview.</p>
+    <p class="page-sub">ModWatch reads the pack index, hashes every project file and matches it against Modrinth. Nothing is written until the preview is reviewed{% if approvalRequired %} — a member import waits for an admin to approve it{% endif %}.</p>
   </div>
 </div>
 
@@ -40,6 +40,7 @@
           <p class="dropzone-title">Drop the .mrpack here or browse</p>
           <p class="dropzone-name" data-dropzone-name>No file chosen yet</p>
           <p class="dropzone-note">Zip archive · up to {{ maxUploadMb }} MB</p>
+          {% if approvalRequired %}<p class="hint" style="margin-top:8px">Your preview will be sent to an admin. The instance is created only after approval.</p>{% endif %}
         </div>
         <div class="form-actions">
           <button class="btn primary" type="submit">{{ icon('upload') }} Upload and review</button>
@@ -69,7 +70,7 @@
           </div>
           <div class="step">
             <span class="step-num">3</span>
-            <div><strong>Review, then commit</strong><p>The preview lists identified mods and files that need a decision. Confirming writes the instance in one transaction.</p></div>
+            <div><strong>{% if approvalRequired %}Send for approval{% else %}Review, then commit{% endif %}</strong><p>{% if approvalRequired %}The preview lists every project and pack file. An admin reviews it and creates the instance after approval.{% else %}The preview lists identified mods and files that need a decision. Confirming writes the instance in one transaction.{% endif %}</p></div>
           </div>
         </div>
       </div>

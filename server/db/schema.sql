@@ -193,6 +193,31 @@ CREATE TABLE IF NOT EXISTS mod_requests (
 );
 CREATE INDEX IF NOT EXISTS mod_requests_status_idx ON mod_requests (status, created_at);
 
+-- A member's .mrpack import waits here until an admin reviews the preview.
+CREATE TABLE IF NOT EXISTS import_requests (
+  id             SERIAL PRIMARY KEY,
+  token          TEXT NOT NULL UNIQUE,
+  requested_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','approved','rejected','expired','cancelled')),
+  file_name      TEXT NOT NULL DEFAULT '',
+  pack_name      TEXT NOT NULL DEFAULT '',
+  pack_version   TEXT NOT NULL DEFAULT '',
+  mc_version     TEXT NOT NULL DEFAULT '',
+  loader         TEXT NOT NULL DEFAULT '',
+  loader_version TEXT NOT NULL DEFAULT '',
+  counts         JSONB NOT NULL DEFAULT '{}'::jsonb,
+  selected_files TEXT[] NOT NULL DEFAULT '{}',
+  decision_note  TEXT NOT NULL DEFAULT '',
+  decided_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  instance_id    INTEGER REFERENCES instances(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at     TIMESTAMPTZ,
+  expires_at     TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days')
+);
+CREATE INDEX IF NOT EXISTS import_requests_status_idx ON import_requests (status, created_at);
+CREATE INDEX IF NOT EXISTS import_requests_user_idx ON import_requests (requested_by, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

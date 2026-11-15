@@ -1,6 +1,7 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
 {% from "partials/kind-badge.njk" import kindBadge %}
+{% from "partials/status-badge.njk" import statusBadges %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 {% from "partials/pager.njk" import pager %}
 
@@ -321,7 +322,6 @@
           <th>Version</th>
           {# <th class="hide-sm">Channel</th>
           <th class="hide-sm">Side</th> #}
-          <th>Status</th>
           {# <th class="hide-sm">Checked</th> #}
           <th aria-label="Actions"></th>
         </tr>
@@ -329,17 +329,19 @@
       <tbody>
         {% for mod in mods %}
         {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
-        {% set meta = shown | statusMeta %}
         <tr class="{% if mod.disabled %}is-disabled{% endif %}">
           <td>
             <div class="mod-cell">
               <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="zip-form" aria-label="Select {{ mod.name }} for the file download">
               {% set art = mod | modIcon %}
-              {% if art %}
-              <img class="mod-icon" src="{{ art }}" alt="" width="32" height="32" loading="lazy" data-fallback="{{ mod.name | initials }}">
-              {% else %}
-              <span class="mod-icon fallback">{{ mod.name | initials }}</span>
-              {% endif %}
+              <span class="mod-thumb">
+                {% if art %}
+                <img class="mod-icon" src="{{ art }}" alt="" width="48" height="48" loading="lazy" data-fallback="{{ mod.name | initials }}">
+                {% else %}
+                <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+                {% endif %}
+                {{ statusBadges(shown, mod.disabled) }}
+              </span>
               <span class="mod-copy">
                 <a class="mod-name" href="/mods/{{ mod.id }}">{{ mod.name }}</a>
                 <span class="mod-file">{{ mod.file_name or mod.project_id or 'No file recorded' }}{% if mod.disabled and not (mod.file_name | endsWith('.disabled')) %}.disabled{% endif %}</span>
@@ -376,15 +378,19 @@
             <span class="faint" style="font-size:11px">{{ mod.channel_policy | channelLabel }}</span>
           </td>
           <td class="hide-sm nowrap"><span class="faint" style="font-size:11px">{{ mod.side | sideLabel }}</span></td> #}
-          <td>
-            <span class="row" style="gap:5px;flex-wrap:wrap">
-              <span class="pill {{ meta.tone }}"><span class="dot"></span>{{ meta.label }}</span>
-              {% if mod.disabled %}<span class="pill muted">Disabled</span>{% endif %}
-            </span>
-          </td>
           {# <td class="hide-sm faint nowrap">{{ mod.last_checked_at | relative }}</td> #}
           <td class="n">
             <span class="row" style="gap:2px;justify-content:flex-end">
+              {% if isAdmin and mod.source != 'manual' and mod.status != 'ignored' %}
+              <button class="icon-btn" type="button"
+                data-version-change
+                data-mod-id="{{ mod.id }}"
+                data-mod-name="{{ mod.name }}"
+                data-version-url="/mods/{{ mod.id }}/versions"
+                data-action="/mods/{{ mod.id }}/version"
+                aria-label="Change version for {{ mod.name }}"
+                title="Change version">{{ icon('swap') }}</button>
+              {% endif %}
               {% if isAdmin and mod.status == 'update_available' %}
               <form method="post" action="/mods/{{ mod.id }}/update" data-confirm-title="Download and update?" data-confirm-label="Update" data-confirm="Download {{ mod.latest_version }} for {{ mod.name }} to this server and move the installed baseline?">
                 {% include "partials/csrf.njk" %}

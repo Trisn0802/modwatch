@@ -461,8 +461,7 @@ instancesRouter.post("/instances/:id/share", async (req, res, next) => {
       userId: req.session.user.id, action: "instance_updated", subjectType: "instance",
       subjectId: instance.id, meta: { name: instance.name, share: true },
     });
-    flash(req, "ok", `Share link ready: /s/${token}`);
-    res.redirect(`/instances/${instance.id}`);
+    res.redirect(`/s/${token}`);
   } catch (err) {
     next(err);
   }

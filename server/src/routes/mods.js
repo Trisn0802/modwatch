@@ -8,7 +8,7 @@ import { flash } from "../middleware.js";
 import { createNotifications, telegramSend } from "../notify.js";
 import { insertMod, cacheInstalledVersion, markUpdated, VALID_SOURCES } from "../mod-service.js";
 import { ensureStoredJar, refreshStoredJar, setStoredDisabled } from "../export.js";
-import { updateModToLatest } from "../updater.js";
+import { updateModToLatest, setModVersion } from "../updater.js";
 import { CHANNEL, LOADER, SIDE, SOURCE, STATUS } from "../labels.js";
 import { KIND_ORDER, kindLabel, normalizeKind } from "../kinds.js";
 import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
@@ -408,6 +408,97 @@ modsRouter.post("/mods/:id/update", async (req, res, next) => {
   } catch (err) {
     flash(req, "error", err.message || "The update could not be downloaded.");
     res.redirect(req.get("referer") || `/mods/${intParam(req.params.id)}`);
+  }
+});
+
+modsRouter.get("/mods/:id/versions", async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT m.*, i.mc_version AS instance_mc_version, i.loader AS instance_loader, i.name AS instance_name
+         FROM mods m JOIN instances i ON i.id = m.instance_id WHERE m.id = $1`,
+      [intParam(req.params.id)]
+    );
+    const mod = rows[0];
+    if (!mod) return next();
+    if (mod.source === "manual" || !mod.project_id) {
+      return res.json({ versions: [], installed_version_id: mod.installed_version_id, error: "Manual projects do not have source versions." });
+    }
+    const all = req.query.channels === "all";
+    const instance = { mc_version: mod.instance_mc_version, loader: mod.instance_loader };
+    let versions = [];
+    let error = "";
+    try {
+      versions = await listSourceVersions(
+        mod.source, mod.project_id, instance, all ? "alpha" : mod.channel_policy,
+        mod.github_asset_pattern || "", mod.kind
+      );
+    } catch (err) {
+      error = "The source could not be reached. Cached versions are shown.";
+    }
+    if (!versions.length) {
+      const { rows: cached } = await query(
+        `SELECT * FROM mod_versions_cache WHERE mod_id = $1
+          ORDER BY published_at DESC NULLS LAST, fetched_at DESC LIMIT 50`,
+        [mod.id]
+      );
+      versions = cached.map((row) => ({
+        version_id: row.version_id,
+        version: row.version_string,
+        channel: row.channel,
+        mc_versions: row.mc_versions || [],
+        loaders: row.loaders || [],
+        published_at: row.published_at,
+        file_name: "",
+        download_url: "",
+        cached: true,
+      }));
+      if (cached.length) {
+        error = error || "Showing cached versions. The source is unavailable, so they cannot be installed right now.";
+      }
+    }
+    res.json({
+      installed_version_id: mod.installed_version_id,
+      error,
+      versions: versions.map((version) => ({
+        version_id: version.version_id,
+        version: version.version,
+        channel: version.channel,
+        mc_versions: version.mc_versions || [],
+        loaders: version.loaders || [],
+        published_at: version.published_at,
+        file_name: version.file_name || "",
+        download_url: version.download_url || "",
+        cached: Boolean(version.cached),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+modsRouter.post("/mods/:id/version", async (req, res, next) => {
+  const id = intParam(req.params.id);
+  const { rows } = await query("SELECT instance_id FROM mods WHERE id = $1", [id]);
+  const fallback = rows[0] ? `/instances/${rows[0].instance_id}` : "/instances";
+  try {
+    if (req.session.user.role !== "admin") {
+      flash(req, "error", "Only an admin can change a project version.");
+      return res.redirect(req.get("referer") || fallback);
+    }
+    const versionId = String(req.body.version_id || "").trim();
+    if (!versionId) {
+      flash(req, "error", "Choose a version first.");
+      return res.redirect(req.get("referer") || fallback);
+    }
+    const result = await setModVersion(id, versionId, { userId: req.session.user.id });
+    const suffix = result.status === "update_available"
+      ? " A newer allowed version is still available."
+      : " Checked again against the instance scope.";
+    flash(req, "ok", `${result.mod.name}: ${result.from} → ${result.to}.${suffix}`);
+    res.redirect(req.get("referer") || fallback);
+  } catch (err) {
+    flash(req, "error", err.message || "The version could not be changed.");
+    res.redirect(req.get("referer") || fallback);
   }
 });
 

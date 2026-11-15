@@ -1,6 +1,7 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
 {% from "partials/kind-badge.njk" import kindBadge %}
+{% from "partials/status-badge.njk" import statusBadges %}
 {% from "partials/source-icon.njk" import sourceIcon %}
 {% set shown = 'frozen' if mod.frozen_at else ('snoozed' if (mod.snoozed_version_id and mod.snoozed_version_id == mod.latest_version_id and mod.status == 'up_to_date') else mod.status) %}
 {% set meta = shown | statusMeta %}
@@ -13,11 +14,14 @@
 <div class="page-head">
   <div class="page-head-main">
     <div class="row" style="gap:14px;align-items:flex-start">
-      {% if art %}
-      <img class="mod-icon" src="{{ art }}" alt="" width="48" height="48" style="width:48px;height:48px;border-radius:11px" data-fallback="{{ mod.name | initials }}">
-      {% else %}
-      <span class="instance-mark">{{ mod.name | initials }}</span>
-      {% endif %}
+      <span class="mod-thumb">
+        {% if art %}
+        <img class="mod-detail-icon" src="{{ art }}" alt="" width="64" height="64" data-fallback="{{ mod.name | initials }}">
+        {% else %}
+        <span class="instance-mark">{{ mod.name | initials }}</span>
+        {% endif %}
+        {{ statusBadges(shown, mod.disabled) }}
+      </span>
       <div>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <h1 class="page-title">{{ mod.name }}</h1>
@@ -57,6 +61,14 @@
       <summary aria-label="Project actions">{{ icon('kebab') }}</summary>
       <div class="menu-panel">
         {% if mod.project_url %}<a href="{{ mod.project_url }}" target="_blank" rel="noopener noreferrer">{{ icon('external') }} Open project</a>{% endif %}
+        {% if isAdmin and mod.source != 'manual' and mod.status != 'ignored' %}
+        <button type="button"
+          data-version-change
+          data-mod-id="{{ mod.id }}"
+          data-mod-name="{{ mod.name }}"
+          data-version-url="/mods/{{ mod.id }}/versions"
+          data-action="/mods/{{ mod.id }}/version">{{ icon('swap') }} Change version</button>
+        {% endif %}
         {% if mod.status == 'update_available' and not mod.frozen_at %}
         <form method="post" action="/mods/{{ mod.id }}/snooze">{% include "partials/csrf.njk" %}<button type="submit">{{ icon('clock') }} Snooze {{ mod.latest_version }}</button></form>
         {% endif %}

@@ -44,7 +44,8 @@ export async function navStats(user) {
     `SELECT
        (SELECT count(*)::int FROM mods WHERE status = 'update_available') AS updates,
        (SELECT count(*)::int FROM unknown_mods WHERE resolution = 'pending') AS unknown,
-       (SELECT count(*)::int FROM mod_requests WHERE status = 'pending') AS requests,
+       ((SELECT count(*)::int FROM mod_requests WHERE status = 'pending')
+        + (SELECT count(*)::int FROM import_requests WHERE status = 'pending')) AS requests,
        (SELECT count(*)::int FROM notifications WHERE user_id = $1 AND read_at IS NULL) AS unread`,
     [user?.id || 0]
   );
@@ -165,6 +166,8 @@ export async function notificationsFor(userId, { filter = "all", limit = 100 } =
 export function notificationHref(n) {
   if (n.mod_id) return `/mods/${n.mod_id}`;
   if (n.instance_id) return `/instances/${n.instance_id}`;
+  if (n.kind === "request") return "/approvals";
+  if (n.kind === "decision") return "/instances";
   return "/notifications";
 }
 

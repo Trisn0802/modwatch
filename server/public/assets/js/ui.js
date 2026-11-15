@@ -1441,6 +1441,158 @@
     renderFileTree(container, nodes, { selectable: false, links: true });
   }
 
+  // --- change project version ------------------------------------------------
+  const versionModal = $("#version-modal");
+  if (versionModal) {
+    const versionForm = $("#version-form");
+    const versionList = $("#version-list");
+    const versionSearch = $("#version-search");
+    const versionAll = $("#version-all");
+    const versionSubmit = $("#version-submit");
+    const versionError = $("#version-error");
+    const versionTitle = $("#version-modal-title");
+    const versionSub = $("#version-modal-sub");
+    let versionButton = null;
+    const versionCache = new Map();
+
+    const versionDate = (value) => {
+      if (!value) return "";
+      try { return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(value)); }
+      catch { return ""; }
+    };
+
+    const renderVersions = (data) => {
+      if (!versionList) return;
+      versionList.replaceChildren();
+      if (versionSubmit) versionSubmit.disabled = true;
+      if (versionError) {
+        versionError.hidden = !data?.error;
+        versionError.textContent = data?.error || "";
+      }
+      const versions = data?.versions || [];
+      if (!versions.length) {
+        const empty = document.createElement("div");
+        empty.className = "version-empty";
+        empty.textContent = data?.error || "No version fits this instance.";
+        versionList.appendChild(empty);
+        return;
+      }
+      for (const version of versions) {
+        const selected = version.version_id === data.installed_version_id;
+        const installable = Boolean(version.download_url) && !selected;
+        const label = document.createElement("label");
+        label.className = "version-option";
+        label.dataset.search = `${version.version || ""} ${version.channel || ""} ${(version.mc_versions || []).join(" ")} ${(version.loaders || []).join(" ")} ${version.file_name || ""}`.toLowerCase();
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "version_id";
+        radio.value = version.version_id || "";
+        radio.disabled = !installable;
+        radio.addEventListener("change", () => {
+          for (const row of versionList.querySelectorAll(".version-option")) row.classList.remove("is-selected");
+          label.classList.add("is-selected");
+          if (versionSubmit) versionSubmit.disabled = false;
+        });
+        const main = document.createElement("span");
+        main.className = "version-main";
+        const name = document.createElement("span");
+        name.className = "version-name";
+        name.textContent = version.version || version.version_id || "Unknown version";
+        if (version.channel) {
+          const channel = document.createElement("span");
+          channel.className = `pill ${version.channel === "release" ? "pos" : version.channel === "beta" ? "warn" : "info"}`;
+          channel.textContent = version.channel;
+          name.appendChild(channel);
+        }
+        if (selected) {
+          const installed = document.createElement("span");
+          installed.className = "pill muted";
+          installed.textContent = "Installed";
+          name.appendChild(installed);
+        }
+        if (version.cached) {
+          const cached = document.createElement("span");
+          cached.className = "pill muted";
+          cached.textContent = "Cached";
+          name.appendChild(cached);
+        }
+        const meta = document.createElement("span");
+        meta.className = "version-meta";
+        if (version.mc_versions?.length) meta.append(document.createTextNode(version.mc_versions.join(", ")));
+        if (version.loaders?.length) meta.append(document.createTextNode(` · ${version.loaders.join(", ")}`));
+        if (version.published_at) meta.append(document.createTextNode(` · ${versionDate(version.published_at)}`));
+        main.append(name, meta);
+        if (version.file_name) {
+          const file = document.createElement("span");
+          file.className = "version-file";
+          file.textContent = version.file_name;
+          main.appendChild(file);
+        }
+        label.append(radio, main);
+        versionList.appendChild(label);
+      }
+    };
+
+    const loadVersions = async (all) => {
+      if (!versionButton || !versionList) return;
+      const url = `${versionButton.dataset.versionUrl}${all ? "?channels=all" : ""}`;
+      versionList.innerHTML = '<div class="version-empty">Loading versions…</div>';
+      if (versionError) { versionError.hidden = true; versionError.textContent = ""; }
+      if (versionSubmit) versionSubmit.disabled = true;
+      try {
+        let data = versionCache.get(url);
+        if (!data) {
+          const response = await fetch(url, { headers: { "X-Requested-With": "fetch" }, cache: "no-store" });
+          if (!response.ok) throw new Error(`The server returned ${response.status}.`);
+          data = await response.json();
+          versionCache.set(url, data);
+        }
+        renderVersions(data);
+      } catch (err) {
+        versionList.innerHTML = `<div class="version-empty">${err.message || "Could not load versions."}</div>`;
+      }
+    };
+
+    const openVersionPicker = (button) => {
+      versionButton = button;
+      const name = button.dataset.modName || "this project";
+      if (versionTitle) versionTitle.textContent = `Change ${name}`;
+      if (versionSub) versionSub.textContent = "Pick a build that fits this instance. The file is downloaded and replaces the stored copy.";
+      if (versionForm) {
+        versionForm.action = button.dataset.action || "";
+        versionForm.dataset.progressTitle = `Changing ${name}`;
+      }
+      if (versionSearch) versionSearch.value = "";
+      if (versionAll) versionAll.checked = false;
+      if (versionModal.open) versionModal.close();
+      versionModal.showModal();
+      loadVersions(false);
+    };
+
+    for (const button of $$("[data-version-change]")) {
+      button.addEventListener("click", () => openVersionPicker(button));
+    }
+    for (const close of $$("[data-version-close]", versionModal)) {
+      close.addEventListener("click", () => versionModal.close());
+    }
+    versionSearch?.addEventListener("input", () => {
+      const needle = versionSearch.value.trim().toLowerCase();
+      for (const row of versionList?.querySelectorAll(".version-option") || []) {
+        row.hidden = Boolean(needle) && !row.dataset.search.includes(needle);
+      }
+    });
+    versionAll?.addEventListener("change", () => loadVersions(versionAll.checked));
+    versionForm?.addEventListener("submit", () => {
+      // The progress dialog takes over from here.
+      if (versionModal.open) versionModal.close();
+    });
+    versionModal.addEventListener("close", () => {
+      versionButton = null;
+      versionCache.clear();
+      if (versionForm) versionForm.dataset.progressTitle = "Changing the version";
+    });
+  }
+
   // --- copy buttons ----------------------------------------------------------
   for (const button of $$("[data-copy]")) {
     button.addEventListener("click", async () => {

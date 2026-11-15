@@ -6,6 +6,11 @@ import { logActivity } from "../activity.js";
 import { insertMod } from "../mod-service.js";
 import { checkOne } from "../checker.js";
 import { LOADER, SOURCE } from "../labels.js";
+import { loadPreview, discardPreview, createInstanceFromPreview, applyTreeSelection } from "../import.js";
+import { checkInstance } from "../checker.js";
+import {
+  decidedImportRequests, expireImportRequests, importRequestById, pendingImportRequests,
+} from "../import-requests.js";
 
 export const approvalsRouter = express.Router();
 
@@ -13,6 +18,9 @@ approvalsRouter.use("/approvals", requireAdmin);
 
 approvalsRouter.get("/approvals", async (req, res, next) => {
   try {
+    await expireImportRequests().catch(() => {});
+    const importPending = await pendingImportRequests();
+    const importDecided = await decidedImportRequests();
     const { rows: pending } = await query(
       `SELECT r.*, u.name AS requester_name, u.email AS requester_email, i.name AS instance_name
          FROM mod_requests r
@@ -38,6 +46,8 @@ approvalsRouter.get("/approvals", async (req, res, next) => {
       decided,
       sourceLabels: SOURCE,
       loaderLabels: LOADER,
+      importPending,
+      importDecided,
     });
   } catch (err) {
     next(err);
@@ -125,6 +135,130 @@ approvalsRouter.post("/approvals/:id/reject", async (req, res, next) => {
       meta: { mod: request.payload.name, instance: request.instance_name, note },
     });
     flash(req, "ok", `Request for ${request.payload.name} rejected.`);
+    res.redirect("/approvals");
+  } catch (err) {
+    next(err);
+  }
+});
+
+function selectedCount(tree) {
+  const count = (nodes) => nodes.reduce((sum, node) => sum + (node.type === "folder" ? count(node.children) : node.selectable && node.defaultChecked ? 1 : 0), 0);
+  return count(tree || []);
+}
+
+approvalsRouter.get("/approvals/imports/:id", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return next();
+    const request = await importRequestById(id);
+    if (!request || request.status !== "pending") {
+      flash(req, "error", "That import request is no longer pending.");
+      return res.redirect("/approvals");
+    }
+    const preview = await loadPreview(request.token);
+    if (!preview) {
+      await query("UPDATE import_requests SET status = 'expired', decided_at = now() WHERE id = $1", [id]);
+      flash(req, "error", "The uploaded pack expired. Ask the member to upload it again.");
+      return res.redirect("/approvals");
+    }
+    applyTreeSelection(preview.tree, request.selected_files);
+    const { rows: existing } = await query(
+      "SELECT id, name, mc_version, loader FROM instances WHERE lower(name) = lower($1) AND loader = $2",
+      [preview.pack.name, preview.pack.loader]
+    );
+    res.render("pages/import-preview.njk", {
+      page: "approvals",
+      title: `Review ${preview.pack.name}`,
+      preview,
+      token: request.token,
+      reviewRequest: request,
+      request,
+      isAdmin: true,
+      existing,
+      treeJson: JSON.stringify(preview.tree || []).replace(/</g, "\\u003c"),
+      selectedFileCount: selectedCount(preview.tree),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+approvalsRouter.post("/approvals/imports/:id/approve", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const request = await importRequestById(id);
+    if (!request || request.status !== "pending") {
+      flash(req, "error", "That import request is no longer pending.");
+      return res.redirect("/approvals");
+    }
+    const preview = await loadPreview(request.token);
+    if (!preview) {
+      await query("UPDATE import_requests SET status = 'expired', decided_at = now() WHERE id = $1", [id]);
+      flash(req, "error", "The uploaded pack expired. Ask the member to upload it again.");
+      return res.redirect("/approvals");
+    }
+    const mode = req.body.mode === "update" ? "update" : "new";
+    const existingId = Number.parseInt(req.body.existing_id, 10) || null;
+    const selectedFiles = [].concat(req.body.files || []).map((value) => String(value || "").trim()).filter(Boolean);
+    const result = await createInstanceFromPreview(preview, {
+      userId: req.session.user.id,
+      mode,
+      existingId,
+      selectedFiles,
+    });
+    await discardPreview(request.token);
+    await query(
+      `UPDATE import_requests SET status = 'approved', decided_by = $2, decision_note = $3,
+         instance_id = $4, decided_at = now() WHERE id = $1`,
+      [id, req.session.user.id, String(req.body.note || "").trim(), result.instance.id]
+    );
+    checkInstance(result.instance.id, { trigger: "import", userId: req.session.user.id }).catch((err) =>
+      console.error("post-import check:", err.message)
+    );
+    await createNotifications({
+      kind: "decision",
+      instanceId: result.instance.id,
+      title: `Approved: ${preview.pack.name}`,
+      body: `Your pack import was approved in ${result.instance.name}.`,
+      userIds: [request.requested_by],
+    });
+    await logActivity({
+      userId: req.session.user.id, action: "import_request_approved", subjectType: "request", subjectId: id,
+      meta: { pack: preview.pack.name, instance: result.instance.name },
+    });
+    flash(req, "ok", `${result.instance.name}: ${result.added} projects added, ${result.filesAdded} pack files stored.`);
+    res.redirect(`/instances/${result.instance.id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+approvalsRouter.post("/approvals/imports/:id/reject", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const request = await importRequestById(id);
+    if (!request || request.status !== "pending") {
+      flash(req, "error", "That import request is no longer pending.");
+      return res.redirect("/approvals");
+    }
+    const note = String(req.body.note || "").trim();
+    await query(
+      `UPDATE import_requests SET status = 'rejected', decided_by = $2, decision_note = $3,
+         decided_at = now() WHERE id = $1`,
+      [id, req.session.user.id, note]
+    );
+    await discardPreview(request.token);
+    await createNotifications({
+      kind: "decision",
+      title: `Rejected: ${request.pack_name}`,
+      body: note ? `Note from the admin: ${note}` : "Your pack import was rejected.",
+      userIds: [request.requested_by],
+    });
+    await logActivity({
+      userId: req.session.user.id, action: "import_request_rejected", subjectType: "request", subjectId: id,
+      meta: { pack: request.pack_name, note },
+    });
+    flash(req, "ok", `Import request for ${request.pack_name} rejected.`);
     res.redirect("/approvals");
   } catch (err) {
     next(err);

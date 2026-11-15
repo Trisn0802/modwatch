@@ -146,3 +146,93 @@ export async function updateAllInInstance(instanceId, { userId = null } = {}) {
     await release();
   }
 }
+
+export async function setModVersion(modId, versionId, { userId = null } = {}) {
+  const { rows } = await query(
+    `SELECT m.*, i.mc_version AS instance_mc_version, i.loader AS instance_loader,
+            i.name AS instance_name
+       FROM mods m JOIN instances i ON i.id = m.instance_id WHERE m.id = $1`,
+    [modId]
+  );
+  const mod = rows[0];
+  if (!mod) throw new Error("Project not found");
+  if (mod.source === "manual" || !mod.project_id) {
+    throw new Error("Manual projects do not have source versions.");
+  }
+  const instance = {
+    id: mod.instance_id,
+    name: mod.instance_name,
+    mc_version: mod.instance_mc_version,
+    loader: mod.instance_loader,
+  };
+  const versions = await listSourceVersions(
+    mod.source,
+    mod.project_id,
+    instance,
+    "alpha",
+    mod.github_asset_pattern || "",
+    mod.kind
+  );
+  const file = versions.find((item) => item.version_id === versionId);
+  if (!file?.download_url) {
+    throw new Error("That version is not available for this instance's scope.");
+  }
+  if (file.version_id === mod.installed_version_id) {
+    throw new Error("That version is already installed.");
+  }
+  if (file.file_size && Number(file.file_size) > MAX_JAR) {
+    throw new Error("The file is larger than 120 MB");
+  }
+  const buffer = await fetchJar(file.download_url);
+  const extension = kindExtension(mod.kind);
+  const rawName = file.file_name || `${mod.name}-${file.version}${extension}`;
+  const baseName = rawName.replace(/\.(?:jar|zip)(?:\.disabled)?$/i, "");
+  const fileName = `${baseName}${extension}`;
+  const storedName = mod.disabled ? (fileName.endsWith(".disabled") ? fileName : `${fileName}.disabled`) : fileName;
+  const stored = await saveJar(mod.instance_id, storedName, buffer);
+
+  const oldPath = mod.stored_path;
+  await query(
+    `UPDATE mods SET installed_version = $2, installed_version_id = $3, file_name = $4,
+        file_sha1 = $5, file_sha512 = $6, file_size = $7, download_url = $8,
+        stored_path = $9, stored_version_id = $3, snoozed_version_id = NULL,
+        last_error = NULL, last_checked_at = now(), status = 'up_to_date'
+      WHERE id = $1`,
+    [
+      mod.id,
+      file.version || versionId,
+      file.version_id || versionId,
+      fileName,
+      file.file_sha1 || null,
+      file.file_sha512 || null,
+      file.file_size || buffer.length,
+      file.download_url,
+      stored,
+    ]
+  );
+  if (oldPath) {
+    const old = jarAbsolute(oldPath);
+    const next = jarAbsolute(stored);
+    if (old && next && old !== next) await fs.promises.rm(old, { force: true }).catch(() => {});
+  }
+  await query(
+    "UPDATE notifications SET read_at = now() WHERE mod_id = $1 AND kind = 'update' AND read_at IS NULL",
+    [mod.id]
+  ).catch(() => {});
+  await logActivity({
+    userId,
+    action: "mod_version_changed",
+    subjectType: "mod",
+    subjectId: mod.id,
+    meta: { name: mod.name, from: mod.installed_version, to: file.version, downloaded: true },
+  });
+
+  let checked = null;
+  try {
+    const { checkOne } = await import("./checker.js");
+    checked = await checkOne(mod.id, { userId });
+  } catch (err) {
+    console.error("version change check:", err.message);
+  }
+  return { mod, from: mod.installed_version, to: file.version, status: checked?.result || null };
+}

@@ -1,0 +1,33 @@
+{% from "partials/icon.njk" import icon %}
+<dialog class="version-modal" id="version-modal" aria-labelledby="version-modal-title">
+  <div class="version-head">
+    <div>
+      <p class="confirm-kicker">Change version</p>
+      <h2 class="dialog-title" id="version-modal-title">Choose a version</h2>
+      <p class="dialog-sub" id="version-modal-sub">Loads the versions that fit this instance.</p>
+    </div>
+    <button class="icon-btn" type="button" data-version-close aria-label="Close">{{ icon('close') }}</button>
+  </div>
+  <div class="version-toolbar">
+    <label class="search-field">
+      {{ icon('search') }}
+      <span class="sr-only">Filter versions</span>
+      <input type="search" id="version-search" placeholder="Filter versions" autocomplete="off">
+    </label>
+    <label class="check"><input type="checkbox" id="version-all"><span>Show all channels</span></label>
+  </div>
+  <form class="version-form" id="version-form" method="post" action=""
+    data-progress-title="Changing the version"
+    data-progress-message="Downloading the selected file, replacing the stored copy and recomputing the status."
+    data-progress-steps="Download the selected file|Replace the stored file|Move the baseline|Recompute the status"
+    data-progress-done-title="Version changed"
+    data-progress-done-label="Back to the project">
+    {% include "partials/csrf.njk" %}
+    <div class="version-list" id="version-list"></div>
+    <div class="version-foot">
+      <p class="confirm-error" id="version-error" role="alert" hidden></p>
+      <button class="btn" type="button" data-version-close>Cancel</button>
+      <button class="btn primary" type="submit" id="version-submit" disabled>Change to this version</button>
+    </div>
+  </form>
+</dialog>

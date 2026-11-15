@@ -1,0 +1,21 @@
+{% from "partials/icon.njk" import icon %}
+{% macro statusBadges(shown, disabled) -%}
+<span class="status-badges">
+  {%- if shown != 'up_to_date' -%}
+  {%- set meta = shown | statusMeta -%}
+  <span class="status-badge status-{{ shown }}" title="{{ meta.label }}" aria-label="{{ meta.label }}" role="img">
+    {%- if shown == 'update_available' -%}{{ icon('arrow-up', 10) }}
+    {%- elif shown == 'source_error' -%}{{ icon('alert', 10) }}
+    {%- elif shown == 'unknown' -%}{{ icon('unknown', 10) }}
+    {%- elif shown == 'manual' -%}{{ icon('pencil', 9) }}
+    {%- elif shown == 'ignored' -%}{{ icon('eye-off', 10) }}
+    {%- elif shown == 'frozen' -%}{{ icon('lock', 9) }}
+    {%- elif shown == 'snoozed' -%}{{ icon('clock', 9) }}
+    {%- else -%}{{ icon('unknown', 10) }}{%- endif -%}
+  </span>
+  {%- endif -%}
+  {%- if disabled -%}
+  <span class="status-badge status-disabled" title="Disabled" aria-label="Disabled" role="img">{{ icon('pause', 9) }}</span>
+  {%- endif -%}
+</span>
+{%- endmacro %}

@@ -107,7 +107,7 @@ if (userCount[0].n === 0) {
   }
 }
 
-await cleanupPreviews().catch(() => {});
+await cleanupPreviews(24 * 7).catch(() => {});
 
 const app = express();
 if (config.trustProxy) app.set("trust proxy", 1);
@@ -239,7 +239,10 @@ app.use(async (req, res, next) => {
     res.locals.pusher = { ...realtimeConfig(), userId: user?.id || null };
     res.locals.notif = user ? await notificationFeed(user.id, 6) : { items: [], unread: 0 };
     res.locals.pendingRequests = user?.role === "admin"
-      ? (await query("SELECT count(*)::int AS n FROM mod_requests WHERE status = 'pending'")).rows[0].n
+      ? (await query(
+          `SELECT ((SELECT count(*)::int FROM mod_requests WHERE status = 'pending')
+                 + (SELECT count(*)::int FROM import_requests WHERE status = 'pending')) AS n`
+        )).rows[0].n
       : 0;
     res.locals.nav = user ? await navStats(user) : { updates: 0, unknown: 0, requests: 0, unread: 0 };
     next();

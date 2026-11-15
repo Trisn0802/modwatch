@@ -7,7 +7,7 @@
 
 <div class="page-head">
   <div class="page-head-main">
-    <p class="eyebrow">Preview · nothing written yet</p>
+    <p class="eyebrow">{% if reviewRequest %}Review request · {{ reviewRequest.requester_name }}{% else %}Preview · nothing written yet{% endif %}</p>
     <h1 class="page-title">{{ preview.pack.name }}</h1>
     <p class="page-sub">{{ preview.file_name }}{% if preview.pack.version %} · pack version {{ preview.pack.version }}{% endif %}{% if preview.pack.summary %} · {{ preview.pack.summary | truncate(140) }}{% endif %}</p>
     <div style="margin-top:12px">
@@ -143,18 +143,28 @@
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">Confirm import</h2>
-          <p class="panel-sub">One transaction, then a check</p>
+          <h2 class="panel-title">{% if reviewRequest %}Review & approve{% elif isAdmin %}Confirm import{% else %}Request approval{% endif %}</h2>
+          <p class="panel-sub">{% if reviewRequest %}Admin decision for {{ reviewRequest.requester_name }}{% elif isAdmin %}One transaction, then a check{% else %}An admin creates the instance{% endif %}</p>
         </div>
       </div>
       <div class="panel-body">
-        <form class="form" id="import-confirm-form" method="post" action="/imports/{{ token }}/confirm"
-          data-progress-title="Importing {{ preview.pack.name }}"
-          data-progress-message="Writing the tracked projects, then storing the pack files you selected."
-          data-progress-steps="Create the instance|Write tracked projects|Store selected pack files|Record the import|Start the first check"
-          data-progress-done-title="Import complete"
-          data-progress-done-label="Open the instance">
+        {% if reviewRequest %}
+        <div class="import-summary" style="margin-bottom:14px">
+          <div class="import-stat"><strong>{{ reviewRequest.requester_name }}</strong>{{ reviewRequest.requester_email }}</div>
+          <div class="import-stat"><strong>{{ reviewRequest.counts.projects or 0 }}</strong>projects</div>
+          <div class="import-stat"><strong>{{ reviewRequest.counts.files or 0 }}</strong>pack files</div>
+          <div class="import-stat"><strong class="faint">{{ reviewRequest.created_at | relative }}</strong>submitted</div>
+        </div>
+        {% endif %}
+        <form class="form" id="import-confirm-form" method="post"
+          action="{% if reviewRequest %}/approvals/imports/{{ reviewRequest.id }}/approve{% else %}/imports/{{ token }}/confirm{% endif %}"
+          data-progress-title="{% if reviewRequest %}Approving {{ preview.pack.name }}{% elif isAdmin %}Importing {{ preview.pack.name }}{% else %}Submitting {{ preview.pack.name }}{% endif %}"
+          data-progress-message="{% if reviewRequest %}Writing the tracked projects, then storing the selected pack files.{% elif isAdmin %}Writing the tracked projects, then storing the pack files you selected.{% else %}Sending the preview to the admins. Nothing is written until it is approved.{% endif %}"
+          data-progress-steps="{% if reviewRequest %}Approve the request|Create the instance|Write tracked projects|Store selected pack files|Start the first check{% elif isAdmin %}Create the instance|Write tracked projects|Store selected pack files|Record the import|Start the first check{% else %}Package the preview|Notify the admins|Wait for approval{% endif %}"
+          data-progress-done-title="{% if reviewRequest %}Import approved{% elif isAdmin %}Import complete{% else %}Sent for approval{% endif %}"
+          data-progress-done-label="{% if reviewRequest or isAdmin %}Open the instance{% else %}Back to instances{% endif %}">
           {% include "partials/csrf.njk" %}
+          {% if isAdmin %}
           <div class="radio-stack">
             <label class="radio-card">
               <input type="radio" name="mode" value="new" checked>
@@ -181,15 +191,35 @@
           {% else %}
           <p class="hint">No instance has this pack name and loader, so this import starts a new one.</p>
           {% endif %}
+          {% else %}
+          <input type="hidden" name="mode" value="new">
+          <p class="hint">This request creates a new instance. An admin reviews the projects and selected pack files before it is written.</p>
+          {% endif %}
+
+          {% if reviewRequest %}
+          <div class="field">
+            <label for="decision-note">Note to {{ reviewRequest.requester_name }}</label>
+            <input class="input" id="decision-note" name="note" type="text" placeholder="Optional decision note">
+          </div>
+          {% endif %}
 
           <p class="hint">Config and extra files are stored for signed-in members. Public downloads include them only when an admin enables that per instance.</p>
-          <button class="btn primary" type="submit">{{ icon('download') }} Import pack</button>
+          <button class="btn primary" type="submit">{% if reviewRequest %}{{ icon('check') }} Approve and import{% elif isAdmin %}{{ icon('download') }} Import pack{% else %}{{ icon('upload') }} Send for approval{% endif %}</button>
+          {% if reviewRequest %}
+          <button class="btn danger" type="submit" formaction="/approvals/imports/{{ reviewRequest.id }}/reject" formnovalidate
+            data-progress-title="Rejecting the import"
+            data-progress-message="Discarding the uploaded pack and notifying the member."
+            data-progress-steps="Discard the pack|Notify the member|Return to approvals"
+            data-progress-done-title="Import rejected"
+            data-progress-done-label="Back to approvals">Reject request</button>
+          {% else %}
           <button class="btn ghost" type="submit" formaction="/imports/{{ token }}/cancel" formnovalidate
             data-progress-title="Cancelling the import"
             data-progress-message="Discarding the preview. Nothing will be written."
             data-progress-steps="Discard the preview|Return to instances"
             data-progress-done-title="Import cancelled"
             data-progress-done-label="Back to instances">Cancel import</button>
+          {% endif %}
         </form>
       </div>
     </section>
@@ -197,15 +227,15 @@
     <section class="panel" style="margin-top:16px">
       <div class="panel-head">
         <div>
-          <h2 class="panel-title">After the import</h2>
-          <p class="panel-sub">The first check starts automatically</p>
+          <h2 class="panel-title">{% if reviewRequest or not isAdmin %}After approval{% else %}After the import{% endif %}</h2>
+          <p class="panel-sub">{% if reviewRequest or not isAdmin %}An admin creates the instance{% else %}The first check starts automatically{% endif %}</p>
         </div>
       </div>
       <div class="panel-body">
         <div class="steps">
-          <div class="step"><span class="step-num">1</span><div><strong>Identified mods</strong><p>Stored with their installed version as the baseline and queued for a check.</p></div></div>
-          <div class="step"><span class="step-num">2</span><div><strong>Unknown files</strong><p>Listed under the Unknown tab. Link a project, keep them manual, or ignore them.</p></div></div>
-          <div class="step"><span class="step-num">3</span><div><strong>Next runs</strong><p>The scheduler keeps watching. Telegram and in-app notifications fire only for new versions.</p></div></div>
+          <div class="step"><span class="step-num">1</span><div><strong>{% if reviewRequest or not isAdmin %}Admin reviews{% else %}Identified mods{% endif %}</strong><p>{% if reviewRequest or not isAdmin %}The preview, selected files and pack scope are checked by an admin.{% else %}Stored with their installed version as the baseline and queued for a check.{% endif %}</p></div></div>
+          <div class="step"><span class="step-num">2</span><div><strong>{% if reviewRequest or not isAdmin %}Instance is created{% else %}Unknown files{% endif %}</strong><p>{% if reviewRequest or not isAdmin %}Projects and selected pack files are written in one transaction after approval.{% else %}Listed under the Unknown tab. Link a project, keep them manual, or ignore them.{% endif %}</p></div></div>
+          <div class="step"><span class="step-num">3</span><div><strong>{% if reviewRequest or not isAdmin %}First check{% else %}Next runs{% endif %}</strong><p>{% if reviewRequest or not isAdmin %}The scheduler checks every project as soon as the instance exists.{% else %}The scheduler keeps watching. Telegram and in-app notifications fire only for new versions.{% endif %}</p></div></div>
         </div>
       </div>
     </section>
