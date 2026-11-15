@@ -199,6 +199,16 @@ app.use(ensureCsrf);
 app.use(csrfProtection);
 app.use(exposeFlash);
 
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    const upload = req.method === "POST" && req.path.endsWith("/imports/upload");
+    if (res.statusCode === 404 || upload) {
+      console.log("[request]", req.method, req.originalUrl, res.statusCode, req.get("host") || "", req.get("content-type") || "");
+    }
+  });
+  next();
+});
+
 app.get("/health", async (req, res) => {
   try {
     await query("SELECT 1");

@@ -899,7 +899,7 @@
 
   const refreshCsrfToken = async (form) => {
     try {
-      const response = await fetch("/api/csrf", { cache: "no-store", headers: { "X-Requested-With": "fetch" } });
+      const response = await fetch(new URL("../api/csrf", location.href), { cache: "no-store", headers: { "X-Requested-With": "fetch" } });
       if (!response.ok) return "";
       const data = await response.json();
       const token = data?.token;
@@ -932,7 +932,7 @@
       // button on the import preview does). Always honour that override.
       const submitter = event.submitter || null;
       const progressSource = submitter || form;
-      const action = submitter?.formAction || form.action;
+      let action = submitter?.formAction || form.action;
       if (!progressModal) {
         if (mode === "upload" || mode === "nav") {
           // A native submit keeps the old page visible while the server works.
@@ -1109,6 +1109,14 @@
                 doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
                 detail = doc.querySelector(".error-box")?.textContent.trim() || detail;
               } catch {}
+              if (xhr.status === 404 && !retried) {
+                action = new URL("upload", location.href).toString();
+                if (message) message.textContent = "Retrying the upload on the canonical endpoint…";
+                lastPercent = 0;
+                setMeter(0);
+                sendUpload(true);
+                return;
+              }
               if (xhr.status === 403) {
                 const title = doc?.querySelector(".state-title")?.textContent.trim() || "";
                 if (/^Admins only$/i.test(title)) {
@@ -1129,6 +1137,10 @@
                   return finish("error", "Your session expired. Sign in again, then upload the pack.", "/login", "Sign in");
                 }
                 detail = "Your session or form token expired. Reload the import page, then upload the pack again.";
+                return finish("error", detail, "/imports/new", "Reload the import page");
+              }
+              if (xhr.status === 404) {
+                detail = `The server returned 404 for ${new URL(action, location.href).pathname}. Reload the import page and try again.`;
                 return finish("error", detail, "/imports/new", "Reload the import page");
               }
               return finish("error", detail, finalUrl, "Reload the page");
