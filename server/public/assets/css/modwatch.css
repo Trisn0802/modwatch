@@ -1519,7 +1519,8 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 /* ---------- state pages / auth ---------- */
 .state-page { display: grid; place-items: center; min-height: 60svh; text-align: center; }
 .state-inner { max-width: 46ch; }
-.state-mark { margin: 0 auto 18px; color: var(--muted); }
+.state-mark { display: flex; justify-content: center; margin: 0 auto 18px; color: var(--muted); }
+.state-logo { display: block; border-radius: 11px; }
 .state-code { font-size: var(--fs-micro); letter-spacing: 0.16em; color: var(--faint); }
 .state-title { margin-top: 8px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 .state-text { margin-top: 8px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }

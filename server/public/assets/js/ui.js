@@ -932,7 +932,9 @@
       // button on the import preview does). Always honour that override.
       const submitter = event.submitter || null;
       const progressSource = submitter || form;
-      let action = submitter?.formAction || form.action;
+      // A plain button's formAction property points at the current page, so
+      // only use it when the button actually overrides the form action.
+      let action = submitter?.hasAttribute("formaction") ? submitter.formAction : form.action;
       if (!progressModal) {
         if (mode === "upload" || mode === "nav") {
           // A native submit keeps the old page visible while the server works.
@@ -1158,8 +1160,9 @@
           });
           xhr.send(new FormData(form));
         };
-        if (message) message.textContent = "Checking the session token…";
-        uploadToken = await refreshCsrfToken(form);
+        // Start immediately with the token already in the form. A rejected
+        // request refreshes it and retries, so a valid session never waits.
+        uploadToken = form.querySelector('input[name="_csrf"]')?.value || "";
         sendUpload();
         return;
       }
