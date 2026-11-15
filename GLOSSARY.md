@@ -16,15 +16,22 @@ its own SFTP port.
 _Avoid_: server, container, instance
 
 **Connection**:
-One SFTP endpoint plus the optional AMP power credentials for exactly one
-AMP instance. Secrets are encrypted at rest.
+One endpoint and its credentials: an SFTP host with optional AMP power
+control, or a Pterodactyl panel URL with a client API key. Secrets are
+encrypted at rest.
 _Avoid_: SFTP connection, endpoint, host
 
 **Target**:
-The binding of one connection to one ModWatch instance: remote folder,
-sides, remove policy and start timeout. A ModWatch instance can have many
-targets; a target belongs to one AMP instance.
+The binding of one connection to one ModWatch instance and one game server
+(an AMP instance or a Pterodactyl server UUID): remote folder, sides,
+remove policy and start timeout. A ModWatch instance can have many targets.
 _Avoid_: link, binding, server
+
+**Panel**:
+The control surface for a game server, either AMP's ADS/instance API or a
+Pterodactyl panel. It starts and stops the process; files move over SFTP or
+through the panel API.
+_Avoid_: dashboard, web UI
 
 **Scan**:
 A read-only comparison of tracked projects against the files on a target,
