@@ -286,10 +286,8 @@
     </div>
     <div class="toolbar-right">
       <span class="count-note">{{ total | number }} project{% if total != 1 %}s{% endif %}{% if q %} matching “{{ q }}”{% endif %}</span>
-      {% if mods.length %}
-      <label class="check zip-check" title="Select the projects on this page"><input type="checkbox" data-select-all> Select page</label>
+      <label class="check zip-check" title="Select the projects visible on this page"><input type="checkbox" data-select-all> Select page</label>
       <button class="btn sm download" type="submit" form="zip-form" data-zip-submit disabled title="Download the selected files as a zip, grouped by kind">{{ icon('download') }} <span data-zip-label>Download selected</span></button>
-      {% endif %}
     </div>
   </form>
 
@@ -307,6 +305,12 @@
     <a class="chip chip-clear" href="{{ filterResetHref }}">Clear all</a>
   </div>
   {% endif %}
+
+  <div class="selection-tray" data-selection-tray data-instance-id="{{ instance.id }}" hidden>
+    <span class="selection-label">Selected <span data-selection-count>0</span></span>
+    <div class="selection-chips" data-selection-chips></div>
+    <button class="btn sm ghost" type="button" data-selection-clear>Clear</button>
+  </div>
 
   <div id="mod-results" aria-live="polite">
   <form id="zip-form" class="zip-form" method="post" action="/instances/{{ instance.id }}/download-zip">
@@ -332,7 +336,7 @@
         <tr class="{% if mod.disabled %}is-disabled{% endif %}">
           <td>
             <div class="mod-cell">
-              <input class="mod-select" type="checkbox" name="mod_ids" value="{{ mod.id }}" form="zip-form" aria-label="Select {{ mod.name }} for the file download">
+              <input class="mod-select" type="checkbox" data-mod-select data-mod-id="{{ mod.id }}" data-mod-name="{{ mod.name }}" aria-label="Select {{ mod.name }} for the file download">
               {% set art = mod | modIcon %}
               <span class="mod-thumb">
                 {% if art %}

@@ -894,6 +894,31 @@ table.board { width: 100%; border-collapse: collapse; }
   margin-right: 2px; color: var(--faint);
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
 }
+.selection-tray {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 9px var(--card-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--brand-soft);
+}
+.selection-tray[hidden] { display: none; }
+.selection-label {
+  color: var(--brand-text); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.selection-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.selection-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 24px; padding: 0 7px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--muted); font-size: 10.5px;
+  max-width: 30ch;
+}
+.selection-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selection-chip button {
+  border: 0; background: transparent; color: var(--faint);
+  font-size: 14px; line-height: 1; padding: 0; cursor: pointer;
+}
+.selection-chip button:hover { color: var(--text); }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   height: 24px; padding: 0 8px;
@@ -1623,6 +1648,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   text-wrap: balance;
 }
 .auth-error {
+  margin-top: 12px;
   display: flex; gap: 8px; align-items: flex-start;
   padding: 10px 12px; margin-bottom: 16px;
   border: 1px solid color-mix(in srgb, var(--negative) 40%, var(--border));

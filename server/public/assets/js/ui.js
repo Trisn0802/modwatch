@@ -1767,36 +1767,113 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshScheduler(); });
   }
 
-  // --- select tracked projects for a zipped file download ------------------
+  // --- selection that survives search, filters and pagination ----------------
   const zipForm = $("#zip-form");
   if (zipForm) {
+    const selectionTray = $("[data-selection-tray]");
+    const instanceId = selectionTray?.dataset.instanceId || "unknown";
+    const storageKey = `mw-selection-${instanceId}`;
+    const selected = new Map();
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(storageKey) || "{}");
+      for (const [id, name] of Object.entries(stored)) selected.set(String(id), String(name));
+    } catch {}
     const selectAll = $("[data-select-all]");
     const zipSubmit = $("[data-zip-submit]");
     const zipLabel = $("[data-zip-label]");
-    let zipBoxes = [];
-    const syncZip = () => {
-      const selected = zipBoxes.filter((box) => box.checked).length;
-      if (zipSubmit) zipSubmit.disabled = selected === 0;
-      if (zipLabel) zipLabel.textContent = selected ? `Download selected (${selected})` : "Download selected";
-      if (selectAll) {
-        selectAll.checked = zipBoxes.length > 0 && selected === zipBoxes.length;
-        selectAll.indeterminate = selected > 0 && selected < zipBoxes.length;
+    const trayCount = $("[data-selection-count]", selectionTray);
+    const trayChips = $("[data-selection-chips]", selectionTray);
+    const clearSelection = $("[data-selection-clear]", selectionTray);
+
+    const saveSelection = () => {
+      try { sessionStorage.setItem(storageKey, JSON.stringify(Object.fromEntries(selected))); } catch {}
+    };
+    const visibleBoxes = () => $$(".mod-select[data-mod-select]");
+    const syncForm = () => {
+      const form = $("#zip-form");
+      if (!form) return;
+      for (const old of form.querySelectorAll("input[data-selection-input]")) old.remove();
+      for (const id of selected.keys()) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "mod_ids";
+        input.value = id;
+        input.dataset.selectionInput = "1";
+        form.appendChild(input);
       }
     };
-    const bindZip = () => {
-      zipBoxes = $$('input.mod-select[form="zip-form"]');
-      for (const box of zipBoxes) box.addEventListener("change", syncZip);
-      syncZip();
+    const syncBoxes = () => {
+      for (const box of visibleBoxes()) box.checked = selected.has(String(box.dataset.modId));
     };
-    // The live table search swaps the tbody, so the listeners must be rebuilt.
-    document.addEventListener("mw:results-replaced", bindZip);
-    if (selectAll) {
-      selectAll.onchange = () => {
-        for (const box of zipBoxes) box.checked = selectAll.checked;
-        syncZip();
-      };
-    }
-    bindZip();
+    const syncToolbar = () => {
+      const count = selected.size;
+      if (zipSubmit) zipSubmit.disabled = count === 0;
+      if (zipLabel) zipLabel.textContent = count ? `Download selected (${count})` : "Download selected";
+      const boxes = visibleBoxes();
+      const checked = boxes.filter((box) => box.checked).length;
+      if (selectAll) {
+        selectAll.checked = boxes.length > 0 && checked === boxes.length;
+        selectAll.indeterminate = checked > 0 && checked < boxes.length;
+      }
+    };
+    const renderTray = () => {
+      if (!selectionTray) return;
+      selectionTray.hidden = selected.size === 0;
+      if (trayCount) trayCount.textContent = String(selected.size);
+      if (!trayChips) return;
+      trayChips.replaceChildren();
+      for (const [id, name] of selected) {
+        const chip = document.createElement("span");
+        chip.className = "selection-chip";
+        const label = document.createElement("span");
+        label.textContent = name || `#${id}`;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Remove ${name || id} from the selection`);
+        remove.addEventListener("click", () => {
+          selected.delete(id);
+          syncSelection();
+        });
+        chip.append(label, remove);
+        trayChips.appendChild(chip);
+      }
+    };
+    const syncSelection = () => {
+      saveSelection();
+      syncForm();
+      syncBoxes();
+      syncToolbar();
+      renderTray();
+    };
+    const bindSelection = () => {
+      for (const box of visibleBoxes()) {
+        if (box.dataset.selectionBound === "1") continue;
+        box.dataset.selectionBound = "1";
+        box.addEventListener("change", () => {
+          const id = String(box.dataset.modId);
+          if (box.checked) selected.set(id, box.dataset.modName || "");
+          else selected.delete(id);
+          syncSelection();
+        });
+      }
+      syncSelection();
+    };
+
+    selectAll?.addEventListener("change", () => {
+      for (const box of visibleBoxes()) {
+        const id = String(box.dataset.modId);
+        if (selectAll.checked) selected.set(id, box.dataset.modName || "");
+        else selected.delete(id);
+      }
+      syncSelection();
+    });
+    clearSelection?.addEventListener("click", () => {
+      selected.clear();
+      syncSelection();
+    });
+    document.addEventListener("mw:results-replaced", bindSelection);
+    bindSelection();
   }
 
   // --- "/" focuses the topbar search ----------------------------------------
