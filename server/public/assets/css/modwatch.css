@@ -1692,6 +1692,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
   .mods-board td:nth-child(3) { grid-area: version; min-width: 0; }
   .mods-board td:nth-child(6) { grid-area: status; justify-self: end; }
   .mods-board td:nth-child(8) { grid-area: actions; justify-self: end; }
+  .mods-board .mod-cell { gap: 8px; }
+  .mods-board .mod-icon { width: 28px; height: 28px; }
   .mods-board .mod-name { max-width: none; }
   .mods-board .mod-file { max-width: 46ch; }
   .mods-board .vshift { max-width: 100%; }
