@@ -1089,6 +1089,13 @@
               const doc = new DOMParser().parseFromString(xhr.responseText, "text/html");
               detail = doc.querySelector(".error-box")?.textContent.trim() || detail;
             } catch {}
+            if (xhr.status === 403) {
+              if (/Admins only/i.test(xhr.responseText)) {
+                return finish("error", "Only an admin can import a pack. Sign in with an admin account.", "/login", "Sign in");
+              }
+              detail = "Your session or form token expired. Reload the import page, then upload the pack again.";
+              return finish("error", detail, "/imports/new", "Reload the import page");
+            }
             return finish("error", detail, finalUrl, "Reload the page");
           }
           let successText = "";
@@ -1131,7 +1138,14 @@
           return finish("error", "Your session expired. Sign in again.", "/login", "Sign in");
         }
         if (!response.ok) {
-          const detail = doc.querySelector(".error-box")?.textContent.trim() || `The server returned ${response.status}.`;
+          let detail = doc.querySelector(".error-box")?.textContent.trim() || `The server returned ${response.status}.`;
+          if (response.status === 403) {
+            if (/Admins only/i.test(doc.body?.textContent || "")) {
+              detail = "Only an admin can do that. Sign in with an admin account.";
+            } else {
+              detail = "Your session or form token expired. Reload the page and try again.";
+            }
+          }
           return finish("error", detail, finalUrl, "Reload the page");
         }
         if (errorText) return finish("error", errorText, finalUrl, "Reload the page");
