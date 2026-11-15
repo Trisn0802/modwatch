@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { query } from "../db.js";
 import { jarAbsolute } from "../uploads.js";
 import { decryptSecret } from "./crypto.js";
+import { lookupByHash } from "../sources/modrinth.js";
 import { buildPlan } from "./plan.js";
 import * as sftp from "./drivers/sftp.js";
 
@@ -52,9 +53,22 @@ export async function syncTargetsForInstance(instanceId) {
   return rows;
 }
 
+async function mapProjects(observed) {
+  const hashes = [...new Set(observed.map((file) => file.sha1).filter(Boolean))];
+  const map = new Map();
+  if (!hashes.length) return map;
+  try {
+    const versions = await lookupByHash(hashes.slice(0, 500));
+    for (const [hash, version] of versions) {
+      if (version.project_id) map.set(hash, version.project_id);
+    }
+  } catch {}
+  return map;
+}
+
 async function desiredMods(instanceId, sides) {
   const { rows } = await query(
-    `SELECT id, name, kind, side, status, disabled, file_name, file_sha1, installed_version, stored_path, download_url
+    `SELECT id, name, kind, side, status, disabled, file_name, file_sha1, installed_version, stored_path, download_url, project_id
        FROM mods
       WHERE instance_id = $1 AND kind = 'mod' AND status <> 'ignored'
         AND side = ANY($2::text[])
@@ -72,6 +86,7 @@ async function desiredMods(instanceId, sides) {
       name: mod.name,
       file_name: mod.file_name,
       file_sha1: sha1,
+      project_id: mod.project_id || null,
       installed_version: mod.installed_version,
       disabled: Boolean(mod.disabled),
       kind: mod.kind,
@@ -124,6 +139,8 @@ export async function scanTarget(targetId, { onProgress } = {}) {
     await sftp.close(client);
   }
   report({ stage: "plan", message: "Building the diff", percent: 90 });
+  const projectByHash = await mapProjects(observed);
+  for (const file of observed) file.projectId = projectByHash.get(file.sha1) || null;
   const plan = buildPlan(desired, observed);
   const summary = {
     counts: plan.counts,

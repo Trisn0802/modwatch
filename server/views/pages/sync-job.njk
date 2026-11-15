@@ -1,0 +1,79 @@
+{% extends "layout.njk" %}
+{% from "partials/icon.njk" import icon %}
+
+{% block content %}
+<a class="backlink" href="/instances/{{ job.instance_id }}/servers">{{ icon('arrow-left') }} {{ job.instance_name }}</a>
+
+<div class="page-head">
+  <div class="page-head-main">
+    <p class="eyebrow">Sync job</p>
+    <h1 class="page-title">{{ job.target_name }} · job {{ job.id }}</h1>
+    <p class="page-sub">
+      <span class="pill {% if job.status == 'succeeded' %}pos{% elif job.status == 'failed' or job.status == 'rolled_back' %}neg{% else %}warn{% endif %}"><span class="dot"></span>{{ job.status | replace('_', ' ') }}</span>
+      {% if job.started_at %} · started {{ job.started_at | relative }}{% endif %}
+      {% if job.finished_at %} · finished {{ job.finished_at | relative }}{% endif %}
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="/instances/{{ job.instance_id }}/servers">{{ icon('database') }} Servers</a>
+    <a class="btn" href="/instances/{{ job.instance_id }}/servers/{{ job.target_id }}">{{ icon('search') }} View diff</a>
+  </div>
+</div>
+
+{% if job.result.error %}
+<div class="error-box" role="alert" style="margin-bottom:16px">{{ icon('alert') }}<span>{{ job.result.error }}</span></div>
+{% endif %}
+
+<div class="layout-main">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2 class="panel-title">Files</h2><p class="panel-sub">Per-item result</p></div>
+        <span class="count-note">{{ items.length }}</span>
+      </div>
+      {% if items.length %}
+      <div class="table-wrap">
+        <table class="board compact">
+          <thead><tr><th>Project</th><th>Action</th><th>File</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for item in items %}
+            <tr>
+              <td>{{ item.mod_id or '—' }}</td>
+              <td><span class="pill {% if item.action == 'add' or item.action == 'enable' %}pos{% elif item.action == 'replace' or item.action == 'disable' %}warn{% else %}muted{% endif %}">{{ item.action }}</span></td>
+              <td><span class="mono-sm">{{ item.old_file_name or item.file_name }}</span>{% if item.old_file_name and item.old_file_name != item.file_name %}<span class="cell-sub">→ {{ item.file_name }}</span>{% endif %}</td>
+              <td><span class="pill {% if item.status == 'done' %}pos{% elif item.status == 'failed' or item.status == 'rolled_back' %}neg{% else %}muted{% endif %}">{{ item.status }}</span>{% if item.error %}<span class="cell-sub">{{ item.error }}</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="panel-body"><p class="faint" style="font-size:12px">No file items were recorded.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="panel section-gap">
+      <div class="panel-head"><div><h2 class="panel-title">Log</h2><p class="panel-sub">Ordered steps from the job</p></div></div>
+      <div class="panel-body">
+        {% if job.log %}<pre class="sync-log">{{ job.log }}</pre>{% else %}<p class="faint" style="font-size:12px">No log yet.</p>{% endif %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="rail">
+    <section class="panel">
+      <div class="panel-head"><div><h2 class="panel-title">Job details</h2><p class="panel-sub">What ran</p></div></div>
+      <div class="panel-body">
+        <div class="kv">
+          <div class="kv-row"><span class="kv-label">Target</span><span class="kv-value">{{ job.target_name }}</span></div>
+          <div class="kv-row"><span class="kv-label">Mode</span><span class="kv-value">{{ job.mode }}</span></div>
+          <div class="kv-row"><span class="kv-label">Status</span><span class="kv-value">{{ job.status | replace('_', ' ') }}</span></div>
+          <div class="kv-row"><span class="kv-label">Created</span><span class="kv-value">{{ job.created_at | relative }}</span></div>
+          {% if job.result.changes is defined %}<div class="kv-row"><span class="kv-label">Changes</span><span class="kv-value">{{ job.result.changes }}</span></div>{% endif %}
+          {% if job.result.restored is defined %}<div class="kv-row"><span class="kv-label">Restored</span><span class="kv-value">{{ job.result.restored }}</span></div>{% endif %}
+        </div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

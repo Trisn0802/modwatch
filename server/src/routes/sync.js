@@ -4,7 +4,9 @@ import { query } from "../db.js";
 import { flash, requireAdmin } from "../middleware.js";
 import { instanceById } from "../queries.js";
 import { decryptSecret, encryptSecret, syncKeyReady } from "../sync/crypto.js";
-import { scanTarget, syncConnectionList, syncTargetById, syncTargetsForInstance, testSyncConnection } from "../sync/index.js";
+import { scanTarget, syncConnectionById, syncConnectionList, syncTargetById, syncTargetsForInstance, testSyncConnection } from "../sync/index.js";
+import { applyTarget } from "../sync/apply.js";
+import { ampConfigured } from "../sync/drivers/amp.js";
 import { finishProgress, failProgress, isProgressOp, publishProgress } from "../progress.js";
 
 export const syncRouter = express.Router();
@@ -21,6 +23,9 @@ function connectionFields(body) {
     username: String(body.username || "").trim(),
     basePath: String(body.base_path || "").trim(),
     hostFingerprint: String(body.host_fingerprint || "").trim(),
+    ampUrl: String(body.amp_url || "").trim(),
+    ampUsername: String(body.amp_username || "").trim(),
+    ampInstance: String(body.amp_instance || "").trim(),
   };
 }
 
@@ -61,6 +66,7 @@ syncRouter.post("/settings/sync", requireAdmin, async (req, res, next) => {
     const password = String(req.body.password || "");
     const privateKey = String(req.body.private_key || "");
     const passphrase = String(req.body.passphrase || "");
+    const ampPassword = String(req.body.amp_password || "");
     if (!name || !config.host || !config.username || (!password && !privateKey)) {
       return res.status(400).render("pages/settings-sync.njk", {
         page: "settings", section: "sync", title: "Sync", connections: await syncConnectionList(),
@@ -71,7 +77,7 @@ syncRouter.post("/settings/sync", requireAdmin, async (req, res, next) => {
     const { rows } = await query(
       `INSERT INTO sync_connections (name, driver, config, secret_enc, created_by)
        VALUES ($1,$2,$3::jsonb,$4,$5) RETURNING id`,
-      [name, driver, JSON.stringify(config), encryptSecret({ password, privateKey, passphrase }), req.session.user.id]
+      [name, driver, JSON.stringify(config), encryptSecret({ password, privateKey, passphrase, ampPassword }), req.session.user.id]
     );
     flash(req, "ok", `${name} saved. Test it to pin the host key.`);
     res.redirect(`/settings/sync?edit=${rows[0].id}`);
@@ -95,9 +101,18 @@ syncRouter.post("/settings/sync/:id", requireAdmin, async (req, res, next) => {
     const password = String(req.body.password || "");
     const privateKey = String(req.body.private_key || "");
     const passphrase = String(req.body.passphrase || "");
-    const secretEnc = password || privateKey
-      ? encryptSecret({ password, privateKey, passphrase })
-      : existing.secret_enc;
+    const ampPassword = String(req.body.amp_password || "");
+    let secretEnc = existing.secret_enc;
+    if (password || privateKey || passphrase || ampPassword) {
+      let prior = {};
+      try { prior = existing.secret_enc ? decryptSecret(existing.secret_enc) : {}; } catch {}
+      secretEnc = encryptSecret({
+        password: password || prior.password || "",
+        privateKey: privateKey || prior.privateKey || "",
+        passphrase: passphrase || prior.passphrase || "",
+        ampPassword: ampPassword || prior.ampPassword || "",
+      });
+    }
     await query(
       "UPDATE sync_connections SET name = $2, config = $3::jsonb, secret_enc = $4 WHERE id = $1",
       [id, String(req.body.name || existing.name).trim(), JSON.stringify(config), secretEnc]
@@ -253,12 +268,14 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
     const target = await syncTargetById(intParam(req.params.targetId));
     if (!target || target.instance_id !== instance.id) return next();
     const summary = target.last_scan_summary || null;
+    const connection = await syncConnectionById(target.connection_id);
     res.render("pages/instance-sync-diff.njk", {
       page: "instances",
       title: `${instance.name} · ${target.name}`,
       instance,
       target,
       summary,
+      powerReady: ampConfigured(connection),
       isAdmin: req.session.user.role === "admin",
     });
   } catch (err) {
@@ -275,6 +292,61 @@ syncRouter.post("/instances/:id/servers/:targetId/delete", requireAdmin, async (
     await query("DELETE FROM sync_targets WHERE id = $1", [target.id]);
     flash(req, "ok", `${target.name} removed.`);
     res.redirect(`/instances/${instance.id}/servers`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+syncRouter.post("/instances/:id/servers/:targetId/apply", requireAdmin, async (req, res, next) => {
+  const instance = await instanceById(intParam(req.params.id)).catch(() => null);
+  if (!instance) return next();
+  const target = await syncTargetById(intParam(req.params.targetId)).catch(() => null);
+  if (!target || target.instance_id !== instance.id) return next();
+  const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+  try {
+    publishProgress(op, { stage: "start", message: "Starting the sync job", percent: 3 });
+    const result = await applyTarget(target.id, {
+      userId: req.session.user.id,
+      onProgress: (event) => publishProgress(op, event),
+    });
+    const jobId = result.job?.id;
+    if (!jobId) throw new Error("The sync job could not be created.");
+    if (result.ok) {
+      finishProgress(op, `${result.changes} change(s) applied; server is ready`);
+      flash(req, "ok", `${target.name}: ${result.changes} change(s) applied. Server reached ready.`);
+    } else {
+      failProgress(op, result.error || "The sync did not complete.");
+      flash(req, "error", result.rolledBack
+        ? `${target.name} failed; the previous jars were restored. ${result.error}`
+        : `${target.name} failed. ${result.error}`);
+    }
+    res.redirect(`/sync-jobs/${jobId}`);
+  } catch (err) {
+    failProgress(op, err.message);
+    flash(req, "error", err.message || "The sync could not start.");
+    res.redirect(`/instances/${instance.id}/servers/${target.id}`);
+  }
+});
+
+syncRouter.get("/sync-jobs/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT j.*, t.name AS target_name, t.instance_id, i.name AS instance_name
+         FROM sync_jobs j
+         JOIN sync_targets t ON t.id = j.target_id
+         JOIN instances i ON i.id = t.instance_id
+        WHERE j.id = $1`,
+      [intParam(req.params.id)]
+    );
+    const job = rows[0];
+    if (!job) return next();
+    const { rows: items } = await query("SELECT * FROM sync_job_items WHERE job_id = $1 ORDER BY id", [job.id]);
+    res.render("pages/sync-job.njk", {
+      page: "instances",
+      title: `Sync job ${job.id}`,
+      job,
+      items,
+    });
   } catch (err) {
     next(err);
   }

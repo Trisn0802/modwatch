@@ -24,7 +24,7 @@ Built with Node 22, Express, Nunjucks and PostgreSQL 16. Ships as a two-service 
 - **Monthly activity.** The dashboard plots updates found and downloaded mods for the last 12 months as an animated two-line chart, with the 12-month totals beside it.
 - **Export and share.** Admins generate a `.mrpack` from the tracked versions; non-mod files are written as overrides under `overrides/resourcepacks/`, `overrides/datapacks/` and `overrides/shaderpacks/`. The raw ZIP groups files by kind (`mods/`, `resourcepacks/`, `datapacks/`, `shaderpacks/`), keeps disabled files with `.disabled`, and includes a README plus `modwatch-download.json` manifest. Source menus only scope the contents. Creating a share link opens the public page directly. A public `/s/<token>` page shows the scope and top updates, filters by kind/source, serves a 1200×630 OG image with the pack art and real mod icons, and lets anyone download the whole pack, one file selection, or a checked selection without an account. Stored config and pack files stay private to signed-in members; an admin can opt a single instance into including them in public downloads with the “Include config files in public downloads” switch.
 - **Visible long writes.** Uploads, imports, project resolution and version tracking open a progress dialog with a real server-sent event log and a percentage, while a thin green bar at the top of the page shows that a request is running.
-- **Server sync (read-only).** Add an SFTP connection under Settings → Sync, bind one or more AMP servers to an instance from its Servers page, then scan the remote `mods/` folder. ModWatch hashes the jars, matches them by SHA-1 then file name, and shows add, replace, enable, disable, keep and extra-on-server rows. Credentials are encrypted with AES-256-GCM via `SYNC_SECRET_KEY`; the host key is pinned on first test. This phase never writes to the server.
+- **Server sync with safety rails.** Add an SFTP connection under Settings → Sync, optionally attach AMP power control, then bind one or more servers to an instance from its Servers page. A scan hashes the remote jars, matches them by SHA-1, then by Modrinth project, then by file name, and shows add, replace, enable, disable, keep and extra-on-server rows. **Apply** rescans, refuses more than 50 changes or a non-empty server when that guard is on, downloads every new jar first, backs up the files it will touch to `mods_backup/<job>`, stops the Minecraft app through the AMP instance API, uploads to `.modwatch-tmp`, verifies SHA-1, renames, starts the server and waits for the new `Done (` marker. A startup failure, a crash after ready, or a server that stops listening rolls the files back and restarts the previous set. Credentials are encrypted with AES-256-GCM via `SYNC_SECRET_KEY`; the host key is pinned on first test. Members see the diff read-only.
 - **Filters and themes.** Modrinth-style checkbox popovers filter the instance and public share tables by kind and source, with removable chips for every active filter. OLED, Dark, Light or follow the system, chosen from a compact popover and applied before first paint.
 
 ## Quick start
@@ -135,6 +135,7 @@ All runtime settings live in `.env`. Compose passes only the variables declared 
 | `PUSHER_CLUSTER` | `ap1` | Pusher cluster |
 | `TELEGRAM_BOT_TOKEN` | empty | Legacy direct Telegram token |
 | `TELEGRAM_CHAT_ID` | empty | Legacy direct Telegram chat ID |
+| `SYNC_SECRET_KEY` | empty | 32+ byte key material for AES-256-GCM server-sync credentials; required before saving an SFTP or AMP password |
 
 The scheduler honours the last finished check on restart. A database with no completed run schedules its first check after 90 seconds, then every configured interval.
 
@@ -146,6 +147,20 @@ The scheduler honours the last finished check on restart. A database with no com
 - **Manual** entries never call an API. They stay in the Manual filter and are useful for private or patched jars.
 
 Unknown files can be linked to a Modrinth, CurseForge or GitHub project URL. The CurseForge fallback downloads the matching jar into the uploads volume so exports stay complete.
+
+### Server sync (AMP)
+
+Each **connection** is one endpoint: SFTP host, port, user and secret, plus optional AMP power control. Each **target** binds one connection to one instance and one AMP instance, so several Minecraft servers can sync from the same ModWatch instance and one connection can serve several targets only when they share the same SFTP root.
+
+1. Set `SYNC_SECRET_KEY` and restart. The key encrypts every connection secret; there is no plaintext fallback.
+2. **Settings → Sync → New connection.** Fill the SFTP host, port, user, password or key. The first **Test connection** pins the host key (SHA256). Leave the field empty only if you accept trust-on-first-use.
+3. For apply, also fill **AMP URL** (the panel/ADS URL), **AMP username**, **AMP password** and **AMP instance name**. ModWatch logs into the panel, resolves the instance, then calls `Core/Start` and `Core/Stop` on that instance's own API. Stopping the whole instance kills SFTP, so `ADSModule/StopInstance` is never used for an apply.
+4. **Instance → Servers → New target.** Pick the connection, the AMP instance, `mods` as the remote folder, sides (`server` and `both`), whether the server must be empty and the start timeout. Scan builds the diff; apply writes only after the backup succeeds.
+5. In AMP, give the sync user these permissions on **every** instance it should control: `Instances.<instance GUID>` plus `.Start`, `.Stop`, `.Restart` and `.Manage`. Without them the panel API refuses the call. AMP's SFTP service stays up while the Minecraft app is stopped.
+
+Adding another server such as `AMBATRONS01` therefore needs two things beyond the first setup: the same per-instance AMP permissions for its GUID (a role can cover many instances, there is no per-instance role duplication needed) and a new connection/target pair pointing at that instance's SFTP root. Nothing from `GuguGaga01` is edited. Paper plugin sync is not covered yet: targets read the `mods/` folder and tracked projects of kind `mod`.
+
+Matching order is SHA-1, then Modrinth project ID (so a renamed version becomes **replace**, not a second copy), then file name. `.disabled` is controlled by the ModWatch switch, not by the file name. Client-only projects are skipped; extra jars on the server are reported but never removed automatically. A job is capped at 50 changes, and rollback restores the previous files even when the server crashes seconds after `Done (`.
 
 ### Realtime (Pusher)
 

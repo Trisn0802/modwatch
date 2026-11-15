@@ -12,6 +12,7 @@ export function buildPlan(desired, observed) {
   const used = new Set();
   const bySha1 = new Map();
   const byName = new Map();
+  const byProject = new Map();
   for (const file of observed) {
     if (file.sha1) {
       if (!bySha1.has(file.sha1)) bySha1.set(file.sha1, []);
@@ -20,12 +21,17 @@ export function buildPlan(desired, observed) {
     const key = baseName(file.name).toLowerCase();
     if (!byName.has(key)) byName.set(key, []);
     byName.get(key).push(file);
+    if (file.projectId) {
+      if (!byProject.has(file.projectId)) byProject.set(file.projectId, []);
+      byProject.get(file.projectId).push(file);
+    }
   }
 
   for (const mod of desired) {
-    const name = mod.file_name || `${mod.name}.jar`;
-    const key = baseName(name).toLowerCase();
+    const name = baseName(mod.file_name || `${mod.name}.jar`);
+    const key = name.toLowerCase();
     const remote = (mod.file_sha1 ? (bySha1.get(mod.file_sha1) || [])[0] : null)
+      || (mod.project_id ? (byProject.get(mod.project_id) || [])[0] : null)
       || (byName.get(key) || [])[0]
       || null;
     if (remote) used.add(remote.path);

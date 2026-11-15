@@ -49,6 +49,17 @@ export async function listFiles(client, connection, dir) {
     }));
 }
 
+export async function listDir(client, connection, dir) {
+  const remote = cleanPath(connection.config?.basePath, dir);
+  const entries = await client.list(remote);
+  return (entries || []).map((entry) => ({
+    name: entry.name,
+    type: entry.type,
+    size: Number(entry.size) || 0,
+    modifiedAt: entry.modifyTime ? new Date(entry.modifyTime).toISOString() : null,
+  }));
+}
+
 export async function hashFile(client, remotePath) {
   const stream = client.createReadStream(remotePath);
   const hash = crypto.createHash("sha1");
@@ -73,4 +84,49 @@ export async function testConnection(connection, dir = "mods") {
 
 export async function close(client) {
   await client?.end().catch(() => {});
+}
+
+export function remotePath(connection, dir) {
+  return cleanPath(connection.config?.basePath, dir);
+}
+
+export async function mkdirRemote(client, connection, dir) {
+  const remote = remotePath(connection, dir);
+  await client.mkdir(remote, true);
+  return remote;
+}
+
+export async function existsRemote(client, connection, path) {
+  return client.exists(remotePath(connection, path));
+}
+
+export async function statRemote(client, connection, path) {
+  return client.stat(remotePath(connection, path)).catch(() => null);
+}
+
+export async function readRemote(client, connection, path) {
+  return client.get(remotePath(connection, path));
+}
+
+export async function writeRemote(client, connection, path, localPath) {
+  const remote = remotePath(connection, path);
+  await client.fastPut(localPath, remote);
+  return remote;
+}
+
+export async function copyRemote(client, connection, from, to) {
+  const data = await client.get(remotePath(connection, from));
+  await client.put(data, remotePath(connection, to));
+}
+
+export async function renameRemote(client, connection, from, to) {
+  await client.rename(remotePath(connection, from), remotePath(connection, to));
+}
+
+export async function removeRemote(client, connection, path) {
+  await client.delete(remotePath(connection, path)).catch(() => {});
+}
+
+export async function hashRemote(client, connection, path) {
+  return hashFile(client, remotePath(connection, path));
 }

@@ -67,6 +67,26 @@
               <label for="sync-fingerprint">Pinned host key <span class="faint">SHA256, filled by Test connection</span></label>
               <input class="input" id="sync-fingerprint" name="host_fingerprint" value="{{ editConnection.config.hostFingerprint if editConnection else '' }}" placeholder="Leave empty for trust-on-first-use">
             </div>
+            <div class="field full">
+              <p class="cell-main" style="margin-bottom:4px">AMP power control <span class="faint">optional, needed for stop/start and rollback</span></p>
+              <p class="hint" style="margin-bottom:10px">Use the ADS panel URL. The instance name is the AMP name, for example GuguGaga01 or AMBATRONS01.</p>
+            </div>
+            <div class="field">
+              <label for="sync-amp-url">AMP URL</label>
+              <input class="input" id="sync-amp-url" name="amp_url" value="{{ editConnection.config.ampUrl if editConnection else '' }}" placeholder="http://192.168.10.8:8080">
+            </div>
+            <div class="field">
+              <label for="sync-amp-user">AMP username</label>
+              <input class="input" id="sync-amp-user" name="amp_username" value="{{ editConnection.config.ampUsername if editConnection else '' }}" placeholder="modwatch-sync">
+            </div>
+            <div class="field">
+              <label for="sync-amp-pass">AMP password {% if editConnection %}<span class="faint">leave blank to keep</span>{% endif %}</label>
+              <input class="input" id="sync-amp-pass" name="amp_password" type="password" autocomplete="new-password">
+            </div>
+            <div class="field">
+              <label for="sync-amp-instance">AMP instance name</label>
+              <input class="input" id="sync-amp-instance" name="amp_instance" value="{{ editConnection.config.ampInstance if editConnection else '' }}" placeholder="GuguGaga01">
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn primary" type="submit" {% if not keyReady %}disabled{% endif %}>{{ icon('check') }} {% if editConnection %}Save connection{% else %}Add connection{% endif %}</button>

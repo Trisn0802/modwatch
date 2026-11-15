@@ -42,9 +42,37 @@
 <div class="notice" style="margin-bottom:16px">{{ summary.warnings | join(' · ') }}</div>
 {% endif %}
 
+{% set changes = summary.counts.add + summary.counts.replace + summary.counts.disable + summary.counts.enable %}
+{% if changes %}
+<section class="panel" style="margin-bottom:16px">
+  <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <p class="cell-main">{{ changes }} change{% if changes != 1 %}s{% endif %} can be applied</p>
+      <p class="hint" style="margin-top:3px">This stops {{ target.name }}, backs up the old jars, replaces the selected files, starts the server and waits for ready. A failure rolls the files back.</p>
+    </div>
+    {% if isAdmin and powerReady %}
+    <form method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}/apply"
+      data-confirm-title="Apply server sync?"
+      data-confirm-label="Apply and restart"
+      data-confirm="This will stop {{ target.name }}, apply {{ changes }} file change{% if changes != 1 %}s{% endif %}, restart it and roll back if the server does not reach ready. Continue?"
+      data-progress-title="Applying sync to {{ target.name }}"
+      data-progress-message="Stopping the server, uploading the jars and waiting for the world to load."
+      data-progress-steps="Prepare local jars|Back up the old files|Stop the server|Upload and verify|Start the server|Wait for ready|Write the result"
+      data-progress-done-title="Sync complete"
+      data-progress-done-label="Open the job">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('refresh') }} Apply {{ changes }} change{% if changes != 1 %}s{% endif %}</button>
+    </form>
+    {% elif isAdmin %}
+    <a class="btn" href="/settings/sync?edit={{ target.connection_id }}">{{ icon('settings') }} Configure AMP power</a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-head">
-    <div><h2 class="panel-title">Diff</h2><p class="panel-sub">Nothing here is written to the server in this phase</p></div>
+    <div><h2 class="panel-title">Diff</h2><p class="panel-sub">Read-only until you apply; every file is backed up before it changes</p></div>
     <span class="count-note">{{ summary.items.length }} row{% if summary.items.length != 1 %}s{% endif %}</span>
   </div>
   <div class="table-wrap scroll-list">

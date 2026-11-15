@@ -10,6 +10,7 @@ const KIND_LABEL = {
   decision: "Decision",
   error: "Error",
   system: "System",
+  sync: "Server sync",
 };
 
 export function notificationTitle(kind, title) {
