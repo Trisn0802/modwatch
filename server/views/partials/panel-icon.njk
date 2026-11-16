@@ -1,8 +1,8 @@
 {% macro panelIcon(panel, size=16) -%}
 {%- if panel == 'amp' -%}
-<svg class="panel-icon amp" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2.7l8.2 4.5v9.6L12 21.3 3.8 16.8V7.2z"/><path d="M3.8 7.2L12 11.7l8.2-4.5"/><path d="M12 11.7v9.6"/></svg>
+<svg class="panel-icon amp" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 1.9l9 5.1v10l-9 5.1-9-5.1V7z"/><path d="M12 5.2l5.1 2.9L12 11l-5.1-2.9z" fill="currentColor" stroke="none"/><path d="M6.9 12.2l5.1 2.9 5.1-2.9"/><path d="M12 15.1v3.8"/></svg>
 {%- elif panel == 'pterodactyl' -%}
-<svg class="panel-icon pterodactyl" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2.4" y="3.6" width="19.2" height="16.8" rx="3"/><path d="M6.6 9.4l2.8 2.6-2.8 2.6"/><path d="M11.9 14.6h5.5"/></svg>
+<svg class="panel-icon pterodactyl" width="{{ size }}" height="{{ size }}" viewBox="803.3 5417.45 313.41 285.1" aria-hidden="true" focusable="false"><path fill="currentColor" d="M 903.5625 5540.851562 C 903.269531 5545.824219 898.835938 5549.492188 893.890625 5548.875 L 887.121094 5548.011719 L 903.90625 5535.191406 Z M 1110.703125 5423.449219 L 1000.042969 5476.023438 L 959.3125 5571.570312 L 940.1875 5562.878906 L 971.640625 5489.433594 L 896.375 5525 L 809.296875 5595.738281 L 900.90625 5571.050781 L 922.367188 5636.765625 L 1089.3125 5696.550781 L 1015.378906 5630.390625 Z M 1110.703125 5423.449219"/></svg>
 {%- else -%}
 <span class="mark"></span>
 {%- endif -%}

@@ -1012,7 +1012,9 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   background: var(--faint); flex: none;
 }
 .source-label .source-icon { width: 25px; height: 25px; flex: none; display: block; }
-.source-label .panel-icon { width: 25px; height: 25px; flex: none; display: block; color: var(--text); }
+.source-label .panel-icon { width: 25px; height: 25px; flex: none; display: block; }
+.panel-icon.amp { color: #3b7fbd; }
+.panel-icon.pterodactyl { color: #3d7bfd; }
 .source-label.github .source-icon { color: var(--text); }
 .source-label.modrinth .mark { background: var(--brand); }
 .source-label.github .mark { background: #c8d1db; }
