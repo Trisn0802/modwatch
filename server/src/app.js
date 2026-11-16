@@ -254,7 +254,8 @@ app.use(async (req, res, next) => {
     res.locals.pendingRequests = user?.role === "admin"
       ? (await query(
           `SELECT ((SELECT count(*)::int FROM mod_requests WHERE status = 'pending')
-                 + (SELECT count(*)::int FROM import_requests WHERE status = 'pending')) AS n`
+                 + (SELECT count(*)::int FROM import_requests WHERE status = 'pending')
+                 + (SELECT count(*)::int FROM role_requests WHERE status = 'pending')) AS n`
         )).rows[0].n
       : 0;
     res.locals.nav = user ? await navStats(user) : { updates: 0, unknown: 0, requests: 0, unread: 0 };

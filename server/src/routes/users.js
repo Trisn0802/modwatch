@@ -6,6 +6,7 @@ import { logActivity } from "../activity.js";
 import { ROLE, USER_STATUS } from "../labels.js";
 import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage } from "../uploads.js";
 import { discardPreview } from "../import.js";
+import { resolveRoleRequest } from "../role-requests.js";
 
 export const usersRouter = express.Router();
 
@@ -225,6 +226,11 @@ usersRouter.post("/users/:id", async (req, res, next) => {
       "UPDATE users SET name = $1, email = $2, role = $3, status = $4, avatar_path = $5 WHERE id = $6",
       [name, email, role, status, avatarPath, id]
     );
+    if (role === "admin" && account.role !== "admin") {
+      await resolveRoleRequest(id, "approved", req.session.user.id, "Approved while editing the account.");
+    } else if (role !== "admin" && account.role === "admin") {
+      await resolveRoleRequest(id, "cancelled", req.session.user.id, "Cancelled while editing the account.");
+    }
     if (id === req.session.user.id) {
       req.session.user.name = name;
       req.session.user.email = email;

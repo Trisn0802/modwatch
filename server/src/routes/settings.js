@@ -225,20 +225,25 @@ settingsRouter.post("/settings/account/request-admin", async (req, res, next) =>
       flash(req, "error", "There is no active admin to receive the request.");
       return res.redirect("/settings/account");
     }
+    const request = await createRoleRequest(user.id, note);
+    if (!request) {
+      flash(req, "ok", "Your admin request is already waiting for a decision.");
+      return res.redirect("/settings/account");
+    }
     await createNotifications({
       kind: "request",
       title: `Admin role requested by ${user.name}`,
-      body: `${user.email}${note ? ` · ${note}` : " · No note attached. Review the account on the Users page."}`,
+      body: `${user.email}${note ? ` · ${note}` : " · No note attached."} Review it on the Approvals page.`,
       userIds: admins.map((admin) => admin.id),
     });
     await logActivity({
       userId: user.id,
-      action: "request_created",
-      subjectType: "user",
-      subjectId: user.id,
+      action: "role_requested",
+      subjectType: "role_request",
+      subjectId: request.id,
       meta: { role: "admin", note },
     });
-    flash(req, "ok", "Admin request sent. The owner will review your account.");
+    flash(req, "ok", "Admin request sent. An admin will review it on Approvals.");
     res.redirect("/settings/account");
   } catch (err) {
     next(err);

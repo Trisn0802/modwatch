@@ -193,6 +193,23 @@ CREATE TABLE IF NOT EXISTS mod_requests (
 );
 CREATE INDEX IF NOT EXISTS mod_requests_status_idx ON mod_requests (status, created_at);
 
+-- A member's request for the admin role waits here until an admin decides.
+CREATE TABLE IF NOT EXISTS role_requests (
+  id             SERIAL PRIMARY KEY,
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  requested_role TEXT NOT NULL DEFAULT 'admin' CHECK (requested_role IN ('admin')),
+  note           TEXT NOT NULL DEFAULT '',
+  status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','approved','rejected','cancelled')),
+  decided_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  decision_note  TEXT NOT NULL DEFAULT '',
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  decided_at     TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS role_requests_pending_uq
+  ON role_requests (user_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS role_requests_status_idx ON role_requests (status, created_at);
+
 -- A member's .mrpack import waits here until an admin reviews the preview.
 CREATE TABLE IF NOT EXISTS import_requests (
   id             SERIAL PRIMARY KEY,

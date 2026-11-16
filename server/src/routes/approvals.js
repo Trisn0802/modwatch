@@ -13,6 +13,7 @@ import { checkInstance } from "../checker.js";
 import {
   decidedImportRequests, expireImportRequests, importRequestById, pendingImportRequests,
 } from "../import-requests.js";
+import { decidedRoleRequests, pendingRoleRequests } from "../role-requests.js";
 
 export const approvalsRouter = express.Router();
 
@@ -23,6 +24,8 @@ approvalsRouter.get("/approvals", async (req, res, next) => {
     await expireImportRequests().catch(() => {});
     const importPending = await pendingImportRequests();
     const importDecided = await decidedImportRequests();
+    const rolePending = await pendingRoleRequests();
+    const roleDecided = await decidedRoleRequests();
     const { rows: pending } = await query(
       `SELECT r.*, u.name AS requester_name, u.email AS requester_email, i.name AS instance_name
          FROM mod_requests r
@@ -50,6 +53,8 @@ approvalsRouter.get("/approvals", async (req, res, next) => {
       loaderLabels: LOADER,
       importPending,
       importDecided,
+      rolePending,
+      roleDecided,
     });
   } catch (err) {
     next(err);
@@ -101,6 +106,92 @@ approvalsRouter.post("/approvals/:id/approve", async (req, res, next) => {
       flash(req, "error", "That project is already tracked in the instance. The request was left pending.");
       return res.redirect("/approvals");
     }
+    next(err);
+  }
+});
+
+approvalsRouter.post("/approvals/roles/:id/approve", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const note = String(req.body.note || "").trim();
+    const request = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `SELECT r.*, u.name AS requester_name, u.email AS requester_email, u.role AS current_role, u.status AS account_status
+           FROM role_requests r
+           JOIN users u ON u.id = r.user_id
+          WHERE r.id = $1 AND r.status = 'pending' FOR UPDATE`,
+        [id]
+      );
+      const found = rows[0];
+      if (!found) return null;
+      await client.query("UPDATE users SET role = 'admin' WHERE id = $1", [found.user_id]);
+      await client.query(
+        `UPDATE role_requests SET status = 'approved', decided_by = $2, decision_note = $3, decided_at = now()
+          WHERE id = $1`,
+        [id, req.session.user.id, note]
+      );
+      await client.query(
+        `UPDATE role_requests SET status = 'cancelled', decided_by = $2, decision_note = $3, decided_at = now()
+          WHERE user_id = $1 AND status = 'pending' AND id <> $4`,
+        [found.user_id, req.session.user.id, "Another role request was approved.", id]
+      );
+      return found;
+    });
+    if (!request) {
+      flash(req, "error", "That role request is no longer pending.");
+      return res.redirect("/approvals");
+    }
+    await createNotifications({
+      kind: "decision",
+      title: "Admin role approved",
+      body: note ? `An admin approved your request: ${note}` : "An admin approved your request. You can now manage instances, users and approvals.",
+      userIds: [request.user_id],
+    });
+    await logActivity({
+      userId: req.session.user.id, action: "role_approved", subjectType: "role_request", subjectId: id,
+      meta: { user: request.requester_name, email: request.requester_email, note },
+    });
+    flash(req, "ok", `${request.requester_name} is now an admin.`);
+    res.redirect("/approvals");
+  } catch (err) {
+    next(err);
+  }
+});
+
+approvalsRouter.post("/approvals/roles/:id/reject", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const note = String(req.body.note || "").trim();
+    const { rows } = await query(
+      `SELECT r.*, u.name AS requester_name, u.email AS requester_email
+         FROM role_requests r
+         JOIN users u ON u.id = r.user_id
+        WHERE r.id = $1 AND r.status = 'pending'`,
+      [id]
+    );
+    const request = rows[0];
+    if (!request) {
+      flash(req, "error", "That role request is no longer pending.");
+      return res.redirect("/approvals");
+    }
+    await query(
+      `UPDATE role_requests SET status = 'rejected', decided_by = $2, decision_note = $3, decided_at = now()
+        WHERE id = $1`,
+      [id, req.session.user.id, note]
+    );
+    await createNotifications({
+      kind: "decision",
+      title: "Admin role declined",
+      body: note ? `Note from the admin: ${note}` : "An admin declined your request for the admin role.",
+      userIds: [request.user_id],
+    });
+    await logActivity({
+      userId: req.session.user.id, action: "role_rejected", subjectType: "role_request", subjectId: id,
+      meta: { user: request.requester_name, email: request.requester_email, note },
+    });
+    flash(req, "ok", `Admin request from ${request.requester_name} declined.`);
+    res.redirect("/approvals");
+  } catch (err) {
     next(err);
   }
 });

@@ -4,12 +4,12 @@
 {% block content %}
 <div class="page-head">
   <div class="page-head-main">
-    <p class="eyebrow"><span class="dot {% if pending.length or importPending.length %}warn{% else %}live{% endif %}"></span> Member requests</p>
+    <p class="eyebrow"><span class="dot {% if pending.length or importPending.length or rolePending.length %}warn{% else %}live{% endif %}"></span> Member requests</p>
     <h1 class="page-title">Approvals</h1>
-    <p class="page-sub">Mods and packs members asked to add. Approving writes the change; rejecting leaves the workspace untouched.</p>
+    <p class="page-sub">Mods, packs and account roles members asked for. Approving writes the change; rejecting leaves the workspace untouched.</p>
   </div>
   <div class="page-actions">
-    <span class="pill {% if pending.length or importPending.length %}warn{% else %}pos{% endif %}"><span class="dot"></span>{{ pending.length + importPending.length }} waiting</span>
+    <span class="pill {% if pending.length or importPending.length or rolePending.length %}warn{% else %}pos{% endif %}"><span class="dot"></span>{{ pending.length + importPending.length + rolePending.length }} waiting</span>
   </div>
 </div>
 
@@ -55,6 +55,58 @@
           <span class="empty-icon">{{ icon('upload') }}</span>
           <p class="empty-title">No pack imports waiting</p>
           <p class="empty-text">When a member uploads a .mrpack, the full preview lands here for an admin to review before an instance is created.</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Account role requests</h2>
+        <p class="panel-sub">Members asking for the admin role</p>
+      </div>
+      <span class="count-note">{{ rolePending.length }} waiting</span>
+    </div>
+    {% for request in rolePending %}
+    <article class="request-card">
+      <div class="request-head">
+        <div>
+          <p class="request-mod">{{ request.requester_name }}</p>
+          <div class="request-meta">
+            <span>{{ request.requester_email }}</span>
+            <span>·</span>
+            <span>{{ request.created_at | relative }}</span>
+          </div>
+        </div>
+        <span class="pill warn">Admin access</span>
+      </div>
+      <div class="request-scope">
+        <div class="scope compact">
+          <span class="scope-cell"><span class="scope-label">Current role</span><strong>{{ request.current_role | capitalize }}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Account</span><strong>{{ request.account_status | capitalize }}</strong></span>
+          <span class="scope-cell"><span class="scope-label">Requested</span><strong>Admin</strong></span>
+        </div>
+      </div>
+      {% if request.note %}<p class="faint" style="margin-top:10px;font-size:10.5px">“{{ request.note }}”</p>{% endif %}
+      <form class="request-forms" method="post" action="/approvals/roles/{{ request.id }}/approve">
+        {% include "partials/csrf.njk" %}
+        <label class="sr-only" for="role-note-{{ request.id }}">Decision note</label>
+        <input class="input" id="role-note-{{ request.id }}" name="note" type="text" placeholder="Optional note back to {{ request.requester_name }}">
+        <div class="btn-row">
+          <button class="btn primary" type="submit">{{ icon('check') }} Approve admin</button>
+          <button class="btn danger" type="submit" formaction="/approvals/roles/{{ request.id }}/reject" formnovalidate>{{ icon('close') }} Reject</button>
+        </div>
+      </form>
+    </article>
+    {% else %}
+    <div class="panel-body">
+      <div class="empty-state">
+        <div class="empty-inner">
+          <span class="empty-icon">{{ icon('user') }}</span>
+          <p class="empty-title">No account requests waiting</p>
+          <p class="empty-text">A member asking for the admin role from Account lands here for a decision.</p>
         </div>
       </div>
     </div>
@@ -168,6 +220,28 @@
         </div>
         {% else %}
         <p class="faint" style="font-size:12px;padding:12px 0">No pack decisions yet.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">Account decisions</h2>
+          <p class="panel-sub">Last 15 role requests</p>
+        </div>
+      </div>
+      <div class="panel-body" style="padding-top:8px;padding-bottom:8px">
+        {% for request in roleDecided %}
+        <div class="decision-row">
+          <span class="dot {% if request.status == 'approved' %}live{% else %}bad{% endif %}" style="margin-top:7px"></span>
+          <div style="min-width:0">
+            <p style="font-size:12px"><strong>{{ request.requester_name }}</strong> <span class="faint">· admin role</span></p>
+            <p class="faint" style="font-size:10.5px;margin-top:2px">{{ request.status | capitalize }} by {{ request.decider_name or 'an admin' }} · {{ request.decided_at | relative }}{% if request.decision_note %} · “{{ request.decision_note | truncate(60) }}”{% endif %}</p>
+          </div>
+        </div>
+        {% else %}
+        <p class="faint" style="font-size:12px;padding:12px 0">No account decisions yet.</p>
         {% endfor %}
       </div>
     </section>
