@@ -50,23 +50,27 @@ async function download(url, limit = MAX_JAR) {
 }
 
 async function resolveModrinthFile(mod) {
-  if (mod.download_url && (mod.file_sha1 || mod.file_sha512)) {
-    return {
-      download_url: mod.download_url,
-      file_name: jarFileName(mod),
-      file_size: mod.file_size,
-      sha1: mod.file_sha1,
-      sha512: mod.file_sha512,
-    };
-  }
-  if (!mod.installed_version_id) return null;
-  const version = await getVersion(mod.installed_version_id);
+  const cached = mod.download_url
+    ? {
+        download_url: mod.download_url,
+        file_name: jarFileName(mod),
+        file_size: mod.file_size,
+        sha1: mod.file_sha1 || null,
+        sha512: mod.file_sha512 || null,
+      }
+    : null;
+  // Modrinth App rejects a .mrpack file entry without a SHA-512 hash, so a
+  // stored SHA-1 alone is not enough. Ask Modrinth for the version hashes.
+  if (cached?.sha1 && cached.sha512) return cached;
+  if (!mod.installed_version_id) return cached;
+  const version = await getVersion(mod.installed_version_id).catch(() => null);
+  if (!version?.download_url) return cached;
   const file = {
     download_url: version.download_url,
-    file_name: version.file_name || jarFileName(mod),
-    file_size: version.file_size,
-    sha1: version.file_sha1,
-    sha512: version.file_sha512,
+    file_name: cached?.file_name || version.file_name || jarFileName(mod),
+    file_size: version.file_size ?? cached?.file_size,
+    sha1: version.file_sha1 || cached?.sha1 || null,
+    sha512: version.file_sha512 || cached?.sha512 || null,
   };
   await query(
     `UPDATE mods SET download_url = $2, file_name = COALESCE(NULLIF(file_name,''), $3),
@@ -239,16 +243,19 @@ export async function buildExport(instance, { userId = null, includeFiles = fals
         warnings.push(`${mod.name}: ${err.message}`);
         return null;
       });
-      if (file?.download_url && file.sha1) {
+      if (file?.download_url && file.sha1 && file.sha512) {
         const size = Number(file.file_size);
         files.push({
           path: `mods/${file.file_name || jarFileName(mod)}`,
-          hashes: { sha1: file.sha1, ...(file.sha512 ? { sha512: file.sha512 } : {}) },
+          hashes: { sha1: file.sha1, sha512: file.sha512 },
           env: envFor(mod.side),
           downloads: [file.download_url],
           ...(Number.isFinite(size) && size > 0 ? { fileSize: Math.trunc(size) } : {}),
         });
         continue;
+      }
+      if (file?.download_url) {
+        warnings.push(`${mod.name}: Modrinth did not return both hashes, so the jar is bundled as an override instead of a download entry.`);
       }
     }
 
