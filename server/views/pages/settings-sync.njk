@@ -36,10 +36,10 @@
               <input class="input" id="sync-name" name="name" value="{{ editConnection.name if editConnection else '' }}" placeholder="Gugu Gaga AMP" required>
             </div>
             <div class="field">
-              <label for="sync-driver">Driver</label>
+              <label for="sync-driver">Panel</label>
               <select class="select" id="sync-driver" name="driver">
-                <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>SFTP / AMP</option>
-                <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl panel</option>
+                <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>AMP</option>
+                <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl</option>
               </select>
             </div>
             <div class="field full">
