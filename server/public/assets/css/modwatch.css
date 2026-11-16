@@ -1144,15 +1144,91 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   background-repeat: no-repeat; background-position: right 11px center;
   padding-right: 32px;
 }
-/* The chosen panel's mark sits inside the select, since native option rows
-   cannot render an SVG. */
-.select-icon-wrap { position: relative; display: block; }
-.select-icon {
-  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-  display: flex; color: var(--muted); pointer-events: none;
+/* ---------- custom select ---------- */
+.sel { position: relative; display: inline-block; max-width: 100%; vertical-align: middle; }
+.sel--fill { display: block; width: 100%; }
+.sel > select { visibility: hidden; pointer-events: none; }
+.sel-trigger {
+  position: absolute; inset: 0; width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 32px 0 11px;
+  border: 1px solid var(--control); border-radius: var(--radius-sm);
+  background: var(--ground); color: var(--text);
+  font: inherit; font-size: 13px; text-align: left;
+  cursor: pointer; transition: border-color var(--t-hover) ease;
 }
-.field .select-icon-wrap select { padding-left: 34px; }
-.select-icon-wrap:focus-within .select-icon { color: var(--text); }
+.sel-trigger:hover { border-color: var(--faint); }
+.sel-trigger:focus-visible {
+  outline: none; border-color: var(--faint);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.sel-trigger.is-muted .sel-value { color: var(--muted); }
+.sel-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-ico { display: flex; flex: none; }
+.sel-ico .panel-icon { width: 15px; height: 15px; }
+.sel-caret {
+  position: absolute; right: 13px; top: 50%;
+  width: 7px; height: 7px; margin-top: -5px;
+  border-right: 1.5px solid var(--faint);
+  border-bottom: 1.5px solid var(--faint);
+  transform: rotate(45deg);
+  transition: transform 160ms ease, margin-top 160ms ease;
+}
+.sel-trigger[aria-expanded="true"] .sel-caret {
+  margin-top: -1px; transform: rotate(225deg);
+}
+.sel-pop {
+  position: fixed; z-index: 120;
+  padding: 5px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 22px 48px -18px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.35);
+  animation: sel-in 130ms ease-out;
+}
+.sel-pop::before {
+  content: ""; position: absolute; z-index: 1;
+  top: -5px; left: var(--arrow-x, 24px);
+  width: 9px; height: 9px;
+  background: var(--surface);
+  border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+  transform: translateX(-50%) rotate(45deg);
+}
+.sel-pop--up::before {
+  top: auto; bottom: -5px;
+  border-left: 0; border-top: 0;
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.sel-list { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.sel-opt {
+  display: flex; align-items: center; gap: 9px;
+  min-height: 38px; padding: 0 10px;
+  border-radius: 8px; color: var(--text);
+  font-size: 13px; cursor: pointer;
+  scroll-margin: 4px;
+}
+.sel-opt + .sel-opt { margin-top: 1px; }
+.sel-opt.is-active { background: var(--raised); }
+.sel-opt.is-selected { color: var(--brand-text); }
+.sel-opt.is-disabled { opacity: 0.45; cursor: default; }
+.sel-opt-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-opt-check {
+  margin-left: auto; flex: none;
+  width: 10px; height: 6px; margin-top: -3px;
+  border-left: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); opacity: 0;
+}
+.sel-opt.is-selected .sel-opt-check { opacity: 1; }
+@keyframes sel-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.sel-pop--up { animation-name: sel-in-up; }
+@keyframes sel-in-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.big-search .sel { flex: 0 0 150px; }
+.update-action .sel { min-width: 110px; }
+@media (max-width: 760px) { .big-search .sel { flex: none; width: 100%; } }
+@media (max-width: 640px) { .sel-opt { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) {
+  .sel-pop, .sel-pop--up { animation: none; }
+  .sel-caret { transition: none; }
+}
 /* Native option rows inherit the control height on some browsers, which
    leaves a large gap between the choices. Keep the rows compact. */
 select option {

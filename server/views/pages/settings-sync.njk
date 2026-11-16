@@ -3,6 +3,10 @@
 {% from "partials/panel-icon.njk" import panelIcon %}
 
 {% block content %}
+<div hidden data-icon-templates>
+  <span data-icon-template="amp">{{ panelIcon('amp') }}</span>
+  <span data-icon-template="pterodactyl">{{ panelIcon('pterodactyl') }}</span>
+</div>
 <div class="page-head">
   <div class="page-head-main">
     <p class="eyebrow">Control</p>
@@ -38,16 +42,10 @@
             </div>
             <div class="field">
               <label for="sync-driver">Panel</label>
-              <div class="select-icon-wrap">
-                <span class="select-icon" aria-hidden="true">
-                  <span data-driver-icon="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}hidden{% endif %}>{{ panelIcon('amp', 15) }}</span>
-                  <span data-driver-icon="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}hidden{% endif %}>{{ panelIcon('pterodactyl', 15) }}</span>
-                </span>
-                <select class="select" id="sync-driver" name="driver">
-                  <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>CubeCoders AMP</option>
-                  <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl</option>
-                </select>
-              </div>
+              <select class="select" id="sync-driver" name="driver">
+                <option value="sftp" data-icon="amp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>CubeCoders AMP</option>
+                <option value="pterodactyl" data-icon="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl</option>
+              </select>
             </div>
             <div class="field full">
               <p class="hint" style="margin-top:0">Pterodactyl uses the panel API for power, files and logs, so no SFTP port is needed. SFTP / AMP keeps the host key pin and the AMP power options.</p>

@@ -5,7 +5,6 @@
   const isNew = form?.dataset.newConnection === "1";
   const subtitle = document.getElementById("sync-form-sub");
   const panels = Array.from(document.querySelectorAll("[data-driver-panel]"));
-  const icons = Array.from(document.querySelectorAll("[data-driver-icon]"));
   const field = (name) => form?.querySelector(`[name="${name}"]`) || null;
   const require = (name, on) => {
     const el = field(name);
@@ -16,9 +15,6 @@
     const driver = select.value;
     for (const panel of panels) {
       panel.hidden = panel.dataset.driverPanel !== driver;
-    }
-    for (const icon of icons) {
-      icon.hidden = icon.dataset.driverIcon !== driver;
     }
     require("host", driver !== "pterodactyl");
     require("username", driver !== "pterodactyl");
