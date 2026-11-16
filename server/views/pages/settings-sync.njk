@@ -23,12 +23,12 @@
       <div class="panel-head">
         <div>
           <h2 class="panel-title">{% if editConnection %}Edit connection{% else %}New connection{% endif %}</h2>
-          <p class="panel-sub">SFTP host and credentials</p>
+          <p class="panel-sub" id="sync-form-sub">{% if editConnection and editConnection.driver == 'pterodactyl' %}Panel URL and client API key{% else %}SFTP host and credentials{% endif %}</p>
         </div>
         {% if editConnection %}<a class="card-link" href="/settings/sync">New connection</a>{% endif %}
       </div>
       <div class="panel-body">
-        <form class="form" method="post" action="{% if editConnection %}/settings/sync/{{ editConnection.id }}{% else %}/settings/sync{% endif %}">
+        <form class="form" method="post" action="{% if editConnection %}/settings/sync/{{ editConnection.id }}{% else %}/settings/sync{% endif %}" {% if not editConnection %}data-new-connection="1"{% endif %}>
           {% include "partials/csrf.njk" %}
           <div class="form-grid">
             <div class="field">
@@ -46,7 +46,7 @@
               <p class="hint" style="margin-top:0">Pterodactyl uses the panel API for power, files and logs, so no SFTP port is needed. SFTP / AMP keeps the host key pin and the AMP power options.</p>
             </div>
           </div>
-          <div class="form-grid" data-driver-panel="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}style="display:none"{% endif %}>
+          <div class="form-grid" data-driver-panel="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}hidden{% endif %}>
             <div class="field">
               <label for="sync-host">Host</label>
               <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.10.8">
@@ -102,7 +102,7 @@
               <input class="input" id="sync-amp-instance" name="amp_instance" value="{{ editConnection.config.ampInstance if editConnection else '' }}" placeholder="GuguGaga01">
             </div>
           </div>
-          <div class="form-grid" data-driver-panel="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}style="display:none"{% endif %}>
+          <div class="form-grid" data-driver-panel="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}hidden{% endif %}>
             <div class="field full">
               <label for="sync-panel-url">Panel URL</label>
               <input class="input" id="sync-panel-url" name="panel_url" value="{{ editConnection.config.panelUrl if editConnection else '' }}" placeholder="https://panel.example.com">
@@ -112,25 +112,15 @@
               <input class="input" id="sync-api-key" name="api_key" type="password" autocomplete="new-password" placeholder="ptlc_…">
               <p class="hint" style="margin-top:6px">Create it in the panel under Account → API Credentials. Use an account that can access the server with control and file permissions.</p>
             </div>
+            <div class="field full">
+              <p class="hint">The server UUID is set per target on the instance’s Servers page, not here. One connection can serve several Pterodactyl servers.</p>
+            </div>
           </div>
           <div class="form-actions">
             <button class="btn primary" type="submit" {% if not keyReady %}disabled{% endif %}>{{ icon('check') }} {% if editConnection %}Save connection{% else %}Add connection{% endif %}</button>
             {% if editConnection %}<a class="btn ghost" href="/settings/sync">Cancel</a>{% endif %}
           </div>
         </form>
-        <script>
-          (() => {
-            const select = document.getElementById('sync-driver');
-            if (!select) return;
-            const apply = () => {
-              for (const panel of document.querySelectorAll('[data-driver-panel]')) {
-                panel.style.display = panel.dataset.driverPanel === select.value ? '' : 'none';
-              }
-            };
-            select.addEventListener('change', apply);
-            apply();
-          })();
-        </script>
       </div>
     </section>
 
@@ -181,9 +171,13 @@
         </table>
       </div>
       {% else %}
-      <div class="panel-body"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('link') }}</span><p class="empty-title">No connections</p><p class="empty-text">Add the SFTP endpoint from AMP. Each Minecraft instance can have its own host, port and user.</p></div></div></div>
+      <div class="panel-body"><div class="empty-state"><div class="empty-inner"><span class="empty-icon">{{ icon('link') }}</span><p class="empty-title">No connections</p><p class="empty-text">Add an SFTP endpoint for AMP or a Pterodactyl panel URL and client API key.</p></div></div></div>
       {% endif %}
     </section>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/assets/js/sync.js?v={{ assetVersion }}"></script>
 {% endblock %}

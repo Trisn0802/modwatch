@@ -92,9 +92,14 @@
         <p class="faint" style="font-size:11.5px;line-height:1.6">Need to manage instances, imports, users or approvals? Send a request to the owner. The account stays a Member until an admin changes the role on the Users page.</p>
         <form class="form" method="post" action="/settings/account/request-admin" style="margin-top:14px">
           {% include "partials/csrf.njk" %}
-          <label class="sr-only" for="admin-note">Why do you need admin access?</label>
-          <textarea id="admin-note" name="note" placeholder="Optional note for the owner"></textarea>
-          <button class="btn" type="submit">{{ icon('user') }} Request admin role</button>
+          <div class="field">
+            <label for="admin-note">Note to the admin <span class="faint">optional</span></label>
+            <textarea id="admin-note" name="note" maxlength="500" placeholder="Tell the owner why you need admin access"></textarea>
+            <p class="hint">The request appears on Approvals until an admin approves or rejects it.</p>
+          </div>
+          <div class="form-actions">
+            <button class="btn" type="submit">{{ icon('user') }} Request admin role</button>
+          </div>
         </form>
       </div>
     </section>
