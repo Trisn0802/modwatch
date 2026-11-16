@@ -1,4 +1,5 @@
 {% from "partials/source-icon.njk" import sourceIcon %}
+{% from "partials/panel-icon.njk" import panelIcon %}
 {% from "partials/mark.njk" import mark %}
 <!doctype html>
 <html lang="en" data-theme="oled" data-theme-mode="oled">
@@ -67,6 +68,22 @@
         </div>
       </div>
       <p>The three connectors share one scope. CurseForge project URLs work without a key; search turns on when the API key is connected.</p>
+      <span class="scope-label" style="margin-top: 10px;">Supported panel sync</span>
+      <div class="auth-support-list">
+        <div class="auth-support-row">
+          <div class="auth-support-copy">
+            <span class="source-label amp">{{ panelIcon('amp') }}CubeCoders AMP</span>
+          </div>
+          <span class="pill pos"><span class="dot"></span>Supported</span>
+        </div>
+        <div class="auth-support-row">
+          <div class="auth-support-copy">
+            <span class="source-label pterodactyl">{{ panelIcon('pterodactyl') }}Pterodactyl</span>
+          </div>
+          <span class="pill pos"><span class="dot"></span>Supported</span>
+        </div>
+      </div>
+      <p>Panel sync needs an account that can start and stop the server and read its files. ModWatch writes inside <code>mods/</code>, backs up first, and rolls back if the server does not come up.</p>
     </div>
     <p class="auth-foot">Self-hosted · v{{ appVersion }}</p>
   </section>

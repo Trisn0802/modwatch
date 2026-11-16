@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/panel-icon.njk" import panelIcon %}
 
 {% block content %}
 <div class="page-head">
@@ -33,14 +34,20 @@
           <div class="form-grid">
             <div class="field">
               <label for="sync-name">Name</label>
-              <input class="input" id="sync-name" name="name" value="{{ editConnection.name if editConnection else '' }}" placeholder="Gugu Gaga AMP" required>
+              <input class="input" id="sync-name" name="name" value="{{ editConnection.name if editConnection else '' }}" placeholder="Minecraft SMP" required>
             </div>
             <div class="field">
               <label for="sync-driver">Panel</label>
-              <select class="select" id="sync-driver" name="driver">
-                <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>AMP</option>
-                <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl</option>
-              </select>
+              <div class="select-icon-wrap">
+                <span class="select-icon" aria-hidden="true">
+                  <span data-driver-icon="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}hidden{% endif %}>{{ panelIcon('amp', 15) }}</span>
+                  <span data-driver-icon="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}hidden{% endif %}>{{ panelIcon('pterodactyl', 15) }}</span>
+                </span>
+                <select class="select" id="sync-driver" name="driver">
+                  <option value="sftp" {% if not editConnection or editConnection.driver == 'sftp' %}selected{% endif %}>CubeCoders AMP</option>
+                  <option value="pterodactyl" {% if editConnection and editConnection.driver == 'pterodactyl' %}selected{% endif %}>Pterodactyl</option>
+                </select>
+              </div>
             </div>
             <div class="field full">
               <p class="hint" style="margin-top:0">Pterodactyl uses the panel API for power, files and logs, so no SFTP port is needed. SFTP / AMP keeps the host key pin and the AMP power options.</p>
@@ -49,7 +56,7 @@
           <div class="form-grid" data-driver-panel="sftp" {% if editConnection and editConnection.driver == 'pterodactyl' %}hidden{% endif %}>
             <div class="field">
               <label for="sync-host">Host</label>
-              <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.10.8">
+              <input class="input" id="sync-host" name="host" value="{{ editConnection.config.host if editConnection else '' }}" placeholder="192.168.1.1">
             </div>
             <div class="field">
               <label for="sync-port">Port</label>
@@ -99,7 +106,7 @@
             </div>
             <div class="field">
               <label for="sync-amp-instance">AMP instance name</label>
-              <input class="input" id="sync-amp-instance" name="amp_instance" value="{{ editConnection.config.ampInstance if editConnection else '' }}" placeholder="GuguGaga01">
+              <input class="input" id="sync-amp-instance" name="amp_instance" value="{{ editConnection.config.ampInstance if editConnection else '' }}" placeholder="Minecraft01">
             </div>
           </div>
           <div class="form-grid" data-driver-panel="pterodactyl" {% if not editConnection or editConnection.driver != 'pterodactyl' %}hidden{% endif %}>

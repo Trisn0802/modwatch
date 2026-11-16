@@ -1012,6 +1012,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   background: var(--faint); flex: none;
 }
 .source-label .source-icon { width: 25px; height: 25px; flex: none; display: block; }
+.source-label .panel-icon { width: 25px; height: 25px; flex: none; display: block; color: var(--text); }
 .source-label.github .source-icon { color: var(--text); }
 .source-label.modrinth .mark { background: var(--brand); }
 .source-label.github .mark { background: #c8d1db; }
@@ -1141,6 +1142,15 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   background-repeat: no-repeat; background-position: right 11px center;
   padding-right: 32px;
 }
+/* The chosen panel's mark sits inside the select, since native option rows
+   cannot render an SVG. */
+.select-icon-wrap { position: relative; display: block; }
+.select-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  display: flex; color: var(--muted); pointer-events: none;
+}
+.field .select-icon-wrap select { padding-left: 34px; }
+.select-icon-wrap:focus-within .select-icon { color: var(--text); }
 /* Native option rows inherit the control height on some browsers, which
    leaves a large gap between the choices. Keep the rows compact. */
 select option {
