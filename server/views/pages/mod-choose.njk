@@ -9,7 +9,7 @@
   <div class="page-head-main">
     <div class="row" style="gap:13px;align-items:flex-start">
       {% if iconUrl %}
-      <img class="mod-icon" src="{{ iconUrl }}" alt="" width="42" height="42" style="width:42px;height:42px;border-radius:10px" data-fallback="{{ name | initials }}">
+      <img class="mod-icon" src="{{ iconUrl }}" alt="" style="border-radius:10px" data-fallback="{{ name | initials }}">
       {% else %}
       <span class="instance-mark">{{ name | initials }}</span>
       {% endif %}
