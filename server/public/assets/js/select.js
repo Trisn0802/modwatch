@@ -93,6 +93,7 @@
     let typing = "";
     let typingAt = 0;
     let syncing = false;
+    let closeTimer = 0;
 
     const selectedOption = () => select.options[select.selectedIndex] || null;
 
@@ -161,25 +162,49 @@
       setActive(next);
     }
 
+    // The popup may float over page content, never over the shell around it:
+    // the canvas it belongs to (or its dialog) is the limit.
+    function area() {
+      const dialog = select.closest("dialog");
+      const host = dialog || document.getElementById("main") || document.querySelector("main.canvas");
+      const rect = host
+        ? host.getBoundingClientRect()
+        : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+      const bar = dialog ? null : document.querySelector(".topbar");
+      const topbarBottom = bar ? bar.getBoundingClientRect().bottom : 0;
+      return {
+        top: Math.max(0, rect.top, topbarBottom),
+        left: Math.max(0, rect.left),
+        right: Math.min(window.innerWidth, rect.right),
+        bottom: Math.min(window.innerHeight, rect.bottom),
+      };
+    }
+
+    const isOpen = () => !pop.hidden && !pop.classList.contains("is-closing");
+
     function position() {
       if (pop.hidden) return;
       const box = trigger.getBoundingClientRect();
+      const bounds = area();
       const margin = 8;
       const gap = 8;
-      const width = Math.min(Math.max(box.width, 180), window.innerWidth - margin * 2);
+      const maxWidth = Math.max(140, bounds.right - bounds.left - margin * 2);
+      const width = Math.min(Math.max(box.width, 180), maxWidth);
       pop.style.width = `${width}px`;
       list.style.maxHeight = "0px";
       const full = list.scrollHeight;
-      const below = window.innerHeight - box.bottom - gap - margin;
-      const above = box.top - gap - margin;
+      const space = Math.max(72, bounds.bottom - bounds.top - margin * 2 - 12);
+      const below = bounds.bottom - box.bottom - gap - margin;
+      const above = box.top - bounds.top - gap - margin;
       const up = below < Math.min(full, 260) && above > below;
-      const room = Math.max(96, Math.min(320, up ? above : below));
+      const room = Math.max(72, Math.min(320, space, up ? above : below));
       list.style.maxHeight = `${room}px`;
       const height = pop.offsetHeight;
-      const top = up ? box.top - gap - height : box.bottom + gap;
+      let top = up ? box.top - gap - height : box.bottom + gap;
+      top = Math.max(bounds.top + margin, Math.min(top, bounds.bottom - margin - height));
       let left = box.left;
-      if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
-      left = Math.max(margin, left);
+      if (left + width > bounds.right - margin) left = bounds.right - margin - width;
+      left = Math.max(bounds.left + margin, left);
       pop.style.top = `${Math.round(top)}px`;
       pop.style.left = `${Math.round(left)}px`;
       pop.classList.toggle("sel-pop--up", up);
@@ -189,8 +214,10 @@
     }
 
     function open() {
-      if (!pop.hidden || select.disabled) return;
+      if (isOpen() || select.disabled) return;
       if (closeOpen) closeOpen();
+      window.clearTimeout(closeTimer);
+      pop.classList.remove("is-closing");
       buildList();
       pop.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
@@ -205,15 +232,21 @@
     }
 
     function close(focus = true) {
-      if (pop.hidden) return;
-      pop.hidden = true;
+      if (!isOpen()) return;
       trigger.setAttribute("aria-expanded", "false");
       trigger.removeAttribute("aria-activedescendant");
       wrap.classList.remove("is-open");
+      pop.classList.add("is-closing");
       closeOpen = null;
       document.removeEventListener("pointerdown", onDocumentDown, true);
       window.removeEventListener("scroll", position, true);
       window.removeEventListener("resize", position);
+      window.clearTimeout(closeTimer);
+      closeTimer = window.setTimeout(() => {
+        if (!pop.classList.contains("is-closing")) return;
+        pop.classList.remove("is-closing");
+        pop.hidden = true;
+      }, 120);
       if (focus) trigger.focus();
     }
 
@@ -245,42 +278,42 @@
         (option) => !option.disabled && optionLabel(option).toLowerCase().startsWith(typing)
       );
       if (found >= 0) {
-        if (pop.hidden) choose(found);
+        if (!isOpen()) choose(found);
         else setActive(found);
       }
     }
 
-    trigger.addEventListener("click", () => (pop.hidden ? open() : close()));
+    trigger.addEventListener("click", () => (isOpen() ? close() : open()));
     trigger.addEventListener("keydown", (event) => {
       const { key } = event;
       if (key === "ArrowDown" || key === "ArrowUp") {
         event.preventDefault();
-        if (pop.hidden) open();
+        if (!isOpen()) open();
         else step(key === "ArrowDown" ? 1 : -1);
         return;
       }
       if (key === "Enter" || key === " ") {
         event.preventDefault();
-        if (pop.hidden) open();
+        if (!isOpen()) open();
         else choose(active);
         return;
       }
-      if (key === "Escape" && !pop.hidden) {
+      if (key === "Escape" && isOpen()) {
         event.preventDefault();
         close();
         return;
       }
-      if (key === "Home" && !pop.hidden) {
+      if (key === "Home" && isOpen()) {
         event.preventDefault();
         setActive(0);
         return;
       }
-      if (key === "End" && !pop.hidden) {
+      if (key === "End" && isOpen()) {
         event.preventDefault();
         setActive(items.length - 1);
         return;
       }
-      if (key === "Tab" && !pop.hidden) {
+      if (key === "Tab" && isOpen()) {
         close(false);
         return;
       }
@@ -292,7 +325,7 @@
     select.addEventListener("change", () => {
       if (syncing) return;
       syncTrigger();
-      if (!pop.hidden) syncSelection();
+      if (isOpen()) syncSelection();
     });
 
     const form = select.form;
@@ -300,7 +333,7 @@
       form.addEventListener("reset", () => {
         raf(() => {
           syncTrigger();
-          if (!pop.hidden) {
+          if (isOpen()) {
             syncSelection();
             setActive(select.selectedIndex, false);
           }
