@@ -6,6 +6,7 @@ import { getSettings, setSetting } from "../settings.js";
 import { scheduleNext, schedulerState } from "../scheduler.js";
 import { clearSourceCache } from "../sources/http.js";
 import { telegramSend, createNotifications } from "../notify.js";
+import { createRoleRequest } from "../role-requests.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { CHANNEL } from "../labels.js";
