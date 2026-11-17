@@ -1873,6 +1873,7 @@
         badge.textContent = data.unread > 99 ? "99+" : String(data.unread);
         badge.hidden = !data.unread;
         poll.classList.toggle("has-unread", data.unread > 0);
+        window.MWRefreshNotifications?.();
       } catch {
         /* a dropped poll is not an error the user needs */
       }
@@ -2054,6 +2055,7 @@
   document.addEventListener("error", (event) => {
     const image = event.target;
     if (!(image instanceof HTMLImageElement)) return;
+    if (image.classList.contains("notif-art-img")) { image.hidden = true; return; }
     if (image.classList.contains("mod-icon")) {
       const fallback = document.createElement("span");
       fallback.className = "mod-icon fallback";

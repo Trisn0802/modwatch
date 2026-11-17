@@ -1,0 +1,22 @@
+{% from "partials/icon.njk" import icon %}
+{% macro notifArt(item, size='lg', tag=true) -%}
+{%- set art = item | modIcon -%}
+<span class="notif-art {{ size }} {{ item.kind }}">
+  {% if item.kind == 'update' and art %}
+  <img class="notif-art-img" src="{{ art }}" alt="" loading="lazy" data-fallback="{{ (item.mod_name or item.title) | initials }}">
+  {% elif item.instance_image %}
+  <img class="notif-art-img" src="/uploads/{{ item.instance_image }}" alt="" loading="lazy" data-fallback="{{ (item.instance_name or item.title) | initials }}">
+  {% else %}
+  <span class="notif-art-icon">
+    {% if item.kind == 'unknown' %}{{ icon('unknown') }}
+    {% elif item.kind == 'request' or item.kind == 'decision' %}{{ icon('approvals') }}
+    {% elif item.kind == 'error' %}{{ icon('alert') }}
+    {% elif item.kind == 'update' %}{{ icon('refresh') }}
+    {% elif item.kind == 'sync' %}{{ icon('sync') }}
+    {% elif item.kind == 'account' %}{{ icon('user') }}
+    {% else %}{{ icon('bell') }}{% endif %}
+  </span>
+  {% endif %}
+  {% if tag %}<span class="notif-art-tag">{{ item.kind | replace('_', ' ') | capitalize }}</span>{% endif %}
+</span>
+{%- endmacro %}

@@ -1,0 +1,12 @@
+{% from "partials/notif-art.njk" import notifArt %}
+{% for item in notif.items %}
+<a class="pop-item {% if item.mod_disabled %}is-disabled{% endif %}" href="{{ notifHref(item) }}" style="--i:{{ loop.index0 }}">
+  {{ notifArt(item, 'sm', false) }}
+  <span class="pop-copy">
+    <span class="pop-item-title">{{ item.title }}</span>
+    <span class="pop-item-meta">{{ item.instance_name or 'ModWatch' }} · {{ item.created_at | relative }}</span>
+  </span>
+</a>
+{% else %}
+<p class="pop-empty">No notifications yet. Updates land here after the first check.</p>
+{% endfor %}

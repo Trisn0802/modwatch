@@ -1,5 +1,6 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/notif-art.njk" import notifArt %}
 
 {% block content %}
 <div class="page-head">
@@ -26,13 +27,7 @@
 
   {% for item in items %}
   <article class="notif-row {% if not item.read_at %}unread{% endif %} {% if item.mod_disabled %}is-disabled{% endif %}">
-    <span class="notif-kind {{ item.kind }}">
-      {% if item.kind == 'unknown' %}{{ icon('unknown') }}
-      {% elif item.kind == 'request' or item.kind == 'decision' %}{{ icon('approvals') }}
-      {% elif item.kind == 'error' %}{{ icon('alert') }}
-      {% elif item.kind == 'update' %}{{ icon('refresh') }}
-      {% else %}{{ icon('bell') }}{% endif %}
-    </span>
+    {{ notifArt(item) }}
     <div class="notif-copy">
       <p class="notif-title">{{ item.title }}</p>
       {% if item.body %}<p class="notif-body">{{ item.body }}</p>{% endif %}

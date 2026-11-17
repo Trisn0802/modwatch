@@ -83,6 +83,17 @@
     } catch {}
   };
 
+  const notifList = document.querySelector("[data-notif-list]");
+  const refreshNotifPopup = async () => {
+    if (!notifList) return;
+    try {
+      const response = await fetch("/api/notifications/popup", { headers: { accept: "text/html" } });
+      if (!response.ok) return;
+      notifList.innerHTML = await response.text();
+    } catch {}
+  };
+  window.MWRefreshNotifications = refreshNotifPopup;
+
   // --- decision dialog -------------------------------------------------------
   // A member may be approved while signed in, or while away. Either way the
   // decision is shown in a dialog and the notification is marked read when the
@@ -213,6 +224,7 @@
     const scope = data.scope || "workspace";
     if (scope === "notifications") {
       refreshBadge();
+      refreshNotifPopup();
       if (page === "notifications") scheduleReload();
       return;
     }
@@ -226,6 +238,7 @@
   const onNotification = (data = {}) => {
     if (typeof data.unread === "number") setBadge(data.unread);
     else refreshBadge();
+    refreshNotifPopup();
     if (page === "notifications") scheduleReload();
 
     if (!["decision", "account"].includes(data.kind)) return;

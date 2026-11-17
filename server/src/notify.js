@@ -66,7 +66,9 @@ export async function unreadCount(userId) {
 
 export async function notificationFeed(userId, limit = 8) {
   const { rows } = await query(
-    `SELECT n.*, i.name AS instance_name, m.disabled AS mod_disabled
+    `SELECT n.*, i.name AS instance_name, i.image_path AS instance_image,
+            m.name AS mod_name, m.disabled AS mod_disabled,
+            m.icon_url AS icon_url, m.source AS source, m.project_id AS project_id
        FROM notifications n
        LEFT JOIN instances i ON i.id = n.instance_id
        LEFT JOIN mods m ON m.id = n.mod_id
