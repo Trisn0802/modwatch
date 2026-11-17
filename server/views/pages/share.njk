@@ -20,7 +20,7 @@
       </div>
     </div>
     <div class="share-actions">
-      <a class="btn primary" href="/s/{{ instance.share_token }}/export">{{ icon('download') }} Download .mrpack</a>
+      <a class="btn primary" href="/s/{{ instance.share_token }}/export" data-download>{{ icon('download') }} Download .mrpack</a>
       <button class="btn" type="button" data-copy="{{ shareUrl }}">{{ icon('link') }} Copy share link</button>
     </div>
     <p class="share-note">The .mrpack is generated from the tracked versions. Import it in Modrinth App, Prism, ATLauncher or any launcher that accepts .mrpack. The .zip keeps the raw files, grouped by kind.</p>
