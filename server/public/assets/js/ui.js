@@ -30,11 +30,22 @@
   // --- popovers built on <details> ------------------------------------------
   const popovers = $$("details.pop, details.user-pop, details.menu");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  // The Edit target form is moved to <body> while open so position: fixed is
+  // measured against the viewport, not a transformed panel ancestor.
+  const formPanels = new WeakMap();
+  const formPanelOwners = new WeakMap();
 
   function closePopover(item, focus = false) {
     if (!item || !item.open || item.classList.contains("is-closing")) return;
     const summary = item.querySelector("summary");
     const done = () => {
+      const formPanel = formPanels.get(item) || item.querySelector(".pop-panel-form");
+      if (formPanel) {
+        resetFormPanel(formPanel);
+        item.appendChild(formPanel);
+        formPanels.delete(item);
+        formPanelOwners.delete(formPanel);
+      }
       item.open = false;
       item.classList.remove("is-closing");
       summary?.setAttribute("aria-expanded", "false");
@@ -47,6 +58,68 @@
   function closePopovers(except) {
     for (const item of popovers) if (item !== except) closePopover(item);
   }
+
+  // The Edit target form is a long panel. Give it the same fixed, clamped
+  // placement as the custom select instead of a 360px box that can leave the
+  // viewport on a phone.
+  function positionFormPanel(item, panel) {
+    if (!item?.open || !panel) return;
+    const summary = item.querySelector("summary");
+    if (!summary) return;
+    const box = summary.getBoundingClientRect();
+    const canvas = document.getElementById("main") || document.querySelector("main.canvas");
+    const area = canvas
+      ? canvas.getBoundingClientRect()
+      : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+    const topbar = document.querySelector(".topbar");
+    const topLimit = Math.max(0, area.top, topbar ? topbar.getBoundingClientRect().bottom : 0);
+    const margin = 8;
+    const gap = 8;
+    const leftLimit = Math.max(0, area.left);
+    const rightLimit = Math.min(window.innerWidth, area.right);
+    const width = Math.min(360, Math.max(220, rightLimit - leftLimit - margin * 2));
+    panel.style.position = "fixed";
+    panel.style.right = "auto";
+    panel.style.width = `${Math.round(width)}px`;
+    panel.style.maxHeight = "none";
+    const height = panel.offsetHeight;
+    const bottomLimit = Math.min(window.innerHeight, area.bottom || window.innerHeight);
+    const below = bottomLimit - box.bottom - gap - margin;
+    const above = box.top - topLimit - gap - margin;
+    const up = below < Math.min(height, 260) && above > below;
+    const room = Math.max(160, Math.min(window.innerHeight - margin * 2, up ? above : below));
+    panel.style.maxHeight = `${Math.round(room)}px`;
+    panel.style.overflowY = "auto";
+    const finalHeight = Math.min(height, room);
+    let top = up ? box.top - gap - finalHeight : box.bottom + gap;
+    top = Math.max(topLimit + margin, Math.min(top, window.innerHeight - margin - finalHeight));
+    let left = box.left;
+    if (left + width > rightLimit - margin) left = rightLimit - margin - width;
+    left = Math.max(leftLimit + margin, left);
+    panel.style.top = `${Math.round(top)}px`;
+    panel.style.left = `${Math.round(left)}px`;
+  }
+
+  function resetFormPanel(panel) {
+    if (!panel) return;
+    panel.style.position = "";
+    panel.style.top = "";
+    panel.style.left = "";
+    panel.style.right = "";
+    panel.style.width = "";
+    panel.style.maxHeight = "";
+    panel.style.overflowY = "";
+  }
+
+  const repositionFormPanels = (event) => {
+    if (event?.target instanceof Element && event.target.closest(".pop-panel-form")) return;
+    for (const panel of $$(".pop-panel-form")) {
+      const item = formPanelOwners.get(panel) || panel.closest("details.pop");
+      if (item?.open) positionFormPanel(item, panel);
+    }
+  };
+  window.addEventListener("scroll", repositionFormPanels, true);
+  window.addEventListener("resize", repositionFormPanels);
   for (const item of popovers) {
     const summary = item.querySelector("summary");
     summary?.setAttribute("aria-expanded", "false");
@@ -59,11 +132,19 @@
       summary.setAttribute("aria-expanded", "true");
       item.classList.remove("is-closing");
       const panel = item.querySelector(".pop-panel, .user-pop-panel, .menu-panel");
+      if (panel?.classList.contains("pop-panel-form")) {
+        formPanels.set(item, panel);
+        formPanelOwners.set(panel, item);
+        document.body.appendChild(panel);
+      }
       if (panel && !reduceMotion.matches) {
         panel.classList.remove("pop-in");
         void panel.offsetWidth;
         panel.classList.add("pop-in");
         window.setTimeout(() => panel.classList.remove("pop-in"), 1100);
+      }
+      if (panel?.classList.contains("pop-panel-form")) {
+        requestAnimationFrame(() => positionFormPanel(item, panel));
       }
     });
     const panel = item.querySelector(".menu-panel");
@@ -73,6 +154,8 @@
   }
   document.addEventListener("click", (event) => {
     for (const item of popovers) {
+      const formPanel = formPanels.get(item);
+      if (formPanel?.contains(event.target)) continue;
       if (item.open && !item.contains(event.target)) closePopover(item);
     }
   });
@@ -442,12 +525,19 @@
     dialog.addEventListener("click", (event) => {
       if (event.target !== dialog || dialog.classList.contains("is-closing")) return;
       // A backdrop click is almost always accidental. Keep the dialog open and
-      // answer with a short zoom pulse instead of closing and reopening it.
-      if (reduceMotion.matches) return;
-      dialog.classList.remove("is-nudge");
-      void dialog.offsetWidth;
-      dialog.classList.add("is-nudge");
-      dialog.addEventListener("animationend", () => dialog.classList.remove("is-nudge"), { once: true });
+      // answer with a short zoom pulse. The Web Animations API keeps this
+      // separate from the dialog's open animation, so it cannot restart the
+      // pop-in and make the dialog flash when the pulse ends.
+      if (reduceMotion.matches || typeof dialog.animate !== "function") return;
+      dialog.animate(
+        [
+          { transform: "scale(1)" },
+          { transform: "scale(1.035)" },
+          { transform: "scale(0.985)" },
+          { transform: "scale(1)" },
+        ],
+        { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+      );
     });
     for (const closer of $$("[data-dialog-close]", dialog)) {
       closer.addEventListener("click", () => closeDialog(dialog));

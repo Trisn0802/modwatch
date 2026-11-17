@@ -116,7 +116,7 @@
       </form>
       <details class="pop">
         <summary class="btn sm">{{ icon('pencil') }} Edit target</summary>
-        <div class="pop-panel" style="padding:14px;width:360px">
+        <div class="pop-panel pop-panel-form" style="padding:14px">
           <form class="form" method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}">
             {% include "partials/csrf.njk" %}
             <div class="field"><label for="name-{{ target.id }}">Name</label><input class="input" id="name-{{ target.id }}" name="name" value="{{ target.name }}" required></div>
