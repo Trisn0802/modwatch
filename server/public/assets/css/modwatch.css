@@ -1169,7 +1169,7 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   width: 72px; height: 72px; object-fit: cover;
   border: 1px solid var(--rule); border-radius: 10px;
 }
-.image-preview { display: inline-grid; place-items: center; flex: none; }
+.image-preview { display: inline-grid; place-items: center; flex: none; line-height: 0; }
 .image-preview-img { display: block; object-fit: cover; }
 .image-preview-error {
   margin: 0; padding: 7px 9px;

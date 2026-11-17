@@ -152,7 +152,7 @@ app.use(
         // Only force HTTPS when this deployment says it is HTTPS. Plain HTTP
         // on a LAN address must keep loading its own assets and forms.
         upgradeInsecureRequests: config.nodeEnv === "production" && config.appUrl.startsWith("https://") ? [] : null,
-        imgSrc: ["'self'", "data:", "https://cdn.modrinth.com", "https://avatars.githubusercontent.com", "https://*.githubusercontent.com", "https://media.forgecdn.net", "https://mediafilez.forgecdn.net", "https://edge.forgecdn.net"],
+        imgSrc: ["'self'", "data:", "blob:", "https://cdn.modrinth.com", "https://avatars.githubusercontent.com", "https://*.githubusercontent.com", "https://media.forgecdn.net", "https://mediafilez.forgecdn.net", "https://edge.forgecdn.net"],
         connectSrc: ["'self'", "https://*.pusher.com", "wss://*.pusher.com"],
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
