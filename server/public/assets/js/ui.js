@@ -2070,6 +2070,69 @@
     if (resultIcon) resultIcon.textContent = image.dataset.fallback || "?";
   }, true);
 
+  // --- preview a chosen image before its form is submitted -------------------
+  for (const input of $$("input[type='file'][data-image-input]")) {
+    const form = input.closest("form");
+    const preview = form?.querySelector("[data-image-preview]");
+    if (!form || !preview) continue;
+    const clear = form.querySelector("[data-image-clear]");
+    const note = form.querySelector("[data-image-note]");
+    const error = form.querySelector("[data-image-error]");
+    const original = preview.innerHTML;
+    const initial = preview.querySelector(".avatar, .instance-photo, .instance-mark");
+    const box = initial?.getBoundingClientRect();
+    const radius = initial ? getComputedStyle(initial).borderRadius : "10px";
+    let objectUrl = "";
+    const setError = (text) => {
+      if (!error) return;
+      error.hidden = !text;
+      error.textContent = text || "";
+    };
+    const reset = () => {
+      if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = ""; }
+      preview.innerHTML = original;
+      if (clear) clear.hidden = true;
+      if (note) note.hidden = true;
+      setError("");
+    };
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return reset();
+      const max = Number(input.dataset.maxBytes) || 2 * 1024 * 1024;
+      const typeOk = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"].includes(file.type)
+        || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
+      if (!typeOk) {
+        input.value = "";
+        reset();
+        setError("Use a PNG, JPG, WebP, GIF or SVG image.");
+        return;
+      }
+      if (file.size > max) {
+        input.value = "";
+        reset();
+        setError(`That image is larger than ${Math.round(max / 1048576)} MB.`);
+        return;
+      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      const img = document.createElement("img");
+      img.className = "image-preview-img";
+      img.alt = "";
+      img.src = objectUrl = URL.createObjectURL(file);
+      img.style.width = `${box?.width || 72}px`;
+      img.style.height = `${box?.height || 72}px`;
+      img.style.borderRadius = radius;
+      preview.replaceChildren(img);
+      if (clear) clear.hidden = false;
+      if (note) note.hidden = false;
+      setError("");
+    });
+    clear?.addEventListener("click", () => {
+      input.value = "";
+      reset();
+      input.focus({ preventScroll: true });
+    });
+  }
+
   // --- a running sync job page refreshes itself ------------------------------
   const jobMarker = document.querySelector("[data-job-status]");
   if (jobMarker && ["queued", "running"].includes(jobMarker.dataset.jobStatus)) {

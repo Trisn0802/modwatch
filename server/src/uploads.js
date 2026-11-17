@@ -42,7 +42,7 @@ function imageUpload(subdir, prefix, maxBytes) {
   });
 }
 
-export const avatarUpload = imageUpload("avatars", "avatar", 512 * 1024).single("avatar");
+export const avatarUpload = imageUpload("avatars", "avatar", 2 * 1024 * 1024).single("avatar");
 export const instanceUpload = imageUpload("instances", "instance", 2 * 1024 * 1024).single("image");
 
 export function receiveUpload(middleware, req, res) {
