@@ -52,15 +52,21 @@
     </div>
     {% if isAdmin and powerReady %}
     <form method="post" action="/instances/{{ instance.id }}/servers/{{ target.id }}/apply"
+      style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"
       data-confirm-title="Apply server sync?"
       data-confirm-label="Apply and restart"
       data-confirm="This will stop {{ target.name }}, apply {{ changes }} file change{% if changes != 1 %}s{% endif %}, restart it and roll back if the server does not reach ready. Continue?"
+      data-confirm-restart="This will stop {{ target.name }}, apply {{ changes }} file change{% if changes != 1 %}s{% endif %}, restart it and roll back if the server does not reach ready. Continue?"
+      data-confirm-only="This will stop {{ target.name }}, apply {{ changes }} file change{% if changes != 1 %}s{% endif %} and leave it stopped. Restart it later to load the new files. Continue?"
+      data-sync-apply
+      data-progress-background
       data-progress-title="Applying sync to {{ target.name }}"
-      data-progress-message="Stopping the server, uploading the jars and waiting for the world to load."
+      data-progress-message="The job runs in the background; you can follow it here or on its job page."
       data-progress-steps="Prepare local jars|Back up the old files|Stop the server|Upload and verify|Start the server|Wait for ready|Write the result"
       data-progress-done-title="Sync complete"
       data-progress-done-label="Open the job">
       {% include "partials/csrf.njk" %}
+      <label class="check"><input type="checkbox" name="no_restart" value="1"><span>Apply only (leave the server stopped)</span></label>
       <button class="btn primary" type="submit">{{ icon('refresh') }} Apply {{ changes }} change{% if changes != 1 %}s{% endif %}</button>
     </form>
     {% elif isAdmin %}

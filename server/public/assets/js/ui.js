@@ -754,12 +754,23 @@
       if (cancel) cancel.onclick = () => done(false);
       if (close) close.onclick = () => done(false);
       modal.oncancel = (event) => { event.preventDefault(); done(false); };
-      modal.onclick = (event) => { if (event.target === modal) done(false); };
     });
   }
   window.MWConfirm = confirmAction;
   window.RA = window.RA || {};
   window.RA.confirm = confirmAction;
+
+  // --- apply-only checkbox updates its confirmation text --------------------
+  for (const form of $$("form[data-sync-apply]")) {
+    const box = form.querySelector('input[name="no_restart"]');
+    if (!box) continue;
+    const sync = () => {
+      form.dataset.confirm = box.checked ? form.dataset.confirmOnly : form.dataset.confirmRestart;
+      form.dataset.confirmLabel = box.checked ? "Apply only" : "Apply and restart";
+    };
+    box.addEventListener("change", sync);
+    sync();
+  }
 
   // --- destructive forms ask once -------------------------------------------
   for (const form of $$("form[data-confirm]")) {
@@ -947,7 +958,7 @@
       // only use it when the button actually overrides the form action.
       let action = submitter?.hasAttribute("formaction") ? submitter.formAction : form.action;
       if (!progressModal) {
-        if (mode === "upload" || mode === "nav") {
+        if (mode === "upload" || mode === "nav" || mode === "background") {
           // A native submit keeps the old page visible while the server works.
           form.submit();
         } else {
@@ -968,16 +979,22 @@
       const cont = $("#progress-continue", progressModal);
       const meter = $("#progress-meter", progressModal);
       const meterFill = $("#progress-meter-fill", progressModal);
+      const restartForm = $("#progress-restart", progressModal);
       let interval = null;
       let source = null;
       let busy = true;
       let sseSeen = false;
       let navigated = false;
+      let finished = false;
+      let backgroundJobId = "";
+      let pollTimer = null;
       let lastPercent = 0;
+      const logLines = new Map();
       setProgressBusy(true);
 
       const stopTimer = () => { if (interval) { window.clearInterval(interval); interval = null; } };
       const closeSource = () => { if (source) { source.close(); source = null; } };
+      const stopPoll = () => { if (pollTimer) { window.clearInterval(pollTimer); pollTimer = null; } };
       const setMeter = (percent) => {
         if (!meter || !meterFill) return;
         const value = Math.max(lastPercent, Math.min(100, Number(percent) || 0));
@@ -985,22 +1002,38 @@
         meter.hidden = false;
         meterFill.style.width = `${value}%`;
       };
-      const logLine = (text) => {
+      const logLine = (text, key = "", attempt = 0) => {
         if (!list || !text) return;
+        const id = key || text;
+        const seen = logLines.get(id);
+        if (seen && seen.li.isConnected) {
+          seen.count = Math.max(seen.count + 1, Number(attempt) || 0);
+          seen.li.textContent = `${text} (${seen.count})`;
+          list.appendChild(seen.li);
+          list.scrollTop = list.scrollHeight;
+          return;
+        }
         const item = document.createElement("li");
-        item.textContent = text;
+        item.textContent = attempt ? `${text} (${attempt})` : text;
         item.classList.add("is-done", "is-log");
         list.appendChild(item);
+        logLines.set(id, { li: item, count: Number(attempt) || 1 });
         while (list.children.length > 40) list.firstElementChild.remove();
         list.scrollTop = list.scrollHeight;
       };
       const finish = (result, text, nextUrl, label, options = {}) => {
         // A successful result keeps the dialog locked until the user presses
         // the action button. Only an error frees Escape and the backdrop.
+        finished = true;
         busy = result === "ok";
         setProgressBusy(result === "ok");
         stopTimer();
         closeSource();
+        stopPoll();
+        if (restartForm) {
+          restartForm.hidden = !options.restartUrl;
+          if (options.restartUrl) restartForm.action = options.restartUrl;
+        }
         if (list) {
           for (const item of list.children) {
             item.classList.remove("is-active");
@@ -1043,6 +1076,10 @@
       };
 
       body?.classList.remove("is-done", "is-error");
+      finished = false;
+      stopPoll();
+      logLines.clear();
+      if (restartForm) restartForm.hidden = true;
       if (check) check.hidden = true;
       if (spinner) spinner.style.display = "";
       if (foot) foot.hidden = true;
@@ -1093,17 +1130,27 @@
           if (!data) return;
           sseSeen = true;
           stopTimer();
-          if (data.message) logLine(data.message);
+          if (data.jobId) backgroundJobId = String(data.jobId);
+          if (data.message) logLine(data.message, data.key, data.attempt);
           if (data.percent != null) setMeter(data.percent);
           if (data.stage === "done") {
-            if (title && !progressSource.dataset.progressDoneTitle && !form.dataset.progressDoneTitle) title.textContent = "Complete";
-            if (kicker) kicker.textContent = "Complete";
+            if (mode === "background") {
+              const jobUrl = data.jobUrl || (backgroundJobId ? `/sync-jobs/${backgroundJobId}` : location.href);
+              finish("ok", data.message || "The job finished.", jobUrl, "Open the job", {
+                restartUrl: data.restartRequired && data.restartUrl ? data.restartUrl : "",
+              });
+            } else {
+              if (title && !progressSource.dataset.progressDoneTitle && !form.dataset.progressDoneTitle) title.textContent = "Complete";
+              if (kicker) kicker.textContent = "Complete";
+            }
           }
           if (data.stage === "error") {
+            const hasJob = Boolean(data.jobUrl || backgroundJobId);
+            const errorUrl = data.jobUrl || (backgroundJobId ? `/sync-jobs/${backgroundJobId}` : location.href);
             if (data.rolledBack) {
-              finish("rolledback", data.message || "The apply was undone.", location.href, "Reload page", { ready: data.restartedReady });
+              finish("rolledback", data.message || "The apply was undone.", errorUrl, hasJob ? "Open the job" : "Reload page", { ready: data.restartedReady });
             } else {
-              finish("error", data.message || "The operation failed.", location.href, "Reload page");
+              finish("error", data.message || "The operation failed.", errorUrl, hasJob ? "Open the job" : "Reload page");
             }
           }
         });
@@ -1111,6 +1158,53 @@
           // The HTTP request still drives completion; close quietly.
           closeSource();
         });
+      }
+
+      const pollJob = (jobId) => {
+        stopPoll();
+        pollTimer = window.setInterval(async () => {
+          if (finished) { stopPoll(); return; }
+          try {
+            const response = await fetch(`/api/sync-jobs/${jobId}`, { headers: { accept: "application/json" } });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (!["succeeded", "failed", "rolled_back", "cancelled"].includes(data.status)) return;
+            stopPoll();
+            if (data.status === "succeeded") {
+              finish("ok", data.restartRequired ? "Applied; restart required." : "The job finished and the server is ready.", data.jobUrl, "Open the job", { restartUrl: data.restartUrl || "" });
+            } else if (data.status === "rolled_back") {
+              finish("rolledback", data.result?.error || "The apply was undone.", data.jobUrl, "Open the job", { ready: data.result?.restarted_ready !== false });
+            } else {
+              finish("error", data.result?.error || "The job failed.", data.jobUrl, "Open the job");
+            }
+          } catch {}
+        }, 3000);
+      };
+
+      if (mode === "background") {
+        try {
+          const response = await fetch(action, {
+            method: "POST",
+            body: new URLSearchParams(new FormData(form)),
+            redirect: "follow",
+            headers: { "X-Requested-With": "fetch" },
+          });
+          let data = null;
+          try { data = await response.json(); } catch { data = null; }
+          if (!response.ok || !data?.ok) {
+            return finish("error", data?.error || `The server returned ${response.status}.`, location.href, "Reload the page");
+          }
+          if (finished) return;
+          backgroundJobId = String(data.jobId || "");
+          if (data.jobUrl && cont) cont.href = data.jobUrl;
+          if (message) message.textContent = "The job is running in the background. You can keep this tab open or follow it from the job page.";
+          pollJob(backgroundJobId);
+        } catch (err) {
+          finish("error", err.message || "The request could not reach the server.", location.href, "Reload the page");
+        } finally {
+          topFinish();
+        }
+        return;
       }
 
       if (mode === "upload") {
@@ -1285,6 +1379,7 @@
     if (form.hasAttribute("data-progress-upload")) bindProgress(form, "upload");
     else if (form.hasAttribute("data-progress-nav")) bindProgress(form, "nav");
     else if (form.hasAttribute("data-progress-download")) bindProgress(form, "download");
+    else if (form.hasAttribute("data-progress-background")) bindProgress(form, "background");
     else bindProgress(form, "post");
   }
 
@@ -1974,6 +2069,12 @@
     const resultIcon = image.closest(".result-icon");
     if (resultIcon) resultIcon.textContent = image.dataset.fallback || "?";
   }, true);
+
+  // --- a running sync job page refreshes itself ------------------------------
+  const jobMarker = document.querySelector("[data-job-status]");
+  if (jobMarker && ["queued", "running"].includes(jobMarker.dataset.jobStatus)) {
+    window.setTimeout(() => location.reload(), 3000);
+  }
 
   // --- mark page ready (enables hover transitions only after load) ----------
   requestAnimationFrame(() => document.body.classList.add("is-ready"));

@@ -25,6 +25,30 @@
 <div class="error-box" role="alert" style="margin-bottom:16px">{{ icon('alert') }}<span>{{ job.result.error }}</span></div>
 {% endif %}
 
+{% if job.result.interrupted %}
+<div class="error-box" role="alert" style="margin-bottom:16px">{{ icon('alert') }}<span>The app restarted before this job finished. Run the apply again.</span></div>
+{% endif %}
+
+{% if job.status == 'succeeded' and job.result.restart_required %}
+<section class="panel" style="margin-bottom:16px">
+  <div class="panel-body" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <p class="cell-main">Restart required</p>
+      <p class="hint" style="margin-top:3px">The files are applied but the server is still stopped. Start it to load the new jars.</p>
+    </div>
+    {% if isAdmin %}
+    <form method="post" action="/instances/{{ job.instance_id }}/servers/{{ job.target_id }}/restart"
+      data-confirm-title="Restart the server?"
+      data-confirm-label="Restart now"
+      data-confirm="Start {{ job.target_name }} now so the applied files take effect?">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">{{ icon('refresh') }} Restart now</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 {% if job.status == 'rolled_back' %}
 <div class="notice" style="margin-bottom:16px">
   {% if job.result.restarted_ready == false %}

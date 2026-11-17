@@ -344,7 +344,7 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
   id          SERIAL PRIMARY KEY,
   target_id   INTEGER NOT NULL REFERENCES sync_targets(id) ON DELETE CASCADE,
   user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  mode        TEXT NOT NULL CHECK (mode IN ('dry_run','apply')),
+  mode        TEXT NOT NULL CHECK (mode IN ('dry_run','apply','restart')),
   status      TEXT NOT NULL DEFAULT 'queued'
               CHECK (status IN ('queued','running','succeeded','failed','rolled_back','cancelled')),
   plan        JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -355,6 +355,13 @@ CREATE TABLE IF NOT EXISTS sync_jobs (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS sync_jobs_target_idx ON sync_jobs (target_id, created_at DESC);
+
+ALTER TABLE sync_jobs DROP CONSTRAINT IF EXISTS sync_jobs_mode_check;
+ALTER TABLE sync_jobs ADD CONSTRAINT sync_jobs_mode_check
+  CHECK (mode IN ('dry_run','apply','restart'));
+
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sync_job_id INTEGER REFERENCES sync_jobs(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS notifications_sync_job_idx ON notifications (sync_job_id);
 
 CREATE TABLE IF NOT EXISTS sync_job_items (
   id            SERIAL PRIMARY KEY,

@@ -19,12 +19,14 @@ function localSha1(file) {
   return crypto.createHash("sha1").update(fs.readFileSync(file)).digest("hex");
 }
 
-async function waitForStatus(remote, predicate, timeoutMs, { onProgress, message } = {}) {
+async function waitForStatus(remote, predicate, timeoutMs, { onProgress, message, key = "wait" } = {}) {
   const started = Date.now();
+  let attempt = 0;
   while (Date.now() - started < timeoutMs) {
     const state = await remote.power.status();
     if (predicate(state)) return state;
-    onProgress?.({ stage: "wait", message, percent: 55 });
+    attempt += 1;
+    onProgress?.({ stage: "wait", key, message, percent: 55, attempt });
     await sleep(3000);
   }
   throw new Error(`${message || "The server"} did not reach the expected state in time.`);
@@ -70,6 +72,7 @@ async function crashSince(remote, before) {
 
 async function waitForGame(remote, timeoutMs, { onProgress } = {}) {
   const started = Date.now();
+  let attempt = 0;
   while (Date.now() - started < timeoutMs) {
     const state = await remote.power.status();
     if (remote.power.isStarted(state)) return state;
@@ -78,7 +81,8 @@ async function waitForGame(remote, timeoutMs, { onProgress } = {}) {
       const reason = crashReason(buffer.toString("utf8"));
       if (reason) throw new Error(`The server failed to start: ${reason}`);
     }
-    onProgress?.({ stage: "wait", message: "Waiting for the server to start", percent: 62 });
+    attempt += 1;
+    onProgress?.({ stage: "wait", key: "game-start", message: "Waiting for the server to start", percent: 62, attempt });
     await sleep(3000);
   }
   throw new Error(`The server did not start within ${Math.round(timeoutMs / 1000)} seconds.`);
@@ -86,6 +90,7 @@ async function waitForGame(remote, timeoutMs, { onProgress } = {}) {
 
 async function waitReady(remote, timeoutMs, { onProgress } = {}) {
   const started = Date.now();
+  let attempt = 0;
   while (Date.now() - started < timeoutMs) {
     const buffer = await remote.files.read("logs/latest.log").catch(() => null);
     if (buffer) {
@@ -95,7 +100,8 @@ async function waitReady(remote, timeoutMs, { onProgress } = {}) {
       const reason = crashReason(text);
       if (reason) throw new Error(`The server failed to start: ${reason}`);
     }
-    onProgress?.({ stage: "ready", message: "Waiting for the world to finish loading", percent: 70 });
+    attempt += 1;
+    onProgress?.({ stage: "ready", key: "world-ready", message: "Waiting for the world to finish loading", percent: 70, attempt });
     await sleep(4000);
   }
   throw new Error(`The server did not report ready within ${Math.round(timeoutMs / 1000)} seconds.`);
@@ -106,7 +112,13 @@ async function appendJobLog(jobId, lines, line) {
   await query("UPDATE sync_jobs SET log = $2 WHERE id = $1", [jobId, lines.join("\n")]).catch(() => {});
 }
 
-export async function applyTarget(targetId, { userId = null, onProgress } = {}) {
+async function syncRecipients(userId) {
+  if (userId) return [userId];
+  const { rows } = await query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+  return rows.map((row) => row.id);
+}
+
+export async function applyTarget(targetId, { userId = null, onProgress, jobId = null, restart = true } = {}) {
   const report = (event) => { try { onProgress?.(event); } catch {} };
   const release = await tryAdvisoryLock(907000 + targetId);
   if (!release) throw new Error("A sync job is already running for this target.");
@@ -124,12 +136,21 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       throw new Error("Server power is not configured on this connection.");
     }
     report({ stage: "scan", message: "Rescanning the server before apply", percent: 5 });
-    const scan = await scanTarget(target.id, { onProgress: (event) => report({ ...event, percent: Math.min(25, event.percent || 20) }) });
+    const scan = await scanTarget(target.id, {
+      onProgress: (event) => report({
+        ...event,
+        // The scan's own "done" is not the end of the apply; only the final
+        // report below may close the background progress stream.
+        stage: event.stage === "done" ? "scan-done" : event.stage,
+        percent: Math.min(25, event.percent || 20),
+      }),
+    });
     const items = scan.plan.items.filter((item) => APPLY_ACTIONS.has(item.action));
     if (!items.length) throw new Error("There are no add, replace, enable or disable items to apply.");
     if (items.length > MAX_CHANGES) throw new Error(`The plan has ${items.length} changes; the safety limit is ${MAX_CHANGES}.`);
 
     let state = await remote.power.status();
+    const wasStarted = remote.power.isStarted(state);
     serverName = remote.kind === "pterodactyl" ? target.name : (state.name || target.name);
     if (target.require_empty_server && !remote.power.isStopped(state)) {
       const online = await remote.players();
@@ -138,12 +159,21 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       }
     }
 
-    const { rows } = await query(
-      `INSERT INTO sync_jobs (target_id, user_id, mode, status, plan, started_at)
-       VALUES ($1,$2,'apply','running',$3::jsonb,now()) RETURNING *`,
-      [target.id, userId, JSON.stringify({ counts: scan.plan.counts, items })]
+    const jobRows = jobId
+      ? (await query("SELECT * FROM sync_jobs WHERE id = $1", [jobId])).rows
+      : (await query(
+          `INSERT INTO sync_jobs (target_id, user_id, mode, status, plan, started_at)
+           VALUES ($1,$2,'apply','queued','{}'::jsonb,now()) RETURNING *`,
+          [target.id, userId]
+        )).rows;
+    job = jobRows[0];
+    if (!job) throw new Error("The sync job no longer exists.");
+    const plan = { counts: scan.plan.counts, items };
+    await query(
+      "UPDATE sync_jobs SET status = 'running', plan = $2::jsonb, started_at = COALESCE(started_at, now()) WHERE id = $1",
+      [job.id, JSON.stringify(plan)]
     );
-    job = rows[0];
+    job = { ...job, status: "running", plan };
     for (const item of items) {
       await query(
         `INSERT INTO sync_job_items (job_id, mod_id, action, file_name, old_file_name, sha1, size)
@@ -197,6 +227,7 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       await waitForStatus(remote, (next) => remote.power.isStopped(next), stopTimeoutMs, {
         onProgress: (event) => report({ ...event, percent: 48 }),
         message: "Waiting for the server to stop",
+        key: "stop-wait",
       });
       await sleep(2500);
       stopped = true;
@@ -230,40 +261,57 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
         }
       }
 
-      const crashBefore = await crashNames(remote);
-      report({ stage: "start", message: `Starting ${serverName}`, percent: 60 });
-      await remote.power.start();
-      await waitForGame(remote, startTimeoutMs, { onProgress: report });
-      await waitReady(remote, startTimeoutMs, { onProgress: report });
+      if (restart) {
+        const crashBefore = await crashNames(remote);
+        report({ stage: "start", message: `Starting ${serverName}`, percent: 60 });
+        await remote.power.start();
+        await waitForGame(remote, startTimeoutMs, { onProgress: report });
+        await waitReady(remote, startTimeoutMs, { onProgress: report });
 
-      report({ stage: "verify", message: "Checking that the server stays up", percent: 92 });
-      await sleep(6000);
-      const crash = await crashSince(remote, crashBefore);
-      if (crash) throw new Error(`The server crashed after it reported ready: ${crash}`);
-      const after = await remote.power.status();
-      if (!remote.power.isStarted(after)) throw new Error("The server stopped after it reported ready.");
-      await appendJobLog(job.id, logLines, "Server reached ready and stayed up.");
+        report({ stage: "verify", message: "Checking that the server stays up", percent: 92 });
+        await sleep(6000);
+        const crash = await crashSince(remote, crashBefore);
+        if (crash) throw new Error(`The server crashed after it reported ready: ${crash}`);
+        const after = await remote.power.status();
+        if (!remote.power.isStarted(after)) throw new Error("The server stopped after it reported ready.");
+        await appendJobLog(job.id, logLines, "Server reached ready and stayed up.");
+      } else {
+        await appendJobLog(job.id, logLines, `Applied ${applied.length} file(s); restart required.`);
+      }
 
+      const result = restart
+        ? { changes: applied.length }
+        : { changes: applied.length, restart_required: true, was_running: wasStarted };
       await query(
         "UPDATE sync_jobs SET status = 'succeeded', result = $2::jsonb, finished_at = now() WHERE id = $1",
-        [job.id, JSON.stringify({ changes: applied.length })]
+        [job.id, JSON.stringify(result)]
       );
-      report({ stage: "done", message: `Applied ${applied.length} change(s); server ready`, percent: 100 });
+      report({
+        stage: "done",
+        message: restart
+          ? `Applied ${applied.length} change(s); server ready`
+          : `Applied ${applied.length} change(s); restart required`,
+        percent: 100,
+        restartRequired: !restart,
+      });
 
-      const { rows: admins } = await query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+      const recipients = await syncRecipients(userId);
       await createNotifications({
         kind: "sync",
         instanceId: target.instance_id,
+        syncJobId: job.id,
         title: `Server sync: ${serverName}`,
-        body: `${applied.length} change(s) applied and the server reached ready.`,
-        userIds: admins.map((row) => row.id),
+        body: restart
+          ? `${applied.length} change(s) applied and the server reached ready.`
+          : `${applied.length} change(s) applied. Restart the server to load them.`,
+        userIds: recipients,
       });
-      await telegramSend(`ModWatch · ${serverName}\n${applied.length} file(s) synced; server is ready.`);
+      await telegramSend(`ModWatch · ${serverName}\n${applied.length} file(s) synced${restart ? "; server is ready." : "; restart required."}`);
       await logActivity({
         userId, action: "sync_applied", subjectType: "instance", subjectId: target.instance_id,
-        meta: { target: target.name, changes: applied.length },
+        meta: { target: target.name, changes: applied.length, restart_required: !restart },
       });
-      return { job, ok: true, changes: applied.length };
+      return { job, ok: true, changes: applied.length, restartRequired: !restart };
     } catch (err) {
       await appendJobLog(job.id, logLines, `ERROR ${err.message}`);
       if (stopped) {
@@ -272,7 +320,7 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
           const current = await remote.power.status();
           if (!remote.power.isStopped(current)) {
             await remote.power.stop();
-            await waitForStatus(remote, (next) => remote.power.isStopped(next), stopTimeoutMs, { message: "Waiting to roll back" });
+            await waitForStatus(remote, (next) => remote.power.isStopped(next), stopTimeoutMs, { message: "Waiting to roll back", key: "rollback-wait", onProgress: report });
             await sleep(2500);
           }
           for (const item of [...applied].reverse()) {
@@ -295,8 +343,8 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
             [job.id]
           );
           await remote.power.start();
-          await waitForGame(remote, startTimeoutMs);
-          const restartedReady = await waitReady(remote, Math.min(startTimeoutMs, 180_000), {}).then(() => true).catch(() => false);
+          await waitForGame(remote, startTimeoutMs, { onProgress: report });
+          const restartedReady = await waitReady(remote, Math.min(startTimeoutMs, 180_000), { onProgress: report }).then(() => true).catch(() => false);
           await appendJobLog(
             job.id,
             logLines,
@@ -311,8 +359,10 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
           await createNotifications({
             kind: "sync",
             instanceId: target.instance_id,
+            syncJobId: job.id,
             title: `Sync rolled back: ${serverName}`,
             body: `${err.message}. The previous jars were restored and the server was restarted.`,
+            userIds: await syncRecipients(userId),
           });
           await telegramSend(`ModWatch · ${serverName}\nRolled back: ${err.message}`);
           await logActivity({
@@ -327,9 +377,10 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
             [job.id, JSON.stringify({ error: err.message, rollbackError: rollbackErr.message })]
           );
           await createNotifications({
-            kind: "sync", instanceId: target.instance_id,
+            kind: "sync", instanceId: target.instance_id, syncJobId: job.id,
             title: `Rollback failed: ${serverName}`,
             body: `${err.message}. Rollback also failed: ${rollbackErr.message}`,
+            userIds: await syncRecipients(userId),
           });
           return { job, ok: false, rolledBack: false, error: `${err.message}; rollback failed: ${rollbackErr.message}` };
         }
@@ -339,9 +390,10 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
         [job.id, JSON.stringify({ error: err.message })]
       );
       await createNotifications({
-        kind: "sync", instanceId: target.instance_id,
+        kind: "sync", instanceId: target.instance_id, syncJobId: job.id,
         title: `Sync failed: ${serverName}`,
         body: err.message,
+        userIds: await syncRecipients(userId),
       });
       await logActivity({
         userId, action: "sync_failed", subjectType: "instance", subjectId: target.instance_id,
@@ -349,6 +401,91 @@ export async function applyTarget(targetId, { userId = null, onProgress } = {}) 
       });
       return { job, ok: false, rolledBack: false, error: err.message };
     }
+  } finally {
+    if (remote) await remote.close().catch(() => {});
+    await release();
+  }
+}
+
+// Start a server that an apply-only run left stopped.
+export async function restartTarget(targetId, { userId = null, onProgress, jobId = null } = {}) {
+  const report = (event) => { try { onProgress?.(event); } catch {} };
+  const release = await tryAdvisoryLock(907000 + targetId);
+  if (!release) throw new Error("A sync job is already running for this target.");
+  let remote = null;
+  let job = null;
+  let instanceId = null;
+  let serverName = "The server";
+  const logLines = [];
+  try {
+    const target = await syncTargetById(targetId);
+    if (!target) throw new Error("Sync target not found.");
+    instanceId = target.instance_id;
+    serverName = target.name;
+    const connection = await syncConnectionById(target.connection_id);
+    if (!connection) throw new Error("Sync connection not found.");
+    const jobRows = jobId
+      ? (await query("SELECT * FROM sync_jobs WHERE id = $1", [jobId])).rows
+      : (await query(
+          `INSERT INTO sync_jobs (target_id, user_id, mode, status, plan, started_at)
+           VALUES ($1,$2,'restart','queued','{}'::jsonb,now()) RETURNING *`,
+          [target.id, userId]
+        )).rows;
+    job = jobRows[0];
+    if (!job || job.target_id !== target.id) throw new Error("The sync job no longer exists.");
+    await query("UPDATE sync_jobs SET status = 'running', started_at = COALESCE(started_at, now()) WHERE id = $1", [job.id]);
+    await appendJobLog(job.id, logLines, `Restart job ${job.id} started.`);
+
+    remote = await createRemote(connection, target);
+    if (!remote.power.configured) throw new Error("Server power is not configured on this connection.");
+    const state = await remote.power.status();
+    if (remote.power.isStarted(state)) {
+      await query(
+        "UPDATE sync_jobs SET status = 'succeeded', result = $2::jsonb, finished_at = now() WHERE id = $1",
+        [job.id, JSON.stringify({ restart: true, already_running: true })]
+      );
+      report({ stage: "done", message: "The server is already running", percent: 100 });
+      await appendJobLog(job.id, logLines, "The server was already running.");
+      return { job, ok: true, alreadyRunning: true };
+    }
+
+    const startTimeoutMs = Math.max(60, Number(target.start_timeout_seconds) || 300) * 1000;
+    report({ stage: "start", message: `Starting ${serverName}`, percent: 20 });
+    await remote.power.start();
+    await waitForGame(remote, startTimeoutMs, { onProgress: report });
+    await waitReady(remote, startTimeoutMs, { onProgress: report });
+    await query(
+      "UPDATE sync_jobs SET status = 'succeeded', result = $2::jsonb, finished_at = now() WHERE id = $1",
+      [job.id, JSON.stringify({ restart: true })]
+    );
+    report({ stage: "done", message: "Server started and ready", percent: 100 });
+    await appendJobLog(job.id, logLines, "Server started and reached ready.");
+    await createNotifications({
+      kind: "sync", instanceId, syncJobId: job.id,
+      title: `Server restarted: ${serverName}`,
+      body: "The server started and reached ready.",
+      userIds: await syncRecipients(userId),
+    });
+    await logActivity({
+      userId, action: "sync_restarted", subjectType: "instance", subjectId: instanceId,
+      meta: { target: serverName, job: job.id },
+    });
+    return { job, ok: true };
+  } catch (err) {
+    if (job) {
+      await appendJobLog(job.id, logLines, `ERROR ${err.message}`);
+      await query(
+        "UPDATE sync_jobs SET status = 'failed', result = $2::jsonb, finished_at = now() WHERE id = $1",
+        [job.id, JSON.stringify({ error: err.message })]
+      ).catch(() => {});
+      await createNotifications({
+        kind: "sync", instanceId, syncJobId: job.id,
+        title: `Server restart failed: ${serverName}`,
+        body: err.message,
+        userIds: await syncRecipients(userId),
+      }).catch(() => {});
+    }
+    return { job, ok: false, error: err.message };
   } finally {
     if (remote) await remote.close().catch(() => {});
     await release();

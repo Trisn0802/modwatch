@@ -11,6 +11,13 @@
     <p class="confirm-error" id="progress-error" role="alert" hidden></p>
   </div>
   <div class="dialog-foot progress-foot" id="progress-foot" hidden>
-    <a class="btn primary" id="progress-continue" href="/approvals">Continue to approvals</a>
+    <form class="progress-restart" id="progress-restart" method="post" hidden
+      data-confirm-title="Restart the server?"
+      data-confirm-label="Restart now"
+      data-confirm="Start the server now so the applied files take effect?">
+      {% include "partials/csrf.njk" %}
+      <button class="btn primary" type="submit">Restart now</button>
+    </form>
+    <a class="btn" id="progress-continue" href="/approvals">Continue to approvals</a>
   </div>
 </dialog>

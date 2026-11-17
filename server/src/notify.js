@@ -17,7 +17,7 @@ export function notificationTitle(kind, title) {
   return `${KIND_LABEL[kind] || "Notice"}: ${title}`;
 }
 
-export async function createNotifications({ kind, instanceId = null, modId = null, versionId = null, title, body = "", userIds = null, extra = {} }) {
+export async function createNotifications({ kind, instanceId = null, modId = null, versionId = null, syncJobId = null, title, body = "", userIds = null, extra = {} }) {
   let targets = userIds;
   if (!targets) {
     const { rows } = await query("SELECT id FROM users WHERE status = 'active'");
@@ -27,11 +27,11 @@ export async function createNotifications({ kind, instanceId = null, modId = nul
     let id = null;
     try {
       const { rows } = await query(
-        `INSERT INTO notifications (user_id, instance_id, mod_id, kind, version_id, title, body)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO notifications (user_id, instance_id, mod_id, kind, version_id, sync_job_id, title, body)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT DO NOTHING
          RETURNING id`,
-        [userId, instanceId, modId, kind, versionId, title, body]
+        [userId, instanceId, modId, kind, versionId, syncJobId, title, body]
       );
       id = rows[0]?.id ?? null;
     } catch (err) {
@@ -47,6 +47,7 @@ export async function createNotifications({ kind, instanceId = null, modId = nul
       instanceId,
       modId,
       versionId,
+      syncJobId,
       createdAt: new Date().toISOString(),
       ...extra,
     });

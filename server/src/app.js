@@ -89,6 +89,21 @@ try {
 }
 await ensureSettings();
 
+// A job that was running when the process stopped can never finish. Mark it
+// failed on boot so the job page and the target do not show a permanent
+// "running" state. The advisory lock is released when the process dies, so a
+// retry is possible right away.
+const interrupted = await query(
+  `UPDATE sync_jobs
+      SET status = 'failed',
+          result = COALESCE(result, '{}'::jsonb)
+                   || jsonb_build_object('interrupted', true,
+                                         'error', 'The app restarted before the job finished.'),
+          finished_at = now()
+    WHERE status IN ('queued', 'running')`
+);
+if (interrupted.rowCount) console.warn(`Marked ${interrupted.rowCount} interrupted sync job(s) as failed.`);
+
 // Small, one-time-ish backfill for icons on databases imported before icon_url
 // was persisted. It runs in the background and skips when nothing is missing.
 async function backfillIcons() {

@@ -4,8 +4,9 @@ import { query } from "../db.js";
 import { flash, requireAdmin } from "../middleware.js";
 import { instanceById } from "../queries.js";
 import { decryptSecret, encryptSecret, syncKeyReady } from "../sync/crypto.js";
+import { createNotifications } from "../notify.js";
 import { scanTarget, syncConnectionById, syncConnectionList, syncTargetById, syncTargetsForInstance, testSyncConnection } from "../sync/index.js";
-import { applyTarget } from "../sync/apply.js";
+import { applyTarget, restartTarget } from "../sync/apply.js";
 import { ampConfigured } from "../sync/drivers/amp.js";
 import { pterodactylConfigured } from "../sync/drivers/pterodactyl.js";
 import { normalizeFingerprint } from "../sync/drivers/sftp.js";
@@ -343,38 +344,167 @@ syncRouter.post("/instances/:id/servers/:targetId/apply", requireAdmin, async (r
   if (!instance) return next();
   const target = await syncTargetById(intParam(req.params.targetId)).catch(() => null);
   if (!target || target.instance_id !== instance.id) return next();
+  const userId = req.session.user.id;
   const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+  const json = req.get("X-Requested-With") === "fetch";
+  const restart = req.body.no_restart !== "1";
   try {
-    publishProgress(op, { stage: "start", message: "Starting the sync job", percent: 3 });
-    const result = await applyTarget(target.id, {
-      userId: req.session.user.id,
-      onProgress: (event) => publishProgress(op, event),
-    });
-    const jobId = result.job?.id;
-    if (!jobId) throw new Error("The sync job could not be created.");
-    if (result.ok) {
-      finishProgress(op, `${result.changes} change(s) applied; server is ready`);
-      flash(req, "ok", `${target.name}: ${result.changes} change(s) applied. Server reached ready.`);
-    } else {
-      if (result.rolledBack) {
-        const readyNote = result.restartedReady === false
-          ? "The server restarted but did not report ready again."
-          : "The previous files are running again.";
-        failProgress(op, result.error || "The apply was undone.", {
-          rolledBack: true,
-          restartedReady: result.restartedReady !== false,
-        });
-        flash(req, "error", `${target.name}: apply failed and was rolled back. ${readyNote} ${result.error}`);
-      } else {
-        failProgress(op, result.error || "The sync did not complete.");
-        flash(req, "error", `${target.name} failed. ${result.error}`);
-      }
+    const { rows: active } = await query(
+      `SELECT id FROM sync_jobs
+        WHERE target_id = $1 AND status IN ('queued', 'running')
+        ORDER BY id DESC LIMIT 1`,
+      [target.id]
+    );
+    if (active[0]) {
+      const message = "A sync job is already running for this target.";
+      if (json) return res.status(409).json({ ok: false, error: message });
+      flash(req, "error", message);
+      return res.redirect(`/instances/${instance.id}/servers/${target.id}`);
     }
-    res.redirect(`/sync-jobs/${jobId}`);
+
+    // Create the job before answering so the client gets an id immediately.
+    const { rows } = await query(
+      `INSERT INTO sync_jobs (target_id, user_id, mode, status, plan, started_at)
+       VALUES ($1,$2,'apply','queued','{}'::jsonb,now()) RETURNING *`,
+      [target.id, userId]
+    );
+    const job = rows[0];
+    const jobUrl = `/sync-jobs/${job.id}`;
+    publishProgress(op, { stage: "start", message: "Starting the sync job", percent: 3, jobId: job.id, jobUrl });
+    if (json) res.status(202).json({ ok: true, jobId: job.id, op, jobUrl });
+    else res.redirect(303, jobUrl);
+
+    // The response is already sent. A proxy can time out without killing the
+    // job, and the client can follow it on the progress stream or the job page.
+    setImmediate(() => {
+      applyTarget(target.id, {
+        userId,
+        jobId: job.id,
+        restart,
+        onProgress: (event) => publishProgress(op, {
+          ...event,
+          jobId: job.id,
+          jobUrl,
+          ...(event.stage === "done" && event.restartRequired
+            ? { restartUrl: `/instances/${instance.id}/servers/${target.id}/restart` }
+            : {}),
+        }),
+      })
+        .then((result) => {
+          if (result.ok) return;
+          const meta = result.rolledBack
+            ? { rolledBack: true, restartedReady: result.restartedReady !== false }
+            : {};
+          failProgress(op, result.error || "The sync did not complete.", { ...meta, jobId: job.id, jobUrl });
+        })
+        .catch(async (err) => {
+          await query(
+            "UPDATE sync_jobs SET status = 'failed', result = $2::jsonb, finished_at = now() WHERE id = $1",
+            [job.id, JSON.stringify({ error: err.message })]
+          ).catch(() => {});
+          await createNotifications({
+            kind: "sync", instanceId: instance.id, syncJobId: job.id,
+            title: `Sync failed: ${target.name}`,
+            body: err.message,
+            userIds: [userId],
+          }).catch(() => {});
+          failProgress(op, err.message || "The sync could not start.", { jobId: job.id, jobUrl });
+        });
+    });
   } catch (err) {
     failProgress(op, err.message);
+    if (json) return res.status(500).json({ ok: false, error: err.message });
     flash(req, "error", err.message || "The sync could not start.");
     res.redirect(`/instances/${instance.id}/servers/${target.id}`);
+  }
+});
+
+syncRouter.post("/instances/:id/servers/:targetId/restart", requireAdmin, async (req, res, next) => {
+  const instance = await instanceById(intParam(req.params.id)).catch(() => null);
+  if (!instance) return next();
+  const target = await syncTargetById(intParam(req.params.targetId)).catch(() => null);
+  if (!target || target.instance_id !== instance.id) return next();
+  const userId = req.session.user.id;
+  const op = isProgressOp(req.body.progress_op) ? req.body.progress_op : "";
+  const json = req.get("X-Requested-With") === "fetch";
+  try {
+    const { rows: active } = await query(
+      `SELECT id FROM sync_jobs
+        WHERE target_id = $1 AND status IN ('queued', 'running')
+        ORDER BY id DESC LIMIT 1`,
+      [target.id]
+    );
+    if (active[0]) {
+      const message = "A sync job is already running for this target.";
+      if (json) return res.status(409).json({ ok: false, error: message });
+      flash(req, "error", message);
+      return res.redirect(`/sync-jobs/${active[0].id}`);
+    }
+    const { rows } = await query(
+      `INSERT INTO sync_jobs (target_id, user_id, mode, status, plan, started_at)
+       VALUES ($1,$2,'restart','queued','{}'::jsonb,now()) RETURNING *`,
+      [target.id, userId]
+    );
+    const job = rows[0];
+    const jobUrl = `/sync-jobs/${job.id}`;
+    publishProgress(op, { stage: "start", message: "Starting the server", percent: 10, jobId: job.id, jobUrl });
+    if (json) res.status(202).json({ ok: true, jobId: job.id, op, jobUrl });
+    else res.redirect(303, jobUrl);
+
+    setImmediate(() => {
+      restartTarget(target.id, {
+        userId,
+        jobId: job.id,
+        onProgress: (event) => publishProgress(op, { ...event, jobId: job.id, jobUrl }),
+      })
+        .then((result) => {
+          if (!result.ok) failProgress(op, result.error || "The server did not start.", { jobId: job.id, jobUrl });
+        })
+        .catch(async (err) => {
+          await query(
+            "UPDATE sync_jobs SET status = 'failed', result = $2::jsonb, finished_at = now() WHERE id = $1",
+            [job.id, JSON.stringify({ error: err.message })]
+          ).catch(() => {});
+          await createNotifications({
+            kind: "sync", instanceId: instance.id, syncJobId: job.id,
+            title: `Server restart failed: ${target.name}`,
+            body: err.message,
+            userIds: [userId],
+          }).catch(() => {});
+          failProgress(op, err.message || "The server did not start.", { jobId: job.id, jobUrl });
+        });
+    });
+  } catch (err) {
+    failProgress(op, err.message);
+    if (json) return res.status(500).json({ ok: false, error: err.message });
+    flash(req, "error", err.message || "The server could not start.");
+    res.redirect(`/instances/${instance.id}/servers/${target.id}`);
+  }
+});
+
+syncRouter.get("/api/sync-jobs/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT j.id, j.status, j.result, t.instance_id, t.id AS target_id
+         FROM sync_jobs j JOIN sync_targets t ON t.id = j.target_id
+        WHERE j.id = $1`,
+      [intParam(req.params.id)]
+    );
+    const job = rows[0];
+    if (!job) return res.status(404).json({ ok: false, error: "That sync job no longer exists." });
+    const restartRequired = Boolean(job.result?.restart_required);
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      id: job.id,
+      status: job.status,
+      result: job.result || {},
+      restartRequired,
+      restartUrl: restartRequired ? `/instances/${job.instance_id}/servers/${job.target_id}/restart` : "",
+      jobUrl: `/sync-jobs/${job.id}`,
+    });
+  } catch (err) {
+    next(err);
   }
 });
 
