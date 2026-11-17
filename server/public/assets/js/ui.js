@@ -828,13 +828,18 @@
     }, 320);
   };
   window.addEventListener("pageshow", () => { topCount = 0; topFinish(); });
-  document.addEventListener("submit", topStart, true);
+  document.addEventListener("submit", (event) => {
+    // A form whose response is a file never navigates away, so the top bar
+    // would never get its finish event. Those forms opt out with data-download.
+    if (event.target instanceof HTMLFormElement && event.target.hasAttribute("data-download")) return;
+    topStart();
+  }, true);
   document.addEventListener("click", (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const link = event.target.closest("a[href]");
     if (!link) return;
     const href = link.getAttribute("href");
-    if (!href || href.startsWith("#") || link.target === "_blank" || link.hasAttribute("download")) return;
+    if (!href || href.startsWith("#") || link.target === "_blank" || link.hasAttribute("download") || link.hasAttribute("data-download")) return;
     try {
       const url = new URL(link.href, location.href);
       if (url.origin !== location.origin) return;
@@ -1181,6 +1186,38 @@
         return;
       }
 
+      if (mode === "download") {
+        // The server answers a fetch submit with the export URL instead of a
+        // redirect, so the dialog can finish and the file still downloads.
+        try {
+          const response = await fetch(action, {
+            method: "POST",
+            body: new URLSearchParams(new FormData(form)),
+            redirect: "follow",
+            headers: { "X-Requested-With": "fetch" },
+          });
+          let data = null;
+          try { data = await response.json(); } catch { data = null; }
+          if (!response.ok || !data?.ok) {
+            return finish("error", data?.error || `The server returned ${response.status}.`, location.href, "Reload the page");
+          }
+          const counts = data.counts || {};
+          const summary = `${counts.files ?? 0} index files and ${counts.overrides ?? 0} overrides ready.`;
+          finish("ok", summary, data.url, progressSource.dataset.progressDoneLabel || form.dataset.progressDoneLabel || "Download the file");
+          const link = document.createElement("a");
+          link.href = data.url;
+          link.download = "";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } catch (err) {
+          finish("error", err.message || "The request could not reach the server.", location.href, "Reload the page");
+        } finally {
+          topFinish();
+        }
+        return;
+      }
+
       let requestUrl = action;
       // These forms are plain urlencoded writes. FormData would switch the
       // request to multipart, which the server does not parse for them.
@@ -1240,6 +1277,7 @@
   for (const form of $$("form[data-progress-title]")) {
     if (form.hasAttribute("data-progress-upload")) bindProgress(form, "upload");
     else if (form.hasAttribute("data-progress-nav")) bindProgress(form, "nav");
+    else if (form.hasAttribute("data-progress-download")) bindProgress(form, "download");
     else bindProgress(form, "post");
   }
 

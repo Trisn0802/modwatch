@@ -101,7 +101,7 @@
   </div>
   <div class="filter-chips" data-facet-chips hidden></div>
 
-  <form id="share-zip-form" class="zip-form" method="post" action="/s/{{ instance.share_token }}/download-zip">
+  <form id="share-zip-form" class="zip-form" method="post" action="/s/{{ instance.share_token }}/download-zip" data-download>
     {% include "partials/csrf.njk" %}
   </form>
 

@@ -204,6 +204,7 @@ syncRouter.post("/instances/:id/servers", requireAdmin, async (req, res, next) =
     if (!instance) return next();
     const name = String(req.body.name || "").trim();
     const connectionId = intParam(req.body.connection_id);
+    const remoteRef = String(req.body.remote_ref || "").trim();
     const modsPath = String(req.body.mods_path || "mods").trim() || "mods";
     const removePolicy = req.body.remove_policy === "backup_then_remove" ? "backup_then_remove" : "never";
     const sides = [];
@@ -214,12 +215,21 @@ syncRouter.post("/instances/:id/servers", requireAdmin, async (req, res, next) =
       flash(req, "error", "A target name and connection are required.");
       return res.redirect(`/instances/${instance.id}/servers`);
     }
+    const { rows: connections } = await query("SELECT id, driver FROM sync_connections WHERE id = $1", [connectionId]);
+    if (!connections[0]) {
+      flash(req, "error", "That connection no longer exists.");
+      return res.redirect(`/instances/${instance.id}/servers`);
+    }
+    if (connections[0].driver === "pterodactyl" && !remoteRef) {
+      flash(req, "error", "A Pterodactyl target needs the server UUID from the panel.");
+      return res.redirect(`/instances/${instance.id}/servers`);
+    }
     await query(
       `INSERT INTO sync_targets
          (instance_id, connection_id, name, remote_ref, mods_path, sides, remove_policy, require_empty_server, start_timeout_seconds, keep_backups)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        instance.id, connectionId, name, String(req.body.remote_ref || "").trim(), modsPath, sides, removePolicy,
+        instance.id, connectionId, name, remoteRef, modsPath, sides, removePolicy,
         req.body.require_empty_server !== "0", intParam(req.body.start_timeout_seconds) || 300,
         intParam(req.body.keep_backups) || 5,
       ]
@@ -241,6 +251,11 @@ syncRouter.post("/instances/:id/servers/:targetId", requireAdmin, async (req, re
     if (!instance) return next();
     const target = await syncTargetById(intParam(req.params.targetId));
     if (!target || target.instance_id !== instance.id) return next();
+    const remoteRef = String(req.body.remote_ref || "").trim();
+    if (target.driver === "pterodactyl" && !remoteRef) {
+      flash(req, "error", "A Pterodactyl target needs the server UUID from the panel.");
+      return res.redirect(`/instances/${instance.id}/servers`);
+    }
     const sides = [];
     if (req.body.side_both === "1") sides.push("both");
     if (req.body.side_server === "1") sides.push("server");
@@ -249,7 +264,7 @@ syncRouter.post("/instances/:id/servers/:targetId", requireAdmin, async (req, re
       `UPDATE sync_targets SET name = $2, remote_ref = $3, mods_path = $4, sides = $5, remove_policy = $6,
           require_empty_server = $7, start_timeout_seconds = $8, keep_backups = $9 WHERE id = $1`,
       [
-        target.id, String(req.body.name || target.name).trim(), String(req.body.remote_ref || "").trim(),
+        target.id, String(req.body.name || target.name).trim(), remoteRef,
         String(req.body.mods_path || target.mods_path).trim(),
         sides, req.body.remove_policy === "backup_then_remove" ? "backup_then_remove" : "never",
         req.body.require_empty_server !== "0", intParam(req.body.start_timeout_seconds) || target.start_timeout_seconds,

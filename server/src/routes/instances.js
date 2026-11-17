@@ -704,8 +704,10 @@ instancesRouter.post("/instances/:id/share/revoke", async (req, res, next) => {
 });
 
 instancesRouter.post("/instances/:id/export", async (req, res, next) => {
+  const wantsJson = req.get("X-Requested-With") === "fetch";
   try {
     if (req.session.user.role !== "admin") {
+      if (wantsJson) return res.status(403).json({ ok: false, error: "Only an admin can generate an export." });
       flash(req, "error", "Only an admin can generate an export.");
       return res.redirect(`/instances/${intParam(req.params.id)}`);
     }
@@ -717,12 +719,21 @@ instancesRouter.post("/instances/:id/export", async (req, res, next) => {
       meta: { export: true, name: instance.name, counts: result.counts },
     });
     flash(req, "ok", `Export ready with ${result.counts.files} index files and ${result.counts.overrides} overrides.`);
+    if (wantsJson) {
+      return res.json({
+        ok: true,
+        url: `/exports/${result.token}/download`,
+        counts: { files: result.counts.files, overrides: result.counts.overrides, warnings: result.counts.warnings.length },
+      });
+    }
     res.redirect(`/exports/${result.token}/download`);
   } catch (err) {
-    if (err.code === "unsupported_loader") {
+    if (err.code === "unsupported_loader" || err.code === "missing_loader_version") {
+      if (wantsJson) return res.status(400).json({ ok: false, error: err.message });
       flash(req, "error", err.message);
       return res.redirect(`/instances/${intParam(req.params.id)}`);
     }
+    if (wantsJson) return res.status(500).json({ ok: false, error: "The export could not be built." });
     next(err);
   }
 });

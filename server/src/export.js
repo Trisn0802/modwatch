@@ -207,6 +207,13 @@ export async function buildExport(instance, { userId = null, includeFiles = fals
     err.code = "unsupported_loader";
     throw err;
   }
+  // A wildcard loader version is not resolvable by every launcher (FreesmLauncher
+  // rejects "forge": "*"), so an export needs the exact version this instance runs.
+  if (!String(instance.loader_version || "").trim()) {
+    const err = new Error(`Set the ${instance.loader} version on this instance before exporting. Other launchers cannot resolve a wildcard loader.`);
+    err.code = "missing_loader_version";
+    throw err;
+  }
   const [{ rows: mods }, { rows: unknown }, fileResult] = await Promise.all([
     query("SELECT * FROM mods WHERE instance_id = $1 AND status <> 'ignored' ORDER BY name", [instance.id]),
     query(
@@ -284,7 +291,7 @@ export async function buildExport(instance, { userId = null, includeFiles = fals
     if (file.fileSize != null) file.fileSize = Math.trunc(Number(file.fileSize));
   }
   const deps = { minecraft: instance.mc_version };
-  deps[loaderKey(instance.loader)] = instance.loader_version || "*";
+  deps[loaderKey(instance.loader)] = String(instance.loader_version).trim();
   const index = {
     formatVersion: 1,
     game: "minecraft",

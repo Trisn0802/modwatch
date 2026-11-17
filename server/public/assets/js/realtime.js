@@ -103,6 +103,15 @@
     if (canReload()) reloadPage();
   });
 
+  // A refresh that arrived while a dialog was open stays queued; flush it once
+  // the dialog closes instead of waiting for the next visibility change.
+  document.addEventListener("close", (event) => {
+    if (!pendingReload || !(event.target instanceof HTMLDialogElement)) return;
+    if (!canReload()) return;
+    pendingReload = false;
+    reloadPage();
+  }, true);
+
   // Restore the position after a realtime-triggered reload.
   try {
     const raw = sessionStorage.getItem("modwatch:realtime:scroll");

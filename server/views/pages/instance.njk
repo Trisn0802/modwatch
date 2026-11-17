@@ -64,17 +64,26 @@
         <a href="/instances/{{ instance.id }}/edit">{{ icon('pencil') }} Edit instance</a>
         <a href="/instances/{{ instance.id }}/import">{{ icon('upload') }} Import update</a>
         {% if isAdmin %}
-        <form method="post" action="/instances/{{ instance.id }}/export">{% include "partials/csrf.njk" %}<button type="submit" class="download">{{ icon('download') }} Export .mrpack</button></form>
+        <form method="post" action="/instances/{{ instance.id }}/export"
+          data-progress-title="Exporting .mrpack"
+          data-progress-message="Collecting jars, resolving hashes and writing the archive."
+          data-progress-steps="Collect project files|Resolve SHA-1 and SHA-512|Write the archive|Store the export"
+          data-progress-done-title="Export ready"
+          data-progress-done-label="Download .mrpack"
+          data-progress-download>
+          {% include "partials/csrf.njk" %}
+          <button type="submit" class="download">{{ icon('download') }} Export .mrpack</button>
+        </form>
         {% endif %}
-        <a class="download" href="/instances/{{ instance.id }}/export/latest">{{ icon('download') }} Download latest export</a>
+        <a class="download" href="/instances/{{ instance.id }}/export/latest" download>{{ icon('download') }} Download latest export</a>
         <div class="menu-sep"></div>
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <button type="submit" class="download" title="One zip with mods/, resourcepacks/, shaderpacks/ and datapacks/ folders">{{ icon('download') }} Download all files (.zip)</button>
         </form>
         {% if sourceCounts.modrinth %}
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="modrinth">
@@ -82,7 +91,7 @@
         </form>
         {% endif %}
         {% if sourceCounts.curseforge %}
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="curseforge">
@@ -90,7 +99,7 @@
         </form>
         {% endif %}
         {% if sourceCounts.github %}
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="github">
@@ -98,7 +107,7 @@
         </form>
         {% endif %}
         {% if sourceCounts.manual %}
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="source" value="manual">
@@ -107,7 +116,7 @@
         {% endif %}
         {% for option in kindOptions %}
         {% if option.count %}
-        <form method="post" action="/instances/{{ instance.id }}/download-zip">
+        <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
           <input type="hidden" name="kind" value="{{ option.value }}">
@@ -314,7 +323,7 @@
   </div>
 
   <div id="mod-results" aria-live="polite">
-  <form id="zip-form" class="zip-form" method="post" action="/instances/{{ instance.id }}/download-zip">
+  <form id="zip-form" class="zip-form" method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
     {% include "partials/csrf.njk" %}
   </form>
   {% if mods.length %}

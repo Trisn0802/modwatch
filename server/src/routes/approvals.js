@@ -99,7 +99,7 @@ approvalsRouter.post("/approvals/:id/approve", async (req, res, next) => {
       userId: req.session.user.id, action: "request_approved", subjectType: "request", subjectId: id,
       meta: { mod: request.payload.name, instance: request.instance_name },
     });
-    flash(req, "ok", `${request.payload.name} approved and added. A check is running.`);
+    flash(req, "ok", `${request.payload.name} approved and added. A check is running.${String(req.body.note || "").trim() ? ` Note: ${String(req.body.note).trim()}` : ""}`);
     res.redirect("/approvals");
   } catch (err) {
     if (err.code === "23505") {
@@ -151,7 +151,7 @@ approvalsRouter.post("/approvals/roles/:id/approve", async (req, res, next) => {
       userId: req.session.user.id, action: "role_approved", subjectType: "role_request", subjectId: id,
       meta: { user: request.requester_name, email: request.requester_email, note },
     });
-    flash(req, "ok", `${request.requester_name} is now an admin.`);
+    flash(req, "ok", `${request.requester_name} is now an admin.${note ? ` Note: ${note}` : ""}`);
     res.redirect("/approvals");
   } catch (err) {
     next(err);
@@ -189,7 +189,7 @@ approvalsRouter.post("/approvals/roles/:id/reject", async (req, res, next) => {
       userId: req.session.user.id, action: "role_rejected", subjectType: "role_request", subjectId: id,
       meta: { user: request.requester_name, email: request.requester_email, note },
     });
-    flash(req, "ok", `Admin request from ${request.requester_name} declined.`);
+    flash(req, "ok", `Admin request from ${request.requester_name} declined.${note ? ` Note: ${note}` : ""}`);
     res.redirect("/approvals");
   } catch (err) {
     next(err);
@@ -227,7 +227,7 @@ approvalsRouter.post("/approvals/:id/reject", async (req, res, next) => {
       userId: req.session.user.id, action: "request_rejected", subjectType: "request", subjectId: id,
       meta: { mod: request.payload.name, instance: request.instance_name, note },
     });
-    flash(req, "ok", `Request for ${request.payload.name} rejected.`);
+    flash(req, "ok", `Request for ${request.payload.name} rejected.${note ? ` Note: ${note}` : ""}`);
     res.redirect("/approvals");
   } catch (err) {
     next(err);

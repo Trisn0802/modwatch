@@ -285,9 +285,11 @@ app.post("/pusher/auth", (req, res) => {
 });
 
 // Every successful write gets a scope event after the response is sent. Reads
-// (GET) stay silent so a page reload cannot trigger another reload.
+// (GET) stay silent so a page reload cannot trigger another reload. The event
+// goes to the in-process bus even when Pusher is not configured, so the SSE
+// fallback keeps a self-hosted install live.
 app.use((req, res, next) => {
-  if (!realtimeEnabled() || req.method !== "POST" || !req.session.user) return next();
+  if (req.method !== "POST" || !req.session.user) return next();
   if (["/login", "/logout", "/pusher/auth"].includes(req.path)) return next();
   res.on("finish", () => {
     if (res.statusCode >= 400) return;

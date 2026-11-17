@@ -90,7 +90,12 @@
         </div>
       </div>
       {% if request.note %}<p class="faint" style="margin-top:10px;font-size:10.5px">“{{ request.note }}”</p>{% endif %}
-      <form class="request-forms" method="post" action="/approvals/roles/{{ request.id }}/approve">
+      <form class="request-forms" method="post" action="/approvals/roles/{{ request.id }}/approve"
+        data-progress-title="Deciding on {{ request.requester_name }}"
+        data-progress-message="Saving the decision and notifying {{ request.requester_name }}."
+        data-progress-steps="Save the decision|Update the account|Notify the member|Reload approvals"
+        data-progress-done-title="Decision saved"
+        data-progress-done-label="Back to approvals">
         {% include "partials/csrf.njk" %}
         <label class="sr-only" for="role-note-{{ request.id }}">Decision note</label>
         <input class="input" id="role-note-{{ request.id }}" name="note" type="text" placeholder="Optional note back to {{ request.requester_name }}">

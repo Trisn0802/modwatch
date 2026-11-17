@@ -7,6 +7,7 @@ import { scheduleNext, schedulerState } from "../scheduler.js";
 import { clearSourceCache } from "../sources/http.js";
 import { telegramSend, createNotifications } from "../notify.js";
 import { createRoleRequest } from "../role-requests.js";
+import { broadcastRefresh } from "../realtime.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
 import { CHANNEL } from "../labels.js";
@@ -244,6 +245,9 @@ settingsRouter.post("/settings/account/request-admin", async (req, res, next) =>
       subjectId: request.id,
       meta: { role: "admin", note },
     });
+    // The write happened on /settings, so the generic middleware broadcasts a
+    // "settings" refresh. Approvals needs its own scope to update live.
+    await broadcastRefresh("approvals", { reason: "role_request", requestId: request.id }).catch(() => {});
     flash(req, "ok", "Admin request sent. An admin will review it on Approvals.");
     res.redirect("/settings/account");
   } catch (err) {
