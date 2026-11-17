@@ -327,6 +327,18 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
         })),
       };
     }
+    const actionCounts = new Map();
+    for (const item of viewSummary?.items || []) {
+      if (!item?.action) continue;
+      actionCounts.set(item.action, (actionCounts.get(item.action) || 0) + 1);
+    }
+    const actionOptions = [...actionCounts.entries()]
+      .map(([value, count]) => ({
+        value,
+        label: value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " "),
+        count,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
     const connection = await syncConnectionById(target.connection_id);
     const powerReady = connection.driver === "pterodactyl"
       ? pterodactylConfigured(connection) && Boolean(target.remote_ref)
@@ -337,6 +349,7 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
       instance,
       target,
       summary: viewSummary,
+      actionOptions,
       powerReady,
       isAdmin: req.session.user.role === "admin",
     });

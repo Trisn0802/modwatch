@@ -39,7 +39,7 @@
     if (!item || !item.open || item.classList.contains("is-closing")) return;
     const summary = item.querySelector("summary");
     const done = () => {
-      const formPanel = formPanels.get(item) || item.querySelector(".pop-panel-form");
+      const formPanel = formPanels.get(item) || item.querySelector(".pop-panel-float");
       if (formPanel) {
         resetFormPanel(formPanel);
         item.appendChild(formPanel);
@@ -59,9 +59,9 @@
     for (const item of popovers) if (item !== except) closePopover(item);
   }
 
-  // The Edit target form is a long panel. Give it the same fixed, clamped
-  // placement as the custom select instead of a 360px box that can leave the
-  // viewport on a phone.
+  // Floating panels (the Edit target form and filter popovers) use the same
+  // fixed, clamped placement as the custom select instead of an absolute box
+  // that can leave the viewport on a phone.
   function positionFormPanel(item, panel) {
     if (!item?.open || !panel) return;
     const summary = item.querySelector("summary");
@@ -112,8 +112,8 @@
   }
 
   const repositionFormPanels = (event) => {
-    if (event?.target instanceof Element && event.target.closest(".pop-panel-form")) return;
-    for (const panel of $$(".pop-panel-form")) {
+    if (event?.target instanceof Element && event.target.closest(".pop-panel-float")) return;
+    for (const panel of $$(".pop-panel-float")) {
       const item = formPanelOwners.get(panel) || panel.closest("details.pop");
       if (item?.open) positionFormPanel(item, panel);
     }
@@ -132,19 +132,17 @@
       summary.setAttribute("aria-expanded", "true");
       item.classList.remove("is-closing");
       const panel = item.querySelector(".pop-panel, .user-pop-panel, .menu-panel");
-      if (panel?.classList.contains("pop-panel-form")) {
+      if (panel?.classList.contains("pop-panel-float")) {
         formPanels.set(item, panel);
         formPanelOwners.set(panel, item);
         document.body.appendChild(panel);
+        positionFormPanel(item, panel);
       }
       if (panel && !reduceMotion.matches) {
         panel.classList.remove("pop-in");
         void panel.offsetWidth;
         panel.classList.add("pop-in");
         window.setTimeout(() => panel.classList.remove("pop-in"), 1100);
-      }
-      if (panel?.classList.contains("pop-panel-form")) {
-        requestAnimationFrame(() => positionFormPanel(item, panel));
       }
     });
     const panel = item.querySelector(".menu-panel");
@@ -622,7 +620,7 @@
     });
   }
 
-  // --- faceted filters: text + kind + source (public share table) -----------
+  // --- faceted filters: text + kind + source + action -----------------------
   for (const scope of $$("[data-facet-filter]")) {
     const target = $(scope.dataset.facetTarget || "");
     if (!target) continue;
@@ -630,6 +628,8 @@
     const search = $("[data-facet-search]", scope);
     const kinds = $$("[data-facet-kind]", scope);
     const sources = $$("[data-facet-source]", scope);
+    const actions = $$("[data-facet-action]", scope);
+    const allFilters = [...kinds, ...sources, ...actions];
     const count = $("[data-facet-count]", scope);
     const badge = $("[data-facet-count-badge]", scope);
     const chips = $("[data-facet-chips]", scope);
@@ -658,11 +658,13 @@
       const needle = (search?.value || "").trim().toLowerCase();
       const pickedKinds = checked(kinds);
       const pickedSources = checked(sources);
+      const pickedActions = checked(actions);
       let shown = 0;
       for (const row of rows) {
         const hit = (!needle || row.textContent.toLowerCase().includes(needle))
           && (!pickedKinds.length || pickedKinds.includes(row.dataset.kind))
-          && (!pickedSources.length || pickedSources.includes(row.dataset.source));
+          && (!pickedSources.length || pickedSources.includes(row.dataset.source))
+          && (!pickedActions.length || pickedActions.includes(row.dataset.action));
         row.hidden = !hit;
         if (hit) shown += 1;
         else {
@@ -675,7 +677,7 @@
           ? `${shown} ${noun}${shown === 1 ? "" : "s"}`
           : `${shown} of ${total} ${noun}${total === 1 ? "" : "s"}`;
       }
-      const activeCount = pickedKinds.length + pickedSources.length;
+      const activeCount = pickedKinds.length + pickedSources.length + pickedActions.length;
       if (badge) {
         badge.textContent = String(activeCount);
         badge.hidden = activeCount === 0;
@@ -686,6 +688,7 @@
         const active = [
           ...kinds.filter((input) => input.checked).map((input) => ({ input, label: labelFor(input) })),
           ...sources.filter((input) => input.checked).map((input) => ({ input, label: labelFor(input) })),
+          ...actions.filter((input) => input.checked).map((input) => ({ input, label: labelFor(input) })),
         ];
         chips.hidden = active.length === 0;
         if (active.length) {
@@ -704,7 +707,7 @@
           clear.className = "chip chip-clear";
           clear.textContent = "Clear all";
           clear.addEventListener("click", () => {
-            for (const input of [...kinds, ...sources]) input.checked = false;
+            for (const input of allFilters) input.checked = false;
             if (search) search.value = "";
             apply();
           });
@@ -715,9 +718,9 @@
     };
 
     search?.addEventListener("input", apply);
-    for (const input of [...kinds, ...sources]) input.addEventListener("change", apply);
+    for (const input of allFilters) input.addEventListener("change", apply);
     $("[data-facet-clear]", scope)?.addEventListener("click", () => {
-      for (const input of [...kinds, ...sources]) input.checked = false;
+      for (const input of allFilters) input.checked = false;
       if (search) search.value = "";
       apply();
     });

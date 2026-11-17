@@ -525,7 +525,7 @@ code, .mono { font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Men
   overflow: hidden;
   z-index: 40;
 }
-.pop-panel-form {
+.pop-panel-float {
   width: min(360px, calc(100vw - 24px));
   max-height: min(70vh, 560px);
   overflow-y: auto;
