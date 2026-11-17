@@ -1797,7 +1797,7 @@ select option {
 .notif-art.account { background: var(--pill-info-bg); color: var(--pill-info-ink); }
 .notif-art.sync { background: var(--pill-warning-bg); color: var(--pill-warning-ink); }
 .notif-art-tag {
-  position: absolute; right: 3px; bottom: 3px;
+  position: absolute; bottom: 2px;
   padding: 1px 4px; border-radius: 4px;
   background: color-mix(in srgb, var(--ground) 82%, transparent);
   color: var(--text); font-size: 7.5px; font-weight: 600;
