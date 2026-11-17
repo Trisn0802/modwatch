@@ -44,6 +44,22 @@ A scan plus backup, stop, upload, start, ready check and rollback if the
 restored server cannot run.
 _Avoid_: sync, deploy, push
 
+**Apply only**:
+An apply that uploads and verifies the files without restarting the game
+server. The new files do not take effect until someone restarts the server.
+_Avoid_: partial apply, no-restart apply
+
+**Apply and restart**:
+An apply that restarts the game server after uploading and checks that it
+reaches ready. This is the default.
+_Avoid_: full apply, restart mode
+
+**Account change**:
+An admin-initiated change to another account's name, email, role, status,
+password or photo, announced to that account with a before/after summary and
+an optional reason.
+_Avoid_: user edit, profile update
+
 **Job**:
 One recorded apply, with per-file items, a log and a final status:
 succeeded, rolled_back or failed.
