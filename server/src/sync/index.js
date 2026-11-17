@@ -124,7 +124,13 @@ export async function scanTarget(targetId, { onProgress } = {}) {
     const cache = new Map(cached.map((row) => [row.path, row]));
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index];
-      const prior = cache.get(file.path);
+      // Drivers must report the path relative to the connection base. Keep a
+      // fallback so one driver omission cannot take the whole scan down.
+      const relative = [String(target.mods_path || "mods").replace(/^\/+|\/+$/g, ""), file.name]
+        .filter(Boolean)
+        .join("/");
+      const filePath = file.path || relative;
+      const prior = cache.get(filePath);
       let sha1 = "";
       if (prior && Number(prior.size) === Number(file.size) && prior.sha1) {
         sha1 = prior.sha1;
@@ -134,11 +140,11 @@ export async function scanTarget(targetId, { onProgress } = {}) {
           message: `Hashing ${file.name} (${index + 1}/${files.length})`,
           percent: 25 + Math.round(((index + 1) / Math.max(1, files.length)) * 55),
         });
-        const hashed = await remote.files.hash(file.path);
+        const hashed = await remote.files.hash(filePath);
         sha1 = hashed.sha1;
         file.size = hashed.size;
       }
-      observed.push({ ...file, sha1 });
+      observed.push({ ...file, path: filePath, sha1 });
     }
   } finally {
     await remote.close();

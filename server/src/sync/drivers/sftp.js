@@ -1,11 +1,20 @@
 import crypto from "node:crypto";
 import SftpClient from "ssh2-sftp-client";
 
-function cleanPath(basePath, dir) {
+function cleanPath(basePath, dir, { allowEmpty = false } = {}) {
   const base = String(basePath || "").replace(/\/+$/g, "");
-  const part = String(dir || "").replace(/^\/+/g, "");
+  const raw = String(dir || "").trim();
+  // Every path is relative to the connection's SFTP home. An absolute path
+  // would be prefixed to basePath and silently point somewhere else.
+  if (raw.startsWith("/")) throw new Error("Use a path relative to the SFTP home, not an absolute path.");
+  const part = raw.replace(/^\/+/g, "");
+  if (!part) {
+    // Listing the base itself is valid; a file operation without a name is not.
+    if (allowEmpty) return base;
+    throw new Error("The remote path is missing.");
+  }
   const full = base ? `${base}/${part}` : part;
-  if (!full || full.split("/").includes("..")) throw new Error("The remote path is not safe.");
+  if (full.split("/").includes("..")) throw new Error("The remote path is not safe.");
   return full;
 }
 
@@ -61,10 +70,15 @@ export async function listFiles(client, connection, dir) {
 }
 
 export async function listDir(client, connection, dir) {
-  const remote = cleanPath(connection.config?.basePath, dir);
+  const raw = String(dir || "").trim();
+  if (raw.startsWith("/")) throw new Error("Use a path relative to the SFTP home, not an absolute path.");
+  const wanted = raw.replace(/^\/+|\/+$/g, "");
+  const remote = cleanPath(connection.config?.basePath, wanted, { allowEmpty: true });
   const entries = await client.list(remote);
   return (entries || []).map((entry) => ({
     name: entry.name,
+    // Relative to the connection base so remotePath() can prepend it once.
+    path: wanted ? `${wanted}/${entry.name}` : entry.name,
     type: entry.type,
     size: Number(entry.size) || 0,
     modifiedAt: entry.modifyTime ? new Date(entry.modifyTime).toISOString() : null,
