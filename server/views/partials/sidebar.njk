@@ -18,15 +18,15 @@
   <nav class="sidebar-nav">
     <div class="nav-group">
       <p class="nav-label">Watch</p>
-      <a class="nav-item" href="/" {% if path == '/' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/" data-label="Overview" {% if path == '/' %}aria-current="page"{% endif %}>
         {{ icon('overview') }}<span>Overview</span>
       </a>
-      <a class="nav-item" href="/instances" {% if area == 'instances' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/instances" data-label="Instances" {% if area == 'instances' %}aria-current="page"{% endif %}>
         {{ icon('instances') }}<span>Instances</span>
         {% if nav.updates %}<span class="nav-dot" title="{{ nav.updates }} update{% if nav.updates != 1 %}s{% endif %} waiting" aria-label="{{ nav.updates }} update{% if nav.updates != 1 %}s{% endif %} waiting"></span>{% endif %}
       </a>
       {% if isAdmin %}
-      <a class="nav-item" href="/approvals" {% if area == 'approvals' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/approvals" data-label="Approvals" {% if area == 'approvals' %}aria-current="page"{% endif %}>
         {{ icon('approvals') }}<span>Approvals</span>
         {% if pendingRequests %}<span class="count">{{ pendingRequests }}</span>{% endif %}
       </a>
@@ -35,11 +35,11 @@
 
     <div class="nav-group">
       <p class="nav-label">Signals</p>
-      <a class="nav-item" href="/notifications" {% if area == 'notifications' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/notifications" data-label="Notifications" {% if area == 'notifications' %}aria-current="page"{% endif %}>
         {{ icon('bell') }}<span>Notifications</span>
         {% if nav.unread %}<span class="count">{{ nav.unread }}</span>{% endif %}
       </a>
-      <a class="nav-item" href="/activity" {% if area == 'activity' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/activity" data-label="Activity" {% if area == 'activity' %}aria-current="page"{% endif %}>
         {{ icon('activity') }}<span>Activity</span>
       </a>
     </div>
@@ -47,14 +47,14 @@
     <div class="nav-group">
       <p class="nav-label">Control</p>
       {% if isAdmin %}
-      <a class="nav-item" href="/settings" {% if area == 'settings' and section != 'account' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/settings" data-label="Settings" {% if area == 'settings' and section != 'account' %}aria-current="page"{% endif %}>
         {{ icon('settings') }}<span>Settings</span>
       </a>
-      <a class="nav-item" href="/users" {% if area == 'users' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/users" data-label="Users" {% if area == 'users' %}aria-current="page"{% endif %}>
         {{ icon('users') }}<span>Users</span>
       </a>
       {% else %}
-      <a class="nav-item" href="/settings/account" {% if area == 'settings' %}aria-current="page"{% endif %}>
+      <a class="nav-item" href="/settings/account" data-label="Account" {% if area == 'settings' %}aria-current="page"{% endif %}>
         {{ icon('settings') }}<span>Account</span>
       </a>
       {% endif %}
@@ -73,7 +73,7 @@
     </div>
     {% if currentUser %}
     <details class="user-pop" id="user-pop">
-      <summary class="user-chip" aria-label="{{ currentUser.name | initials }} — profile menu for {{ currentUser.name }}">
+      <summary class="user-chip" data-label="Profile — {{ currentUser.name }}" aria-label="{{ currentUser.name | initials }} — profile menu for {{ currentUser.name }}">
         {{ avatar(currentUser) }}
         <span class="user-meta">
           <span class="user-name">{{ currentUser.name }}</span>

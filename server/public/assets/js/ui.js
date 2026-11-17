@@ -3,29 +3,122 @@
   const $ = (selector, scope = document) => scope.querySelector(selector);
   const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
 
-  // --- phone navigation sheet ------------------------------------------------
+  // --- sidebar: desktop collapse rail + mobile sheet -------------------------
   const sidebar = $("#sidebar");
   const scrim = $("#sidebar-scrim");
   const closeButtons = $$("[data-sidebar-close]");
+  const sidebarToggle = $("#sidebar-toggle");
+  const desktopQuery = window.matchMedia("(min-width: 981px)");
+  const sidebarKey = "modwatch.sidebar";
+
+  function isDesktop() {
+    return desktopQuery.matches;
+  }
+
+  function isCollapsed() {
+    return document.documentElement.dataset.sidebar === "collapsed";
+  }
+
+  function updateSidebarToggle() {
+    if (!sidebarToggle) return;
+    const desktop = isDesktop();
+    const expanded = desktop ? !isCollapsed() : Boolean(sidebar?.classList.contains("open"));
+    const label = desktop
+      ? (expanded ? "Collapse navigation" : "Expand navigation")
+      : (expanded ? "Close navigation" : "Open navigation");
+    sidebarToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    sidebarToggle.setAttribute("aria-label", label);
+    sidebarToggle.setAttribute("title", label);
+  }
+
+  function setCollapsed(collapsed) {
+    document.documentElement.dataset.sidebar = collapsed ? "collapsed" : "expanded";
+    try { localStorage.setItem(sidebarKey, collapsed ? "collapsed" : "expanded"); } catch {}
+    updateSidebarToggle();
+    hideSidebarTooltip();
+    for (const item of popovers) if (item.open) closePopover(item);
+  }
 
   function setSidebar(open) {
     if (!sidebar) return;
     sidebar.classList.toggle("open", open);
     document.body.classList.toggle("sheet-open", open);
     if (scrim) scrim.hidden = !open;
-    $("#sidebar-toggle")?.setAttribute("aria-expanded", open ? "true" : "false");
+    updateSidebarToggle();
     if (open) {
       const first = sidebar.querySelector("a, button");
       if (first) first.focus({ preventScroll: true });
     } else {
-      $("#sidebar-toggle")?.focus({ preventScroll: true });
+      sidebarToggle?.focus({ preventScroll: true });
     }
   }
 
-  $("#sidebar-toggle")?.addEventListener("click", () => setSidebar(!sidebar?.classList.contains("open")));
+  sidebarToggle?.addEventListener("click", () => {
+    if (isDesktop()) setCollapsed(!isCollapsed());
+    else setSidebar(!sidebar?.classList.contains("open"));
+  });
   scrim?.addEventListener("click", () => setSidebar(false));
   for (const button of closeButtons) button.addEventListener("click", () => setSidebar(false));
-  $$("#sidebar a").forEach((link) => link.addEventListener("click", () => setSidebar(false)));
+  $$("#sidebar a").forEach((link) => link.addEventListener("click", () => {
+    if (!isDesktop()) setSidebar(false);
+  }));
+
+  // Floating label for the icon-only rail. Fixed, so the nav's own scroll
+  // container cannot clip it.
+  const sidebarTooltip = $("#sidebar-tooltip");
+  let tooltipTarget = null;
+  let tooltipHideTimer = null;
+
+  function hideSidebarTooltip() {
+    if (!sidebarTooltip) return;
+    tooltipTarget = null;
+    window.clearTimeout(tooltipHideTimer);
+    sidebarTooltip.classList.remove("is-visible");
+    tooltipHideTimer = window.setTimeout(() => {
+      if (!tooltipTarget && !sidebarTooltip.classList.contains("is-visible")) sidebarTooltip.hidden = true;
+    }, 160);
+  }
+
+  function showSidebarTooltip(target) {
+    if (!sidebarTooltip || !target || !isDesktop() || !isCollapsed()) return;
+    const label = target.dataset.label || target.querySelector("span")?.textContent?.trim();
+    if (!label) return;
+    tooltipTarget = target;
+    window.clearTimeout(tooltipHideTimer);
+    sidebarTooltip.textContent = label;
+    sidebarTooltip.hidden = false;
+    const box = target.getBoundingClientRect();
+    const tooltip = sidebarTooltip.getBoundingClientRect();
+    let left = box.right + 10;
+    left = Math.max(8, Math.min(left, window.innerWidth - tooltip.width - 8));
+    let top = box.top + (box.height - tooltip.height) / 2;
+    top = Math.max(8, Math.min(top, window.innerHeight - tooltip.height - 8));
+    const arrow = Math.max(8, Math.min(tooltip.height - 8, box.top + box.height / 2 - top));
+    sidebarTooltip.style.left = `${Math.round(left)}px`;
+    sidebarTooltip.style.top = `${Math.round(top)}px`;
+    sidebarTooltip.style.setProperty("--arrow-y", `${Math.round(arrow)}px`);
+    if (!sidebarTooltip.classList.contains("is-visible")) {
+      requestAnimationFrame(() => {
+        if (tooltipTarget === target) sidebarTooltip.classList.add("is-visible");
+      });
+    }
+  }
+
+  for (const target of $$(".sidebar-nav .nav-item[data-label], .sidebar .user-chip[data-label]")) {
+    target.addEventListener("pointerenter", () => showSidebarTooltip(target));
+    target.addEventListener("pointerleave", hideSidebarTooltip);
+    target.addEventListener("focus", () => showSidebarTooltip(target));
+    target.addEventListener("blur", hideSidebarTooltip);
+  }
+  const userPop = $("#user-pop");
+  userPop?.addEventListener("toggle", () => { if (userPop.open) hideSidebarTooltip(); });
+  window.addEventListener("scroll", hideSidebarTooltip, true);
+  window.addEventListener("resize", () => {
+    hideSidebarTooltip();
+    if (isDesktop() && sidebar?.classList.contains("open")) setSidebar(false);
+    updateSidebarToggle();
+  });
+  updateSidebarToggle();
 
   // --- popovers built on <details> ------------------------------------------
   const popovers = $$("details.pop, details.user-pop, details.menu");

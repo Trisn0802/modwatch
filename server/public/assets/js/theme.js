@@ -5,6 +5,11 @@
   const LIGHT = window.matchMedia("(prefers-color-scheme: light)");
   const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)");
   const root = document.documentElement;
+  // The sidebar collapse is a shell preference. Apply it before the first
+  // paint so a collapsed sidebar never flashes expanded on reload.
+  try {
+    if (localStorage.getItem("modwatch.sidebar") === "collapsed") root.dataset.sidebar = "collapsed";
+  } catch {}
   const paint = { oled: "#000000", dark: "#0e0f12", light: "#f7f8f9" };
   const ICONS = {
     oled: '<circle cx="8" cy="8" r="5.4" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.6v10.8" stroke="currentColor" stroke-width="1.5"/>',
