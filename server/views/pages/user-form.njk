@@ -80,7 +80,7 @@
           {% if editing %}
           <div class="field full">
             <label for="reason">Reason for change <span class="faint">optional</span></label>
-            <textarea class="admin-note" id="reason" name="reason" maxlength="500" placeholder="Tell the account holder why this change was made"></textarea>
+            <textarea class="admin-note" id="reason" name="reason" maxlength="500" placeholder="Tell the account holder why this change was made">{{ account.reason or '' }}</textarea>
             <p class="hint">Shown in the notification this account receives.</p>
           </div>
           {% endif %}
