@@ -440,7 +440,14 @@
   }
   for (const dialog of $$("dialog")) {
     dialog.addEventListener("click", (event) => {
-      if (event.target === dialog) closeDialog(dialog);
+      if (event.target !== dialog || dialog.classList.contains("is-closing")) return;
+      // A backdrop click is almost always accidental. Keep the dialog open and
+      // answer with a short zoom pulse instead of closing and reopening it.
+      if (reduceMotion.matches) return;
+      dialog.classList.remove("is-nudge");
+      void dialog.offsetWidth;
+      dialog.classList.add("is-nudge");
+      dialog.addEventListener("animationend", () => dialog.classList.remove("is-nudge"), { once: true });
     });
     for (const closer of $$("[data-dialog-close]", dialog)) {
       closer.addEventListener("click", () => closeDialog(dialog));
@@ -450,7 +457,7 @@
     if (event.key !== "Escape") return;
     if (sidebar?.classList.contains("open")) setSidebar(false);
     const open = $("dialog[open]");
-    if (open) closeDialog(open);
+    if (open && !open.hasAttribute("data-static")) closeDialog(open);
   });
 
   // --- the "unknown mod detected" dialog ------------------------------------
