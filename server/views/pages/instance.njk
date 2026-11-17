@@ -82,7 +82,7 @@
           <input type="hidden" name="all" value="1">
           <button type="submit" class="download" title="One zip with mods/, resourcepacks/, shaderpacks/ and datapacks/ folders">{{ icon('download') }} Download all files (.zip)</button>
         </form>
-        {% if sourceCounts.modrinth %}
+        {# {% if sourceCounts.modrinth %}
         <form method="post" action="/instances/{{ instance.id }}/download-zip" data-download>
           {% include "partials/csrf.njk" %}
           <input type="hidden" name="all" value="1">
@@ -123,7 +123,7 @@
           <button type="submit" class="download">{{ icon('download') }} {{ option.label }} ({{ option.count }})</button>
         </form>
         {% endif %}
-        {% endfor %}
+        {% endfor %} #}
         <div class="menu-sep"></div>
         {% if instance.share_token %}
         <a href="/s/{{ instance.share_token }}" target="_blank" rel="noopener">{{ icon('link') }} Open share page</a>
