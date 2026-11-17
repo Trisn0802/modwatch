@@ -1,5 +1,8 @@
 {% extends "layout.njk" %}
 {% from "partials/icon.njk" import icon %}
+{% from "partials/kind-badge.njk" import kindBadge %}
+{% from "partials/status-badge.njk" import statusBadges %}
+{% from "partials/source-icon.njk" import sourceIcon %}
 
 {% block content %}
 <a class="backlink" href="/instances/{{ instance.id }}/servers">{{ icon('arrow-left') }} Servers</a>
@@ -82,14 +85,57 @@
     <span class="count-note">{{ summary.items.length }} row{% if summary.items.length != 1 %}s{% endif %}</span>
   </div>
   <div class="table-wrap scroll-list">
-    <table class="board">
+    <table class="board mods-board">
       <thead><tr><th>Project</th><th>ModWatch</th><th>Server file</th><th>Action</th><th class="hide-sm">Reason</th></tr></thead>
       <tbody>
         {% for item in summary.items %}
-        <tr>
-          <td><span class="cell-main">{{ item.name }}</span>{% if item.remoteSize %}<span class="cell-sub">{{ item.remoteSize | fileSize }}</span>{% endif %}</td>
-          <td class="faint">{{ item.version or '—' }}</td>
-          <td class="mono-sm">{{ item.oldFile or item.file or 'missing' }}</td>
+        {% set mod = item.mod %}
+        <tr class="{% if mod and mod.disabled %}is-disabled{% endif %}">
+          <td>
+            <div class="mod-cell">
+              {% if mod %}
+                {% set art = mod | modIcon %}
+                <span class="mod-thumb">
+                  {% if art %}
+                  <img class="mod-icon" src="{{ art }}" alt="" width="48" height="48" loading="lazy" data-fallback="{{ mod.name | initials }}">
+                  {% else %}
+                  <span class="mod-icon fallback">{{ mod.name | initials }}</span>
+                  {% endif %}
+                  {{ statusBadges(mod.status, mod.disabled) }}
+                </span>
+                <span class="mod-copy">
+                  <a class="mod-name" href="/mods/{{ mod.id }}">{{ item.name }}</a>
+                  <span class="mod-file">{{ item.file or item.oldFile or 'missing' }}</span>
+                  <span class="mod-meta-line">
+                    {{ kindBadge(mod.kind) }}
+                    {% set src = mod.source | sourceMeta %}
+                    <span class="source-label {{ mod.source }}">{{ sourceIcon(mod.source) }}{{ src.label }}</span>
+                  </span>
+                </span>
+              {% else %}
+                <span class="mod-thumb"><span class="mod-icon fallback">{{ icon('file') }}</span></span>
+                <span class="mod-copy">
+                  <span class="mod-name">{{ item.name }}</span>
+                  <span class="mod-file">{{ item.remotePath or item.file or item.name }}</span>
+                  <span class="mod-meta-line"><span class="faint">On the server only</span></span>
+                </span>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            {% if item.version %}
+            <span class="vshift same"><span class="to">{{ item.version }}</span></span>
+            {% else %}
+            <span class="faint">—</span>
+            {% endif %}
+          </td>
+          <td class="mono-sm">
+            {% if item.oldFile and item.file and item.oldFile != item.file %}
+            {{ item.oldFile }} <span class="faint">→</span> {{ item.file }}
+            {% else %}
+            {{ item.oldFile or item.file or 'missing' }}
+            {% endif %}
+          </td>
           <td><span class="pill {% if item.action == 'add' or item.action == 'enable' %}pos{% elif item.action == 'replace' or item.action == 'disable' %}warn{% elif item.action == 'blocked' %}neg{% else %}muted{% endif %}">{{ item.action }}</span></td>
           <td class="hide-sm faint">{{ item.reason or '—' }}</td>
         </tr>

@@ -307,6 +307,26 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
     const target = await syncTargetById(intParam(req.params.targetId));
     if (!target || target.instance_id !== instance.id) return next();
     const summary = target.last_scan_summary || null;
+    let viewSummary = summary;
+    if (summary?.items?.length) {
+      // Resolve icons and metadata at render time so an old scan gets them too.
+      const modIds = [...new Set(summary.items.map((item) => item.modId).filter(Boolean))];
+      const { rows } = modIds.length
+        ? await query(
+            `SELECT id, name, kind, source, status, disabled, icon_url, project_id
+               FROM mods WHERE id = ANY($1)`,
+            [modIds]
+          )
+        : { rows: [] };
+      const mods = new Map(rows.map((row) => [row.id, row]));
+      viewSummary = {
+        ...summary,
+        items: summary.items.map((item) => ({
+          ...item,
+          mod: item.modId ? mods.get(item.modId) || null : null,
+        })),
+      };
+    }
     const connection = await syncConnectionById(target.connection_id);
     const powerReady = connection.driver === "pterodactyl"
       ? pterodactylConfigured(connection) && Boolean(target.remote_ref)
@@ -316,7 +336,7 @@ syncRouter.get("/instances/:id/servers/:targetId", async (req, res, next) => {
       title: `${instance.name} · ${target.name}`,
       instance,
       target,
-      summary,
+      summary: viewSummary,
       powerReady,
       isAdmin: req.session.user.role === "admin",
     });
