@@ -57,8 +57,8 @@ notificationsRouter.get("/api/notifications", async (req, res, next) => {
   try {
     const unread = await unreadCount(req.session.user.id);
     const { rows } = await query(
-      `SELECT id, title, body, kind, created_at FROM notifications
-        WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC LIMIT 4`,
+      `SELECT id, title, body, kind, created_at, meta, sync_job_id FROM notifications
+        WHERE user_id = $1 AND read_at IS NULL ORDER BY created_at DESC LIMIT 6`,
       [req.session.user.id]
     );
     res.json({ unread, items: rows });

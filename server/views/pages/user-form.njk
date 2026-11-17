@@ -72,6 +72,13 @@
             <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" {% if not editing %}required{% endif %}>
             <p class="hint">{% if editing %}Leave empty to keep the current password.{% else %}At least eight characters.{% endif %}</p>
           </div>
+          {% if editing %}
+          <div class="field full">
+            <label for="reason">Reason for change <span class="faint">optional</span></label>
+            <textarea class="admin-note" id="reason" name="reason" maxlength="500" placeholder="Tell the account holder why this change was made"></textarea>
+            <p class="hint">Shown in the notification this account receives.</p>
+          </div>
+          {% endif %}
         </div>
         <div class="form-actions">
           <button class="btn primary" type="submit">{% if editing %}Save user{% else %}Create user{% endif %}</button>

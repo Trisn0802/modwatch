@@ -9,6 +9,20 @@
   </div>
   <div class="dialog-body confirm-body">
     <p id="decision-message"></p>
+    <div class="table-wrap decision-table" id="decision-table" hidden>
+      <table class="board compact">
+        <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
+        <tbody id="decision-rows"></tbody>
+      </table>
+    </div>
+    <div id="decision-reason-wrap" hidden>
+      <p class="confirm-kicker" style="margin-top:14px">Reason from the admin</p>
+      <p class="admin-note" id="decision-reason"></p>
+    </div>
+    <div class="decision-photo" id="decision-photo" hidden>
+      <p class="confirm-kicker">New photo</p>
+      <img id="decision-photo-img" alt="New profile photo">
+    </div>
   </div>
   <div class="dialog-foot">
     <button class="btn primary" type="button" id="decision-ok">Got it</button>

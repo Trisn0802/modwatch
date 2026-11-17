@@ -165,6 +165,7 @@ export async function notificationsFor(userId, { filter = "all", limit = 100 } =
 
 export function notificationHref(n) {
   if (n.kind === "sync" && n.sync_job_id) return `/sync-jobs/${n.sync_job_id}`;
+  if (n.kind === "account") return "/settings/account";
   if (n.kind === "request") return "/approvals";
   if (n.mod_id) return `/mods/${n.mod_id}`;
   if (n.instance_id) return `/instances/${n.instance_id}`;

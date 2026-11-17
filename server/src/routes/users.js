@@ -1,8 +1,9 @@
 import express from "express";
 import bcrypt from "bcryptjs";
-import { query } from "../db.js";
+import { query, withTransaction } from "../db.js";
 import { requireAdmin, flash, csrfValid } from "../middleware.js";
 import { logActivity } from "../activity.js";
+import { createNotifications } from "../notify.js";
 import { ROLE, USER_STATUS } from "../labels.js";
 import { avatarUpload, receiveUpload, uploadPath, removeUpload, uploadMessage, finalizeImage } from "../uploads.js";
 import { discardPreview } from "../import.js";
@@ -172,22 +173,26 @@ usersRouter.post("/users/:id", async (req, res, next) => {
     const role = req.body.role === "admin" ? "admin" : "member";
     const status = req.body.status === "disabled" ? "disabled" : "active";
     const password = String(req.body.password || "");
+    const reason = String(req.body.reason || "").trim().slice(0, 500);
+    const cleanup = () => removeUpload(uploadPath(req.file, "avatars"));
 
     if (id === req.session.user.id && (role !== "admin" || status === "disabled")) {
-      await removeUpload(uploadPath(req.file, "avatars"));
+      await cleanup();
       flash(req, "error", "You cannot demote or disable your own account.");
       return res.redirect(`/users/${id}/edit`);
     }
-    if (account.role === "admin" && role !== "admin") {
+    // The workspace must keep one active admin, whether the last one is being
+    // demoted or disabled.
+    if (account.role === "admin" && account.status === "active" && (role !== "admin" || status !== "active")) {
       const admins = await query("SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND status = 'active'");
       if (admins.rows[0].n <= 1) {
-        await removeUpload(uploadPath(req.file, "avatars"));
+        await cleanup();
         flash(req, "error", "Keep at least one active admin.");
         return res.redirect(`/users/${id}/edit`);
       }
     }
     if (!name || !email.includes("@")) {
-      await removeUpload(uploadPath(req.file, "avatars"));
+      await cleanup();
       return res.status(400).render("pages/user-form.njk", {
         page: "users", title: `Edit ${account.name}`, account: { ...account, ...req.body }, roles: ROLE,
         error: "A name and a valid email are required.",
@@ -195,52 +200,115 @@ usersRouter.post("/users/:id", async (req, res, next) => {
     }
     const duplicate = await query("SELECT 1 FROM users WHERE email = $1 AND id <> $2", [email, id]);
     if (duplicate.rows.length) {
-      await removeUpload(uploadPath(req.file, "avatars"));
+      await cleanup();
       return res.status(409).render("pages/user-form.njk", {
         page: "users", title: `Edit ${account.name}`, account: { ...account, ...req.body }, roles: ROLE,
         error: "Another account already uses that email.",
       });
     }
-    if (password) {
-      if (password.length < 8) {
-        await removeUpload(uploadPath(req.file, "avatars"));
-        flash(req, "error", "A new password must be at least 8 characters.");
-        return res.redirect(`/users/${id}/edit`);
-      }
-      await query("UPDATE users SET password_hash = $1 WHERE id = $2", [await bcrypt.hash(password, 12), id]);
+    if (password && password.length < 8) {
+      await cleanup();
+      flash(req, "error", "A new password must be at least 8 characters.");
+      return res.redirect(`/users/${id}/edit`);
     }
+
     let avatarPath = account.avatar_path;
     if (req.file) {
       try {
         avatarPath = await finalizeImage(req.file, "avatars");
       } catch (err) {
+        await cleanup();
         flash(req, "error", uploadMessage(err));
         return res.redirect(`/users/${id}/edit`);
       }
-      await removeUpload(account.avatar_path);
     } else if (req.body.remove_avatar === "1") {
-      await removeUpload(account.avatar_path);
       avatarPath = null;
     }
-    await query(
-      "UPDATE users SET name = $1, email = $2, role = $3, status = $4, avatar_path = $5 WHERE id = $6",
-      [name, email, role, status, avatarPath, id]
-    );
-    if (role === "admin" && account.role !== "admin") {
-      await resolveRoleRequest(id, "approved", req.session.user.id, "Approved while editing the account.");
-    } else if (role !== "admin" && account.role === "admin") {
-      await resolveRoleRequest(id, "cancelled", req.session.user.id, "Cancelled while editing the account.");
+
+    const changes = [];
+    if (name !== account.name) changes.push({ label: "Name", from: account.name, to: name });
+    if (email !== account.email) changes.push({ label: "Email", from: account.email, to: email });
+    if (role !== account.role) {
+      changes.push({ label: "Role", from: ROLE[account.role] || account.role, to: ROLE[role] || role });
     }
+    if (status !== account.status) {
+      changes.push({
+        label: "Status",
+        from: USER_STATUS[account.status]?.label || account.status,
+        to: USER_STATUS[status]?.label || status,
+      });
+    }
+    if (password) changes.push({ label: "Password", from: "—", to: "Changed" });
+    const photoChanged = (avatarPath || null) !== (account.avatar_path || null);
+    if (photoChanged) {
+      changes.push({
+        label: "Photo",
+        from: account.avatar_path ? "Previous photo" : "No photo",
+        to: avatarPath ? "New photo" : "Removed",
+      });
+    }
+    const roleChanged = role !== account.role;
+    const passwordHash = password ? await bcrypt.hash(password, 12) : null;
+
+    try {
+      await withTransaction(async (client) => {
+        if (passwordHash) {
+          await client.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, id]);
+        }
+        await client.query(
+          "UPDATE users SET name = $1, email = $2, role = $3, status = $4, avatar_path = $5 WHERE id = $6",
+          [name, email, role, status, avatarPath, id]
+        );
+        if (roleChanged) {
+          await resolveRoleRequest(
+            id,
+            role === "admin" ? "approved" : "cancelled",
+            req.session.user.id,
+            role === "admin" ? "Approved while editing the account." : "Cancelled while editing the account.",
+            client.query.bind(client)
+          );
+        }
+      });
+    } catch (err) {
+      if (req.file) await removeUpload(avatarPath);
+      throw err;
+    }
+
+    // Remove the old file only after the row points at the new one.
+    if (photoChanged) await removeUpload(account.avatar_path);
+
     if (id === req.session.user.id) {
       req.session.user.name = name;
       req.session.user.email = email;
       req.session.user.avatar_path = avatarPath;
     }
+
+    if (id !== req.session.user.id && changes.length) {
+      await createNotifications({
+        kind: "account",
+        title: "Your account was updated",
+        body: "An admin changed your account details. Review the changes below.",
+        userIds: [id],
+        meta: {
+          changes,
+          reason,
+          photoUrl: photoChanged && avatarPath ? `/uploads/${avatarPath}` : "",
+        },
+        extra: { roleChanged, accountChanged: true },
+      });
+    }
+
+    // A changed password or a disabled account must not keep an old session
+    // alive in another browser.
+    if (id !== req.session.user.id && (passwordHash || status !== "active")) {
+      await query(`DELETE FROM "session" WHERE sess->'user'->>'id' = $1`, [String(id)]);
+    }
+
     await logActivity({
       userId: req.session.user.id, action: "user_updated", subjectType: "user", subjectId: id,
-      meta: { name, email, role, status },
+      meta: { name, email, role, status, changes, reason, password_changed: Boolean(password), role_changed: roleChanged },
     });
-    flash(req, "ok", `${name} updated.`);
+    flash(req, "ok", `${name} updated.${changes.length && id !== req.session.user.id ? " The account was notified." : ""}`);
     res.redirect("/users");
   } catch (err) {
     next(err);

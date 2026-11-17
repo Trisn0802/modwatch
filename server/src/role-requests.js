@@ -36,8 +36,8 @@ export async function createRoleRequest(userId, note = "") {
   return rows[0] || null;
 }
 
-export async function resolveRoleRequest(userId, status, deciderId, note = "") {
-  await query(
+export async function resolveRoleRequest(userId, status, deciderId, note = "", run = query) {
+  await run(
     `UPDATE role_requests SET status = $2, decided_by = $3, decision_note = $4, decided_at = now()
       WHERE user_id = $1 AND status = 'pending'`,
     [userId, status, deciderId, String(note || "").trim().slice(0, 500)]

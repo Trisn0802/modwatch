@@ -92,6 +92,12 @@
   const decisionKicker = document.getElementById("decision-kicker");
   const decisionTitle = document.getElementById("decision-title");
   const decisionMessage = document.getElementById("decision-message");
+  const decisionTable = document.getElementById("decision-table");
+  const decisionRows = document.getElementById("decision-rows");
+  const decisionReasonWrap = document.getElementById("decision-reason-wrap");
+  const decisionReason = document.getElementById("decision-reason");
+  const decisionPhoto = document.getElementById("decision-photo");
+  const decisionPhotoImg = document.getElementById("decision-photo-img");
   let decisionCurrent = null;
   let lastDecisionId = null;
 
@@ -143,9 +149,34 @@
     if (!decisionModal || !item || decisionModal.open) return false;
     decisionCurrent = item;
     if (item.id) lastDecisionId = item.id;
-    if (decisionKicker) decisionKicker.textContent = item.roleChanged ? "Account update" : "Decision";
+    const meta = item.meta || {};
+    const changes = Array.isArray(meta.changes) ? meta.changes : [];
+    const reason = String(meta.reason || "").trim();
+    const photoUrl = String(meta.photoUrl || "");
+    if (decisionKicker) decisionKicker.textContent = item.roleChanged || changes.length ? "Account update" : "Decision";
     if (decisionTitle) decisionTitle.textContent = item.title || "Request decided";
     if (decisionMessage) decisionMessage.textContent = item.body || "An admin decided on your request.";
+    if (decisionTable) decisionTable.hidden = !changes.length;
+    if (decisionRows) {
+      decisionRows.replaceChildren();
+      for (const change of changes) {
+        const row = document.createElement("tr");
+        for (const value of [change.label, change.from, change.to]) {
+          const cell = document.createElement("td");
+          cell.textContent = value || "—";
+          row.appendChild(cell);
+        }
+        decisionRows.appendChild(row);
+      }
+    }
+    if (decisionReasonWrap) decisionReasonWrap.hidden = !reason;
+    if (decisionReason) decisionReason.textContent = reason;
+    if (decisionPhoto) decisionPhoto.hidden = !photoUrl;
+    if (decisionPhotoImg) {
+      decisionPhotoImg.hidden = !photoUrl;
+      if (photoUrl) decisionPhotoImg.src = photoUrl;
+      else decisionPhotoImg.removeAttribute("src");
+    }
     decisionModal.showModal();
     document.body.classList.add("dialog-open");
     return true;
@@ -197,14 +228,15 @@
     else refreshBadge();
     if (page === "notifications") scheduleReload();
 
-    if (data.kind !== "decision") return;
+    if (!["decision", "account"].includes(data.kind)) return;
     if (data.id && String(data.id) === String(lastDecisionId)) return;
     lastDecisionId = data.id || lastDecisionId;
     const item = {
       id: data.id || null,
-      title: data.title || "Request decided",
+      title: data.title || (data.kind === "account" ? "Your account was updated" : "Request decided"),
       body: data.body || "",
       roleChanged: Boolean(data.roleChanged),
+      meta: data.meta || {},
     };
     if (data.roleChanged) {
       // Menus and permissions come from the session, so reload to pick up the
@@ -261,8 +293,18 @@
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         const seen = seenDecisions();
-        const item = (data?.items || []).find((entry) => entry.kind === "decision" && !seen.has(String(entry.id)));
-        if (item) revealDecision({ id: item.id, title: item.title, body: item.body, roleChanged: false });
+        const item = (data?.items || []).find((entry) =>
+          (entry.kind === "decision" || entry.kind === "account") && !seen.has(String(entry.id))
+        );
+        if (item) {
+          revealDecision({
+            id: item.id,
+            title: item.title,
+            body: item.body,
+            roleChanged: false,
+            meta: item.meta || {},
+          });
+        }
       })
       .catch(() => {});
   }

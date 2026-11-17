@@ -1138,6 +1138,28 @@ a.mod-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   transition: border-color var(--t-hover) ease;
 }
 .field textarea { height: auto; min-height: 88px; padding: 9px 11px; line-height: 1.5; resize: vertical; }
+.field textarea.admin-note {
+  border-left: 2px solid var(--brand);
+  border-radius: 0 8px 8px 0;
+  background: var(--raised);
+}
+.admin-note {
+  margin: 0;
+  padding: 9px 11px;
+  border-left: 2px solid var(--brand);
+  border-radius: 0 8px 8px 0;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.decision-table { margin-top: 14px; }
+.decision-table table { font-size: 12px; }
+.decision-photo { margin-top: 14px; }
+.decision-photo img {
+  width: 72px; height: 72px; object-fit: cover;
+  border: 1px solid var(--rule); border-radius: 10px;
+}
 .field select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none' stroke='%2396a2b0' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");

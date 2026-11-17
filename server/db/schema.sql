@@ -245,19 +245,20 @@ CREATE TABLE IF NOT EXISTS notifications (
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   instance_id INTEGER REFERENCES instances(id) ON DELETE CASCADE,
   mod_id      INTEGER REFERENCES mods(id) ON DELETE CASCADE,
-  kind        TEXT NOT NULL CHECK (kind IN ('update','unknown','request','decision','error','system','sync')),
+  kind        TEXT NOT NULL CHECK (kind IN ('update','unknown','request','decision','error','system','sync','account')),
   version_id  TEXT,
   title       TEXT NOT NULL,
   body        TEXT NOT NULL DEFAULT '',
   read_at     TIMESTAMPTZ,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}'::jsonb;
 CREATE UNIQUE INDEX IF NOT EXISTS notifications_update_uq
   ON notifications (user_id, mod_id, version_id) WHERE kind = 'update';
 CREATE INDEX IF NOT EXISTS notifications_unread_idx ON notifications (user_id, read_at);
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_kind_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_kind_check
-  CHECK (kind IN ('update','unknown','request','decision','error','system','sync'));
+  CHECK (kind IN ('update','unknown','request','decision','error','system','sync','account'));
 
 CREATE TABLE IF NOT EXISTS check_runs (
   id          SERIAL PRIMARY KEY,
