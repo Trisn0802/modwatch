@@ -1,0 +1,16 @@
+{% from "partials/icon.njk" import icon %}
+<dialog class="confirm-modal decision-modal" id="decision-modal" aria-labelledby="decision-title">
+  <div class="dialog-head">
+    <div>
+      <p class="confirm-kicker" id="decision-kicker">Decision</p>
+      <h2 class="dialog-title" id="decision-title">Request decided</h2>
+    </div>
+    <button class="icon-btn" type="button" id="decision-close" aria-label="Close">{{ icon('close') }}</button>
+  </div>
+  <div class="dialog-body confirm-body">
+    <p id="decision-message"></p>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn primary" type="button" id="decision-ok">Got it</button>
+  </div>
+</dialog>

@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import { query } from "./db.js";
+
 export function ensureCsrf(req, res, next) {
   if (!req.session.csrf) req.session.csrf = crypto.randomBytes(24).toString("hex");
   res.locals.csrfToken = req.session.csrf;
@@ -71,6 +73,42 @@ export function csrfProtection(req, res, next) {
     });
   }
   next();
+}
+
+// The role is copied into the session at sign-in. An admin can change it while
+// the member keeps the same session, so the cached snapshot must be refreshed
+// before any page, menu or requireAdmin check reads it.
+export async function refreshSessionUser(req, res, next) {
+  const cached = req.session?.user;
+  if (!cached?.id) return next();
+  try {
+    const { rows } = await query(
+      "SELECT id, name, email, role, status, avatar_path FROM users WHERE id = $1",
+      [cached.id]
+    );
+    const user = rows[0];
+    if (!user || user.status !== "active") {
+      return req.session.destroy(() => {
+        if (req.path.startsWith("/api/")) {
+          return res.status(401).json({ ok: false, error: "Your session has ended." });
+        }
+        res.redirect("/login");
+      });
+    }
+    const fresh = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar_path: user.avatar_path || null,
+    };
+    const changed = ["id", "name", "email", "role", "avatar_path"].some((field) => cached[field] !== fresh[field]);
+    if (!changed) return next();
+    req.session.user = fresh;
+    req.session.save((err) => (err ? next(err) : next()));
+  } catch (err) {
+    next(err);
+  }
 }
 
 export function requireAuth(req, res, next) {

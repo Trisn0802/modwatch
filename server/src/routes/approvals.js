@@ -146,6 +146,7 @@ approvalsRouter.post("/approvals/roles/:id/approve", async (req, res, next) => {
       title: "Admin role approved",
       body: note ? `An admin approved your request: ${note}` : "An admin approved your request. You can now manage instances, users and approvals.",
       userIds: [request.user_id],
+      extra: { roleChanged: true },
     });
     await logActivity({
       userId: req.session.user.id, action: "role_approved", subjectType: "role_request", subjectId: id,

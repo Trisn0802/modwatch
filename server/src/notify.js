@@ -17,21 +17,29 @@ export function notificationTitle(kind, title) {
   return `${KIND_LABEL[kind] || "Notice"}: ${title}`;
 }
 
-export async function createNotifications({ kind, instanceId = null, modId = null, versionId = null, title, body = "", userIds = null }) {
+export async function createNotifications({ kind, instanceId = null, modId = null, versionId = null, title, body = "", userIds = null, extra = {} }) {
   let targets = userIds;
   if (!targets) {
     const { rows } = await query("SELECT id FROM users WHERE status = 'active'");
     targets = rows.map((r) => r.id);
   }
   for (const userId of targets) {
-    await query(
-      `INSERT INTO notifications (user_id, instance_id, mod_id, kind, version_id, title, body)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT DO NOTHING`,
-      [userId, instanceId, modId, kind, versionId, title, body]
-    ).catch((err) => console.error("notification failed:", err.message));
+    let id = null;
+    try {
+      const { rows } = await query(
+        `INSERT INTO notifications (user_id, instance_id, mod_id, kind, version_id, title, body)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [userId, instanceId, modId, kind, versionId, title, body]
+      );
+      id = rows[0]?.id ?? null;
+    } catch (err) {
+      console.error("notification failed:", err.message);
+    }
     const unread = await unreadCount(userId).catch(() => null);
     await notifyUser(userId, {
+      id,
       unread,
       kind,
       title,
@@ -40,6 +48,7 @@ export async function createNotifications({ kind, instanceId = null, modId = nul
       modId,
       versionId,
       createdAt: new Date().toISOString(),
+      ...extra,
     });
   }
 }

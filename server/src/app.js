@@ -12,7 +12,7 @@ import bcrypt from "bcryptjs";
 import { config } from "./config.js";
 import { pool, query, waitForDb } from "./db.js";
 import { ensureSettings } from "./settings.js";
-import { ensureCsrf, csrfProtection, requireAuth, exposeFlash } from "./middleware.js";
+import { ensureCsrf, csrfProtection, requireAuth, refreshSessionUser, exposeFlash } from "./middleware.js";
 import { navStats, notificationHref } from "./queries.js";
 import { notificationFeed } from "./notify.js";
 import { cleanupPreviews } from "./import.js";
@@ -210,6 +210,7 @@ app.use(
 
 app.use(ensureCsrf);
 app.use(csrfProtection);
+app.use(refreshSessionUser);
 app.use(exposeFlash);
 
 app.use((req, res, next) => {

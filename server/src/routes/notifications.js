@@ -66,3 +66,21 @@ notificationsRouter.get("/api/notifications", async (req, res, next) => {
     next(err);
   }
 });
+
+// The decision dialog marks its notification as read when the member closes it,
+// without leaving the page.
+notificationsRouter.post("/api/notifications/:id/read", async (req, res, next) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (Number.isFinite(id)) {
+      await query(
+        "UPDATE notifications SET read_at = now() WHERE id = $1 AND user_id = $2 AND read_at IS NULL",
+        [id, req.session.user.id]
+      );
+    }
+    const unread = await unreadCount(req.session.user.id);
+    res.json({ ok: true, unread });
+  } catch (err) {
+    next(err);
+  }
+});
