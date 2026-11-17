@@ -253,11 +253,13 @@ modsRouter.post("/instances/:id/mods", async (req, res, next) => {
         `INSERT INTO mod_requests (instance_id, requested_by, payload) VALUES ($1,$2,$3::jsonb) RETURNING id`,
         [instance.id, req.session.user.id, JSON.stringify(payloadJson)]
       );
+      const { rows: admins } = await query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
       await createNotifications({
         kind: "request",
         instanceId: instance.id,
         title: `${req.session.user.name} requested ${payload.name}`,
         body: `${instance.name} · waiting for an admin decision.`,
+        userIds: admins.map((row) => row.id),
       });
       await telegramSend(
         `ModWatch · new request\n${req.session.user.name} asked to add ${payload.name} to ${instance.name}.`
